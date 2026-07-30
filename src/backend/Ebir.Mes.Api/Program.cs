@@ -1,13 +1,16 @@
 using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
+using Ebir.Mes.Api.Endpoints.Pallets;
 using Ebir.Mes.Api.Endpoints.Replenishment;
 using Ebir.Mes.Api.Endpoints.Scrap;
 using Ebir.Mes.Application.LineIdentification;
 using Ebir.Mes.Application.LineSessions;
+using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Replenishment;
 using Ebir.Mes.Application.Scrap;
 using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
+using Ebir.Mes.Infrastructure.Pallets;
 using Ebir.Mes.Infrastructure.Replenishment;
 using Ebir.Mes.Infrastructure.Scrap;
 
@@ -28,6 +31,7 @@ builder.Services.AddScoped<RegisterScrap>();
 builder.Services.AddScoped<ReviewScrap>();
 builder.Services.AddScoped<CreateReplenishmentRequest>();
 builder.Services.AddScoped<TransitionReplenishmentRequest>();
+builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -73,6 +77,9 @@ builder.Services.AddScoped<IReplenishmentRequestCreator>(_ =>
 builder.Services.AddScoped<IReplenishmentRequestTransitioner>(_ =>
     new SqlReplenishmentRequestTransitioner(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IPalletCloser>(_ =>
+    new SqlPalletCloser(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.MapGet("/health/live", () => Results.Ok(new
@@ -100,6 +107,7 @@ app.MapRegisterScrapEndpoints();
 app.MapReviewScrapEndpoints();
 app.MapCreateReplenishmentRequestEndpoints();
 app.MapTransitionReplenishmentRequestEndpoints();
+app.MapClosePalletEndpoints();
 app.Run();
 
 public partial class Program;
