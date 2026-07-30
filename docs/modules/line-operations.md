@@ -46,3 +46,15 @@ Una salida correcta devuelve `200`, el número de recursos productivos que
 permanecen activos en la sesión y la correlación recibida. Los rechazos
 conocidos de `prod.registrar_salida_productiva` devuelven `409`; las solicitudes
 inválidas devuelven `400` y los fallos no clasificados se ocultan tras `503`.
+
+## Cambio de turno pendiente
+
+`POST /api/line-sessions/{sessionId}/shift-change-pending` recibe
+`correlationId`. La sesión debe ser positiva y la correlación un UUID distinto
+de cero.
+
+La operación es idempotente: devuelve `200` y `changeMarked` indica si esta
+ejecución realizó el cambio (`true`) o si ya estaba pendiente (`false`). Los
+rechazos conocidos de `prod.marcar_cambio_turno_pendiente` devuelven `409`; las
+solicitudes inválidas devuelven `400` y los fallos no clasificados se ocultan
+tras `503`.
