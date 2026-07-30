@@ -17,6 +17,7 @@ builder.Services.AddScoped<StartOperatorStop>();
 builder.Services.AddScoped<FinishOperatorStop>();
 builder.Services.AddScoped<StartCapacitySubstitution>();
 builder.Services.AddScoped<FinishCapacitySubstitution>();
+builder.Services.AddScoped<CorrectCurrentShiftTimeEntry>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -47,6 +48,9 @@ builder.Services.AddScoped<ICapacitySubstitutionStarter>(_ =>
 builder.Services.AddScoped<ICapacitySubstitutionFinisher>(_ =>
     new SqlCapacitySubstitutionFinisher(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<ICurrentShiftTimeEntryCorrector>(_ =>
+    new SqlCurrentShiftTimeEntryCorrector(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.MapGet("/health/live", () => Results.Ok(new
@@ -69,6 +73,7 @@ app.MapOperatorStopEndpoints();
 app.MapFinishOperatorStopEndpoints();
 app.MapCapacitySubstitutionEndpoints();
 app.MapFinishCapacitySubstitutionEndpoints();
+app.MapCorrectCurrentShiftTimeEntryEndpoints();
 app.Run();
 
 public partial class Program;

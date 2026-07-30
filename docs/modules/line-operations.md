@@ -114,3 +114,16 @@ Una respuesta `200` incluye la sustitución finalizada, los recursos productivos
 que permanecen activos y la correlación recibida. Los rechazos `52500–52519`
 se traducen a códigos funcionales seguros; las solicitudes inválidas devuelven
 `400`, los conflictos `409` y los fallos no clasificados se ocultan tras `503`.
+
+## Corrección de fichaje del turno actual
+
+`POST /api/time-entries/{timeEntryId}/corrections` recibe
+`correctedEntryUtc`, `correctedExitUtc`, `supervisorId`, `reason` y
+`correlationId`. Los instantes se normalizan a UTC; la entrada es obligatoria,
+la salida es opcional y no puede precederla. El motivo es obligatorio, se
+normaliza y no puede superar 500 caracteres.
+
+Una respuesta `200` conserva el identificador del fichaje y la correlación.
+Los rechazos `52600–52621` se traducen a códigos funcionales seguros; las
+solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no
+clasificados se ocultan tras `503`.
