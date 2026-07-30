@@ -70,3 +70,14 @@ sistema y la correlación recibida. Los rechazos conocidos de
 `prod.finalizar_sesion_turno` devuelven `409` mediante códigos funcionales que
 no exponen detalles de NAV, impresión o SQL. Las solicitudes inválidas
 devuelven `400` y los fallos no clasificados se ocultan tras `503`.
+
+## Inicio de paro de operario
+
+`POST /api/line-sessions/{sessionId}/operator-stops` recibe `employeeId`,
+`reason` y `correlationId`. Los motivos admitidos son `WC` y `PAUSA_CALOR`.
+
+Una operación correcta devuelve `201` con el identificador del paro, los
+recursos productivos que permanecen activos y la correlación. Los rechazos
+conocidos de `prod.iniciar_paro_operario` (`52200–52213`) se traducen a códigos
+funcionales; las solicitudes inválidas devuelven `400`, los conflictos `409` y
+los fallos no clasificados se ocultan tras `503`.
