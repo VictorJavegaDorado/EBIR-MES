@@ -22,6 +22,11 @@ El nuevo contrato:
 - sustituye para `mes_runtime` el permiso del contrato anterior por el nuevo;
 - no llama a NAV ni a impresoras.
 
+La instalación valida previamente los objetos requeridos y el rol
+`mes_runtime`. La creación del procedimiento, el traslado de permisos y su
+validación posterior se realizan en una única transacción; cualquier fallo
+revierte el paquete completo.
+
 ## Errores nuevos
 
 ```text
@@ -33,7 +38,9 @@ El nuevo contrato:
 ```
 
 Los rechazos productivos `51400–51409` del procedimiento delegado se conservan
-sin modificación.
+sin modificación. La prueba SQL funcional verifica `51400` como caso
+representativo y las pruebas backend comprueban la traducción segura de todo el
+rango.
 
 ## Instalación futura
 
@@ -54,9 +61,9 @@ Las pruebas preparadas en `tests/database/pallet_close_idempotency` separan
 prevuelo/fixtures (`00_PREVUELO_Y_FIXTURES_014.sql`), funcionales
 (`01_FUNCIONALES_014.sql`), concurrencia en dos clientes independientes
 (`05_CONCURRENCIA_A_014.sql` y `06_CONCURRENCIA_B_014.sql`), permisos
-(`07_PERMISOS_014.sql`) y limpieza (`99_LIMPIEZA_014.sql`). Cada fase requerirá
-autorización propia. Los funcionales prueban `55402` con auditoría sintética de
-autor válido y `55403` sin filas parciales; la concurrencia valida tanto el
-reintento idéntico como el único ganador ante correlaciones distintas mediante
-barreras de ambos clientes. Ningún script de prueba se ejecuta durante esta
-entrega.
+(`07_PERMISOS_014.sql`), limpieza (`99A_LIMPIEZA_014.sql`) e integridad
+(`99B_DBCC_014.sql`). Cada fase requerirá autorización propia. Los funcionales
+prueban `55402` con auditoría sintética de autor válido y `55403` sin filas
+parciales; la concurrencia conserva una transacción exterior en el cliente A y
+exige una espera observable en B antes de reunir los resultados mediante
+barreras auditables. Ningún script de prueba se ejecuta durante esta entrega.

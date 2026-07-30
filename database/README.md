@@ -107,7 +107,10 @@ eliminados.
 `prod.cerrar_palet_idempotente` será el contrato seguro para la futura API de
 paletización. Serializa por correlación, devuelve el mismo palé ante una
 repetición idéntica y rechaza reutilizaciones incompatibles. También traslada
-el permiso de `mes_runtime` desde el contrato anterior.
+el permiso de `mes_runtime` desde el contrato anterior. La instalación queda
+protegida por precondiciones, transacción y validación posterior. Las pruebas
+preparadas fuerzan contención observable entre dos clientes y separan la
+limpieza de fixtures de `DBCC CHECKDB`.
 
 El paquete no se ha instalado ni se ha conectado con SQL durante su
 preparación.
