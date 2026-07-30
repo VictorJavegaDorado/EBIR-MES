@@ -14,11 +14,30 @@ public static class ClosePalletEndpoints
         return endpoints;
     }
 
-    private static async Task<IResult> HandleAsync(long reservationId, ClosePalletRequest request, ClosePallet useCase, CancellationToken cancellationToken)
+    private static async Task<IResult> HandleAsync(
+        long reservationId,
+        ClosePalletRequest request,
+        ClosePallet useCase,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
     {
+        var logger = loggerFactory.CreateLogger("PalletClose");
+        logger.LogInformation(
+            "Pallet close requested for reservation {ReservationId} with correlation {CorrelationId}.",
+            reservationId,
+            request.CorrelationId);
         try
         {
             var result = await useCase.ExecuteAsync(new(reservationId, request.GoodQuantity, request.ClosedByEmployeeId, request.AuthorizingSupervisorId, request.IsPartial, request.PartialReason, request.CorrelationId), cancellationToken);
+            logger.Log(
+                result.Outcome == ClosePalletOutcome.Closed
+                    ? LogLevel.Information
+                    : LogLevel.Warning,
+                "Pallet close finished with outcome {Outcome}, code {Code}, reservation {ReservationId} and correlation {CorrelationId}.",
+                result.Outcome,
+                result.ErrorCode,
+                reservationId,
+                request.CorrelationId);
             return result.Outcome switch
             {
                 ClosePalletOutcome.Closed => Results.Ok(new ClosePalletResponse(result.Pallet!.PalletId, request.CorrelationId)),
@@ -29,6 +48,10 @@ public static class ClosePalletEndpoints
         }
         catch (PalletCloseUnavailableException)
         {
+            logger.LogError(
+                "Pallet close unavailable for reservation {ReservationId} and correlation {CorrelationId}.",
+                reservationId,
+                request.CorrelationId);
             return Results.Problem(statusCode: 503, title: "Cierre de palé no disponible", detail: "No se puede cerrar el palé en este momento.", extensions: new Dictionary<string, object?> { ["code"] = "PALLET_CLOSE_UNAVAILABLE" });
         }
     }

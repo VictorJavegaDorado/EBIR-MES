@@ -28,3 +28,20 @@ paquete 014 esté instalado. Hasta entonces, y ante errores de disponibilidad,
 responde de forma segura sin exponer detalles SQL. Las intenciones locales de
 NAV e impresión se persisten por el procedimiento; el endpoint no los llama.
 
+## Preparación operativa del cierre
+
+El terminal identifica primero una línea mediante `GET /api/lines/{code}` y
+consulta `GET /api/lines/{lineId}/pallet-close-options`. Esta consulta de solo
+lectura devuelve las reservas activas de la sesión actual de la línea, los
+empleados MES activos con rol vigente `OPERARIO` o `SUPERVISOR` y los
+supervisores MES activos.
+
+Si no hay reservas activas devuelve una lista vacía. El frontend bloquea el
+cierre mientras carga las opciones y permite recuperar un fallo de consulta.
+Los errores temporales conservan la correlación para un reintento sin cambios.
+Los conflictos productivos o de correlación bloquean el replay directo y
+cualquier edición invalida la correlación anterior.
+
+Los logs registran reserva, correlación, resultado y código funcional. No
+registran nombres de empleados, secretos ni detalles SQL.
+

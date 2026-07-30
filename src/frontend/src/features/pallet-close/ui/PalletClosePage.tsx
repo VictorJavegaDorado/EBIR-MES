@@ -1,10 +1,16 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { closePallet, PalletCloseApiError } from "../api/closePallet";
+import {
+  getPalletCloseOptions,
+  PalletCloseOptionsApiError,
+} from "../api/getPalletCloseOptions";
 import type {
   ClosePalletCommand,
+  PalletCloseOptions,
   PalletCloseViewState,
   PartialReason,
 } from "../model/palletClose";
+import type { IdentifiedLine } from "../../line-identification/model/lineIdentification";
 
 type FormValues = {
   reservationId: string;
@@ -29,9 +35,22 @@ const initialForm: FormValues = {
   partialReason: "FIN_TURNO",
 };
 
-export function PalletClosePage() {
+type OptionsState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "ready"; options: PalletCloseOptions }
+  | { status: "error"; code: string };
+
+type Props = {
+  line?: IdentifiedLine;
+};
+
+export function PalletClosePage({ line }: Props = {}) {
   const [form, setForm] = useState<FormValues>(initialForm);
   const [viewState, setViewState] = useState<PalletCloseViewState>({
+    status: "idle",
+  });
+  const [optionsState, setOptionsState] = useState<OptionsState>({
     status: "idle",
   });
   const activeRequest = useRef<AbortController | null>(null);
@@ -40,6 +59,52 @@ export function PalletClosePage() {
   useEffect(() => {
     return () => activeRequest.current?.abort();
   }, []);
+
+  useEffect(() => {
+    if (!line) {
+      setOptionsState({ status: "idle" });
+      return;
+    }
+
+    const request = new AbortController();
+    setOptionsState({ status: "loading" });
+    getPalletCloseOptions(line.id, request.signal)
+      .then((options) => {
+        setOptionsState({ status: "ready", options });
+      })
+      .catch((error: unknown) => {
+        if (request.signal.aborted) {
+          return;
+        }
+        setOptionsState({
+          status: "error",
+          code:
+            error instanceof PalletCloseOptionsApiError
+              ? error.code
+              : "PALLET_CLOSE_OPTIONS_UNAVAILABLE",
+        });
+      });
+    return () => request.abort();
+  }, [line]);
+
+  function reloadOptions() {
+    if (!line) {
+      return;
+    }
+    const request = new AbortController();
+    setOptionsState({ status: "loading" });
+    getPalletCloseOptions(line.id, request.signal)
+      .then((options) => setOptionsState({ status: "ready", options }))
+      .catch((error: unknown) =>
+        setOptionsState({
+          status: "error",
+          code:
+            error instanceof PalletCloseOptionsApiError
+              ? error.code
+              : "PALLET_CLOSE_OPTIONS_UNAVAILABLE",
+        }),
+      );
+  }
 
   function updateForm(patch: Partial<FormValues>) {
     activeRequest.current?.abort();
@@ -63,13 +128,17 @@ export function PalletClosePage() {
       reservationId === null ||
       goodQuantity === null ||
       closedByEmployeeId === null ||
-      (form.authorizingSupervisorId.trim() && supervisor === null)
+      (form.authorizingSupervisorId.trim() && supervisor === null) ||
+      (form.isPartial && supervisor === null)
     ) {
       setViewState({
         status: "error",
         code: "PALLET_CLOSE_INPUT_INVALID",
         message:
-          "Revisa la reserva, la cantidad y los identificadores de empleado.",
+          form.isPartial && supervisor === null
+            ? "Un cierre parcial requiere un supervisor autorizador."
+            : "Revisa la reserva, la cantidad y los identificadores de empleado.",
+        retryable: false,
       });
       return;
     }
@@ -89,7 +158,7 @@ export function PalletClosePage() {
     if (!attempt.current || attempt.current.fingerprint !== fingerprint) {
       attempt.current = {
         fingerprint,
-        correlationId: globalThis.crypto.randomUUID(),
+        correlationId: createCorrelationId(),
       };
     }
 
@@ -121,6 +190,7 @@ export function PalletClosePage() {
           status: "error",
           code: error.code,
           message: error.message,
+          retryable: error.retryable,
           correlationId,
         });
         return;
@@ -131,6 +201,7 @@ export function PalletClosePage() {
         code: "PALLET_CLOSE_UNAVAILABLE",
         message:
           "No se puede contactar con el servicio de cierre. Reintenta la misma solicitud.",
+        retryable: true,
         correlationId,
       });
     } finally {
@@ -155,7 +226,10 @@ export function PalletClosePage() {
           <p className="eyebrow">Paletización · operación manual</p>
           <h1>Cierra un palé con reintento seguro</h1>
           <p className="welcome-description">
-            Introduce la reserva y los datos del cierre. Si la respuesta se
+            {line
+              ? `Línea ${line.code} · ${line.name}. `
+              : ""}
+            Selecciona la reserva y los datos del cierre. Si la respuesta se
             pierde, vuelve a enviar sin cambiar los campos.
           </p>
         </div>
@@ -180,19 +254,63 @@ export function PalletClosePage() {
           </div>
 
           <div className="pallet-close-fields">
+            {optionsState.status === "loading" && (
+              <div className="pallet-options-status full" role="status">
+                Cargando reservas y empleados…
+              </div>
+            )}
+            {optionsState.status === "error" && (
+              <div className="pallet-options-status error full" role="alert">
+                <span>
+                  No se pueden cargar las opciones de cierre.{" "}
+                  <code>{optionsState.code}</code>
+                </span>
+                <button type="button" onClick={reloadOptions}>
+                  Reintentar carga
+                </button>
+              </div>
+            )}
             <div className="pallet-field">
               <label htmlFor="reservation-id">Reserva de palé</label>
-              <input
-                id="reservation-id"
-                inputMode="numeric"
-                min="1"
-                step="1"
-                value={form.reservationId}
-                onChange={(event) =>
-                  updateForm({ reservationId: event.target.value })
-                }
-                aria-required="true"
-              />
+              {optionsState.status === "ready" ? (
+                <select
+                  id="reservation-id"
+                  value={form.reservationId}
+                  onChange={(event) => {
+                    const reservation = optionsState.options.reservations.find(
+                      (item) => String(item.id) === event.target.value,
+                    );
+                    updateForm({
+                      reservationId: event.target.value,
+                      goodQuantity: reservation
+                        ? String(reservation.reservedQuantity)
+                        : "",
+                    });
+                  }}
+                  aria-required="true"
+                >
+                  <option value="">Selecciona una reserva</option>
+                  {optionsState.options.reservations.map((reservation) => (
+                    <option key={reservation.id} value={reservation.id}>
+                      {reservation.orderNumber} · Reserva {reservation.id} ·{" "}
+                      {reservation.reservedQuantity} uds.
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="reservation-id"
+                  inputMode="numeric"
+                  min="1"
+                  step="1"
+                  value={form.reservationId}
+                  onChange={(event) =>
+                    updateForm({ reservationId: event.target.value })
+                  }
+                  aria-required="true"
+                  disabled={Boolean(line)}
+                />
+              )}
               <small>Identificador de la reserva activa.</small>
             </div>
 
@@ -214,34 +332,73 @@ export function PalletClosePage() {
 
             <div className="pallet-field">
               <label htmlFor="closed-by-employee-id">Empleado que cierra</label>
-              <input
-                id="closed-by-employee-id"
-                inputMode="numeric"
-                min="1"
-                step="1"
-                value={form.closedByEmployeeId}
-                onChange={(event) =>
-                  updateForm({ closedByEmployeeId: event.target.value })
-                }
-                aria-required="true"
-              />
+              {optionsState.status === "ready" ? (
+                <select
+                  id="closed-by-employee-id"
+                  value={form.closedByEmployeeId}
+                  onChange={(event) =>
+                    updateForm({ closedByEmployeeId: event.target.value })
+                  }
+                  aria-required="true"
+                >
+                  <option value="">Selecciona un empleado</option>
+                  {optionsState.options.employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name} · {employee.code}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="closed-by-employee-id"
+                  inputMode="numeric"
+                  min="1"
+                  step="1"
+                  value={form.closedByEmployeeId}
+                  onChange={(event) =>
+                    updateForm({ closedByEmployeeId: event.target.value })
+                  }
+                  aria-required="true"
+                  disabled={Boolean(line)}
+                />
+              )}
               <small>Identificador MES del operario o supervisor.</small>
             </div>
 
             <div className="pallet-field">
               <label htmlFor="supervisor-id">Supervisor autorizador</label>
-              <input
-                id="supervisor-id"
-                inputMode="numeric"
-                min="1"
-                step="1"
-                value={form.authorizingSupervisorId}
-                onChange={(event) =>
-                  updateForm({
-                    authorizingSupervisorId: event.target.value,
-                  })
-                }
-              />
+              {optionsState.status === "ready" ? (
+                <select
+                  id="supervisor-id"
+                  value={form.authorizingSupervisorId}
+                  onChange={(event) =>
+                    updateForm({
+                      authorizingSupervisorId: event.target.value,
+                    })
+                  }
+                >
+                  <option value="">Sin supervisor</option>
+                  {optionsState.options.supervisors.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name} · {employee.code}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="supervisor-id"
+                  inputMode="numeric"
+                  min="1"
+                  step="1"
+                  value={form.authorizingSupervisorId}
+                  onChange={(event) =>
+                    updateForm({
+                      authorizingSupervisorId: event.target.value,
+                    })
+                  }
+                  disabled={Boolean(line)}
+                />
+              )}
               <small>Opcional; el backend indicará cuándo es obligatorio.</small>
             </div>
 
@@ -283,12 +440,18 @@ export function PalletClosePage() {
           <button
             className="primary-action pallet-submit"
             type="submit"
-            disabled={viewState.status === "loading"}
+            disabled={
+              viewState.status === "loading" ||
+              (Boolean(line) && optionsState.status !== "ready") ||
+              (viewState.status === "error" && !viewState.retryable)
+            }
           >
             {viewState.status === "loading"
               ? "Cerrando palé…"
-              : viewState.status === "error" && viewState.correlationId
+              : viewState.status === "error" && viewState.retryable
                 ? "Reintentar cierre"
+                : viewState.status === "error"
+                  ? "Revisa los datos para continuar"
                 : "Confirmar cierre"}
             <span aria-hidden="true">→</span>
           </button>
@@ -388,4 +551,24 @@ function parsePositiveInteger(value: string): number | null {
 
   const parsed = Number(normalized);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function createCorrelationId(): string {
+  if (typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
 }

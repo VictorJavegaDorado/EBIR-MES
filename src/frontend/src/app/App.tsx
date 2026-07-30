@@ -2,11 +2,15 @@ import { useState } from "react";
 import { LineIdentificationPage } from "../features/line-identification/ui/LineIdentificationPage";
 import { PalletClosePage } from "../features/pallet-close/ui/PalletClosePage";
 import { AppShell } from "../widgets/app-shell/ui/AppShell";
+import type { IdentifiedLine } from "../features/line-identification/model/lineIdentification";
 
 export function App() {
   const [activeFeature, setActiveFeature] = useState<
     "line-identification" | "pallet-close"
   >("line-identification");
+  const [identifiedLine, setIdentifiedLine] = useState<IdentifiedLine | null>(
+    null,
+  );
 
   return (
     <AppShell>
@@ -24,6 +28,7 @@ export function App() {
         <button
           className={activeFeature === "pallet-close" ? "active" : ""}
           type="button"
+          disabled={!identifiedLine}
           onClick={() => setActiveFeature("pallet-close")}
           aria-current={activeFeature === "pallet-close" ? "page" : undefined}
         >
@@ -32,9 +37,9 @@ export function App() {
       </nav>
 
       {activeFeature === "line-identification" ? (
-        <LineIdentificationPage />
+        <LineIdentificationPage onLineChange={setIdentifiedLine} />
       ) : (
-        <PalletClosePage />
+        <PalletClosePage line={identifiedLine!} />
       )}
     </AppShell>
   );

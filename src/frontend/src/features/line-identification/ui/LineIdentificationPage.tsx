@@ -3,9 +3,16 @@ import {
   identifyLine,
   LineIdentificationApiError,
 } from "../api/identifyLine";
-import type { IdentificationViewState } from "../model/lineIdentification";
+import type {
+  IdentificationViewState,
+  IdentifiedLine,
+} from "../model/lineIdentification";
 
-export function LineIdentificationPage() {
+type Props = {
+  onLineChange?: (line: IdentifiedLine | null) => void;
+};
+
+export function LineIdentificationPage({ onLineChange }: Props = {}) {
   const [lineCode, setLineCode] = useState("");
   const [viewState, setViewState] = useState<IdentificationViewState>({
     status: "idle",
@@ -42,6 +49,7 @@ export function LineIdentificationPage() {
       }
 
       setViewState({ status: "found", line });
+      onLineChange?.(line);
     } catch (error) {
       if (request.signal.aborted || activeRequest.current !== request) {
         return;
@@ -118,6 +126,7 @@ export function LineIdentificationPage() {
               onChange={(event) => {
                 activeRequest.current?.abort();
                 activeRequest.current = null;
+                onLineChange?.(null);
                 setLineCode(event.target.value);
                 setViewState({ status: "idle" });
               }}

@@ -17,6 +17,24 @@ export type ClosedPallet = {
   correlationId: string;
 };
 
+export type PalletReservationOption = {
+  id: number;
+  reservedQuantity: number;
+  orderNumber: string;
+};
+
+export type PalletEmployeeOption = {
+  id: number;
+  code: string;
+  name: string;
+};
+
+export type PalletCloseOptions = {
+  reservations: PalletReservationOption[];
+  employees: PalletEmployeeOption[];
+  supervisors: PalletEmployeeOption[];
+};
+
 export type PalletCloseViewState =
   | { status: "idle" }
   | { status: "loading"; correlationId: string }
@@ -25,5 +43,6 @@ export type PalletCloseViewState =
       status: "error";
       code: string;
       message: string;
+      retryable: boolean;
       correlationId?: string;
     };

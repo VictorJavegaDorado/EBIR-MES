@@ -9,6 +9,146 @@ afterEach(() => {
 });
 
 describe("PalletClosePage", () => {
+  it("creates a valid correlation when randomUUID is unavailable", async () => {
+    const originalCrypto = globalThis.crypto;
+    Object.defineProperty(globalThis, "crypto", {
+      configurable: true,
+      value: {
+        getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+      },
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          correlationId: string;
+        };
+        return new Response(
+          JSON.stringify({ id: 127, correlationId: body.correlationId }),
+          { status: 200 },
+        );
+      },
+    );
+
+    try {
+      render(<PalletClosePage />);
+      await fillRequiredFields();
+      await userEvent.click(
+        screen.getByRole("button", { name: /confirmar cierre/i }),
+      );
+
+      const [, init] = vi.mocked(globalThis.fetch).mock.calls[0];
+      const body = JSON.parse(String(init?.body)) as {
+        correlationId: string;
+      };
+      expect(body.correlationId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+    } finally {
+      Object.defineProperty(globalThis, "crypto", {
+        configurable: true,
+        value: originalCrypto,
+      });
+    }
+  });
+
+  it("loads line options and uses the selected reservation and employee", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            reservations: [
+              { id: 44, reservedQuantity: 20, orderNumber: "OT-100" },
+            ],
+            employees: [{ id: 7, code: "EMP-7", name: "Operario siete" }],
+            supervisors: [
+              { id: 9, code: "EMP-9", name: "Supervisora nueve" },
+            ],
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockImplementationOnce(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as {
+          correlationId: string;
+        };
+        return new Response(
+          JSON.stringify({ id: 126, correlationId: body.correlationId }),
+          { status: 200 },
+        );
+      });
+
+    render(
+      <PalletClosePage
+        line={{
+          id: 12,
+          code: "L-01",
+          name: "Línea uno",
+          workCenterCode: "CT-01",
+          workCenterName: "Centro uno",
+          operationalStatus: "PRODUCIENDO",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("option", { name: /OT-100.*20 uds/i }),
+    ).toBeInTheDocument();
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /reserva de palé/i }),
+      "44",
+    );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /empleado que cierra/i }),
+      "7",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /confirmar cierre/i }),
+    );
+
+    expect(globalThis.fetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/lines/12/pallet-close-options",
+      expect.objectContaining({
+        headers: { Accept: "application/json" },
+      }),
+    );
+    const submitted = JSON.parse(
+      String(vi.mocked(globalThis.fetch).mock.calls[1][1]?.body),
+    ) as { goodQuantity: number; closedByEmployeeId: number };
+    expect(submitted.goodQuantity).toBe(20);
+    expect(submitted.closedByEmployeeId).toBe(7);
+    expect(await screen.findByText("Palé 126 cerrado")).toBeInTheDocument();
+  });
+
+  it("shows a recoverable error when line options cannot be loaded", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ code: "PALLET_CLOSE_OPTIONS_UNAVAILABLE" }),
+        { status: 503 },
+      ),
+    );
+
+    render(
+      <PalletClosePage
+        line={{
+          id: 12,
+          code: "L-01",
+          name: "Línea uno",
+          workCenterCode: "CT-01",
+          workCenterName: "Centro uno",
+          operationalStatus: "PRODUCIENDO",
+        }}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No se pueden cargar las opciones de cierre",
+    );
+    expect(
+      screen.getByRole("button", { name: /reintentar carga/i }),
+    ).toBeInTheDocument();
+  });
+
   it("rejects incomplete identifiers without calling the API", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     render(<PalletClosePage />);
@@ -108,6 +248,24 @@ describe("PalletClosePage", () => {
     );
   });
 
+  it("requires a supervisor before submitting a partial close", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    render(<PalletClosePage />);
+
+    await fillRequiredFields();
+    await userEvent.click(
+      screen.getByRole("checkbox", { name: /cierre parcial/i }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /confirmar cierre/i }),
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Un cierre parcial requiere un supervisor",
+    );
+  });
+
   it("reuses the correlation when an unavailable close is retried unchanged", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
@@ -187,6 +345,33 @@ describe("PalletClosePage", () => {
       String(vi.mocked(globalThis.fetch).mock.calls[1][1]?.body),
     ) as { correlationId: string };
     expect(second.correlationId).not.toBe(first.correlationId);
+  });
+
+  it("blocks an unsafe replay after a correlation conflict", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: "detalle interno que no debe mostrarse",
+          code: "CORRELATION_ID_PARAMETER_MISMATCH",
+        }),
+        { status: 409 },
+      ),
+    );
+    render(<PalletClosePage />);
+
+    await fillRequiredFields();
+    await userEvent.click(
+      screen.getByRole("button", { name: /confirmar cierre/i }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Los datos no coinciden con el intento de cierre original",
+    );
+    expect(alert).not.toHaveTextContent("detalle interno");
+    expect(
+      screen.getByRole("button", { name: /revisa los datos para continuar/i }),
+    ).toBeDisabled();
   });
 });
 
