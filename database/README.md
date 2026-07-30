@@ -1,7 +1,7 @@
 # Paquete SQL — EBIR MES
 
-Estado: paquetes `001–011` aplicados y validados. Las pruebas completas de
-`011` finalizaron, sus fixtures se eliminaron y `DBCC CHECKDB` fue correcto.
+Estado: paquetes `001–013` aplicados y validados. El paquete `014` está
+preparado para revisión estática y no se ha ejecutado.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -101,3 +101,13 @@ eliminados.
 - Diseñar y desarrollar después WC/pausa de calor, sustituciones, correcciones de
   fichajes, scrap y reaprovisionamiento.
 - Copia de seguridad antes de introducir datos productivos o ejecutar nuevas migraciones.
+
+## Paquete 014 preparado
+
+`prod.cerrar_palet_idempotente` será el contrato seguro para la futura API de
+paletización. Serializa por correlación, devuelve el mismo palé ante una
+repetición idéntica y rechaza reutilizaciones incompatibles. También traslada
+el permiso de `mes_runtime` desde el contrato anterior.
+
+El paquete no se ha instalado ni se ha conectado con SQL durante su
+preparación.
