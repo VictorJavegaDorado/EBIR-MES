@@ -1,9 +1,12 @@
 using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
+using Ebir.Mes.Api.Endpoints.Scrap;
 using Ebir.Mes.Application.LineIdentification;
 using Ebir.Mes.Application.LineSessions;
+using Ebir.Mes.Application.Scrap;
 using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
+using Ebir.Mes.Infrastructure.Scrap;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
@@ -18,6 +21,7 @@ builder.Services.AddScoped<FinishOperatorStop>();
 builder.Services.AddScoped<StartCapacitySubstitution>();
 builder.Services.AddScoped<FinishCapacitySubstitution>();
 builder.Services.AddScoped<CorrectCurrentShiftTimeEntry>();
+builder.Services.AddScoped<RegisterScrap>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -51,6 +55,9 @@ builder.Services.AddScoped<ICapacitySubstitutionFinisher>(_ =>
 builder.Services.AddScoped<ICurrentShiftTimeEntryCorrector>(_ =>
     new SqlCurrentShiftTimeEntryCorrector(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IScrapRegistrar>(_ =>
+    new SqlScrapRegistrar(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.MapGet("/health/live", () => Results.Ok(new
@@ -74,6 +81,7 @@ app.MapFinishOperatorStopEndpoints();
 app.MapCapacitySubstitutionEndpoints();
 app.MapFinishCapacitySubstitutionEndpoints();
 app.MapCorrectCurrentShiftTimeEntryEndpoints();
+app.MapRegisterScrapEndpoints();
 app.Run();
 
 public partial class Program;
