@@ -17,6 +17,14 @@ La validación autorizada deberá usar fixtures `ZZTEST_014` / `ZZ14-` y cubrir:
 8. permiso efectivo limitado a `EXECUTE` para `mes_runtime`;
 9. limpieza total de fixtures y `DBCC CHECKDB`.
 
-Las fases se materializarán en scripts separados de prevuelo/fixtures,
-funcionales, clientes de concurrencia, permisos y limpieza antes de solicitar
-la instalación. Ninguna prueba contactará NAV, RFID o impresoras.
+Fases materializadas, todas preparadas y no ejecutadas:
+
+- `00_PREVUELO_Y_FIXTURES_014.sql`;
+- `01_FUNCIONALES_014.sql`;
+- `05_CONCURRENCIA_A_014.sql` y `06_CONCURRENCIA_B_014.sql`;
+- `07_PERMISOS_014.sql`;
+- `99_LIMPIEZA_014.sql`.
+
+Los clientes de concurrencia se ejecutan en conexiones independientes con la
+misma marca UTC futura y una reserva sintética preparada expresamente. Ninguna
+prueba contacta NAV, RFID o impresoras.

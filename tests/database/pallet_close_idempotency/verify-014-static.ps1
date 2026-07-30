@@ -53,3 +53,47 @@ if (($sql | Select-String -Pattern '(?im)^\s*COMMIT TRANSACTION\s*;?\s*$' -AllMa
 }
 
 Write-Host 'Revisión estática 014 correcta.'
+
+$testFiles = @(
+    '00_PREVUELO_Y_FIXTURES_014.sql',
+    '01_FUNCIONALES_014.sql',
+    '05_CONCURRENCIA_A_014.sql',
+    '06_CONCURRENCIA_B_014.sql',
+    '07_PERMISOS_014.sql',
+    '99_LIMPIEZA_014.sql'
+)
+
+foreach ($testFile in $testFiles) {
+    $testPath = Join-Path $PSScriptRoot $testFile
+    if (-not (Test-Path -LiteralPath $testPath)) {
+        throw "Falta la fase de prueba 014: $testFile"
+    }
+
+    $testSql = [System.IO.File]::ReadAllText($testPath)
+    if (-not $testSql.Contains("DB_NAME() <> N'EBIR_MES_TEST'")) {
+        throw "$testFile no limita el destino a EBIR_MES_TEST."
+    }
+    if (($testSql | Select-String -Pattern '(?im)^\s*USE\s+' -AllMatches).Matches.Count -ne 0) {
+        throw "$testFile no puede contener USE."
+    }
+    if ($testSql -match '(?i)\b(?:sqlcmd|invoke-sqlcmd|https?://|rfid|\\\\)') {
+        throw "$testFile contiene una posible llamada o destino externo."
+    }
+}
+
+$functionalPath = Join-Path $PSScriptRoot '01_FUNCIONALES_014.sql'
+$functionalSql = [System.IO.File]::ReadAllText($functionalPath)
+foreach ($errorNumber in '55400', '55402', '55403', '51400') {
+    if (-not $functionalSql.Contains("ERROR_NUMBER() <> $errorNumber")) {
+        throw "La fase funcional no verifica el error $errorNumber."
+    }
+}
+
+$permissionsPath = Join-Path $PSScriptRoot '07_PERMISOS_014.sql'
+$permissionsSql = [System.IO.File]::ReadAllText($permissionsPath)
+if (-not $permissionsSql.Contains("prod.cerrar_palet_idempotente") -or
+    -not $permissionsSql.Contains("prod.cerrar_palet")) {
+    throw 'La fase de permisos no comprueba el traslado de contrato.'
+}
+
+Write-Host 'Revisión estática de pruebas 014 correcta.'
