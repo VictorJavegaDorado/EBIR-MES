@@ -9,11 +9,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
 builder.Services.AddScoped<IdentifyLine>();
 builder.Services.AddScoped<OpenLineSession>();
+builder.Services.AddScoped<RegisterProductiveEntry>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineSessionOpener>(_ =>
     new SqlLineSessionOpener(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductiveEntryRegistrar>(_ =>
+    new SqlProductiveEntryRegistrar(
         builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();

@@ -24,3 +24,15 @@ procedimiento `prod.abrir_sesion_linea` devuelven `409` mediante códigos
 funcionales estables. Las solicitudes inválidas devuelven `400` y los fallos no
 clasificados de infraestructura devuelven `503`; nunca se exponen números,
 mensajes ni objetos internos de SQL Server.
+
+## Entrada productiva
+
+`POST /api/line-sessions/{sessionId}/entries` recibe `employeeId` y
+`correlationId`. La sesión y el empleado deben ser identificadores positivos;
+la correlación debe ser un UUID distinto de cero.
+
+Una entrada correcta devuelve `201` con el identificador de fichaje, la reserva
+de palé creada en el primer inicio —o `null` si no corresponde crearla— y la
+correlación recibida. Los rechazos conocidos de
+`prod.registrar_entrada_productiva` devuelven `409` con códigos funcionales. Los
+errores SQL no clasificados se ocultan tras `503`.
