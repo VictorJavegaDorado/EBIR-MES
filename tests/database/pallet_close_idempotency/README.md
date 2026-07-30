@@ -1,10 +1,10 @@
 # Pruebas del paquete 014
 
-Estado: **diseñadas; no ejecutadas**.
+Estado: **ejecutadas correctamente el 30/07/2026**.
 
 Destino exclusivo: `EBIR_MES_TEST`.
 
-La validación autorizada deberá usar fixtures `ZZTEST_014` / `ZZ14-` y cubrir:
+La validación autorizada usó fixtures `ZZTEST_014` / `ZZ14-` y cubrió:
 
 1. cierre ordinario con un único palé, operación NAV y etiqueta;
 2. repetición idéntica con el mismo `palet_id` y sin filas adicionales;
@@ -22,7 +22,7 @@ La validación autorizada deberá usar fixtures `ZZTEST_014` / `ZZ14-` y cubrir:
 9. limpieza total de fixtures;
 10. `DBCC CHECKDB` en una autorización independiente.
 
-Fases materializadas, todas preparadas y no ejecutadas:
+Fases ejecutadas correctamente:
 
 - `00_PREVUELO_Y_FIXTURES_014.sql`;
 - `01_FUNCIONALES_014.sql`;
@@ -38,3 +38,7 @@ de al menos dos segundos para demostrar contención real. Las barreras de
 auditoría sintéticas, con autor válido, se usan únicamente para reunir los
 resultados después de que ambos clientes terminen. Ninguna prueba contacta NAV,
 RFID o impresoras.
+
+El resultado completo, incluidos tiempos, comprobaciones posteriores y
+limpieza, está documentado en
+`RESULTADO_EJECUCION_2026-07-30.md`.

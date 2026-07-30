@@ -1,6 +1,6 @@
 # Paquete 014 — cierre idempotente de palé
 
-Estado: **preparado para revisión estática; no ejecutado**.
+Estado: **instalado y validado el 30/07/2026**.
 
 Base única autorizable: `EBIR_MES_TEST`.
 
@@ -42,7 +42,7 @@ sin modificación. La prueba SQL funcional verifica `51400` como caso
 representativo y las pruebas backend comprueban la traducción segura de todo el
 rango.
 
-## Instalación futura
+## Instalación realizada
 
 El único archivo instalable es:
 
@@ -50,20 +50,21 @@ El único archivo instalable es:
 014A_cerrar_palet_idempotente.sql
 ```
 
-No debe ejecutarse sin autorización específica. Tras una instalación
-autorizada se esperaría un procedimiento adicional y el permiso `EXECUTE` de
-`mes_runtime` trasladado del contrato anterior al nuevo; no cambia ninguna
-tabla, fila o integración.
+Se ejecutó con autorización específica el 30/07/2026. La instalación añadió un
+procedimiento y trasladó el permiso `EXECUTE` de `mes_runtime` del contrato
+anterior al nuevo; no cambió ninguna tabla ni contactó integraciones.
 
-## Validación futura
+## Validación realizada
 
 Las pruebas preparadas en `tests/database/pallet_close_idempotency` separan
 prevuelo/fixtures (`00_PREVUELO_Y_FIXTURES_014.sql`), funcionales
 (`01_FUNCIONALES_014.sql`), concurrencia en dos clientes independientes
 (`05_CONCURRENCIA_A_014.sql` y `06_CONCURRENCIA_B_014.sql`), permisos
 (`07_PERMISOS_014.sql`), limpieza (`99A_LIMPIEZA_014.sql`) e integridad
-(`99B_DBCC_014.sql`). Cada fase requerirá autorización propia. Los funcionales
+(`99B_DBCC_014.sql`). Cada fase recibió autorización explícita. Los funcionales
 prueban `55402` con auditoría sintética de autor válido y `55403` sin filas
 parciales; la concurrencia conserva una transacción exterior en el cliente A y
 exige una espera observable en B antes de reunir los resultados mediante
-barreras auditables. Ningún script de prueba se ejecuta durante esta entrega.
+barreras auditables. Todas las fases terminaron correctamente y los fixtures
+fueron eliminados. Las evidencias completas están en
+`tests/database/pallet_close_idempotency/RESULTADO_EJECUCION_2026-07-30.md`.

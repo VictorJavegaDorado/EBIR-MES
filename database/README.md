@@ -1,7 +1,7 @@
 # Paquete SQL — EBIR MES
 
-Estado: paquetes `001–013` aplicados y validados. El paquete `014` está
-preparado para revisión estática y no se ha ejecutado.
+Estado: paquetes `001–014` aplicados y validados. El paquete `014` se instaló,
+probó y limpió el 30/07/2026.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -22,6 +22,10 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 11. `009_permisos_aplicacion.sql` — aplicado, corregido y validado el 27/07/2026.
 12. `010_refuerzo_transacciones_procedimientos.sql` — aplicado y validado el 28/07/2026.
 13. `011A–011F` — aplicados atómicamente y validados estructuralmente el 29/07/2026.
+14. `012A–012I` — aplicados atómicamente y validados el 29/07/2026.
+15. `013A–013D` — aplicados atómicamente y validados el 29/07/2026.
+16. `014A_cerrar_palet_idempotente.sql` — aplicado atómicamente y validado el
+    30/07/2026.
 
 ## Reglas
 
@@ -35,7 +39,7 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 ## Estado posterior
 
 - 37 tablas de usuario.
-- 11 procedimientos almacenados críticos/operativos.
+- 21 procedimientos almacenados críticos/operativos.
 - 37 registros de catálogo inicial.
 - 36 índices creados por el lote 006, 19 de ellos filtrados.
 - 77 claves foráneas, 119 restricciones `CHECK` y 42 restricciones únicas.
@@ -102,15 +106,17 @@ eliminados.
   fichajes, scrap y reaprovisionamiento.
 - Copia de seguridad antes de introducir datos productivos o ejecutar nuevas migraciones.
 
-## Paquete 014 preparado
+## Paquete 014 instalado y validado
 
-`prod.cerrar_palet_idempotente` será el contrato seguro para la futura API de
+`prod.cerrar_palet_idempotente` es el contrato seguro para la API de
 paletización. Serializa por correlación, devuelve el mismo palé ante una
 repetición idéntica y rechaza reutilizaciones incompatibles. También traslada
-el permiso de `mes_runtime` desde el contrato anterior. La instalación queda
+el permiso de `mes_runtime` desde el contrato anterior. La instalación está
 protegida por precondiciones, transacción y validación posterior. Las pruebas
-preparadas fuerzan contención observable entre dos clientes y separan la
+ejecutadas forzaron contención observable entre dos clientes y separaron la
 limpieza de fixtures de `DBCC CHECKDB`.
 
-El paquete no se ha instalado ni se ha conectado con SQL durante su
-preparación.
+El paquete se instaló y todas sus fases terminaron correctamente el 30/07/2026.
+Los fixtures fueron eliminados, la base quedó con 37 tablas, 21 procedimientos,
+una función interna y cero filas operativas, y `DBCC CHECKDB` no encontró
+errores.
