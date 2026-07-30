@@ -1,0 +1,24 @@
+Implementa el cierre manual de palé.
+
+Contexto:
+- Módulo backend: Application/Pallets.
+- Módulo frontend: features/pallet-close.
+- Reglas: docs/modules/palletization.md.
+- Integración de impresión: Integrations/Printing.
+
+Antes de editar:
+1. Lee el AGENTS.md raíz.
+2. Lee los AGENTS.md de las carpetas afectadas.
+3. Lee únicamente la documentación del módulo.
+4. Localiza implementaciones similares.
+
+Alcance:
+- Añadir endpoint de cierre.
+- Validar que el palé esté abierto y tenga unidades.
+- Persistir el cierre en una transacción.
+- Encolar la impresión.
+- Actualizar la interfaz.
+- Añadir pruebas.
+
+No hagas refactorizaciones ajenas a esta funcionalidad.
+

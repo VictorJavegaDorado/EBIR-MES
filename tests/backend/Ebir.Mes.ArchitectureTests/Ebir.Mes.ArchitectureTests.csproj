@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Ebir.Mes.ArchitectureTests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\backend\Ebir.Mes.Application\Ebir.Mes.Application.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Ebir.Mes.Domain\Ebir.Mes.Domain.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Ebir.Mes.Infrastructure\Ebir.Mes.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\Ebir.Mes.Integrations\Ebir.Mes.Integrations.csproj" />
+  </ItemGroup>
+</Project>
+

@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Ebir.Mes.Domain</RootNamespace>
+  </PropertyGroup>
+</Project>
+

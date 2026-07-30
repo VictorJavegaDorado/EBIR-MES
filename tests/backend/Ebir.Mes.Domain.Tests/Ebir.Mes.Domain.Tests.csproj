@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Ebir.Mes.Domain.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\backend\Ebir.Mes.Domain\Ebir.Mes.Domain.csproj" />
+  </ItemGroup>
+</Project>
+

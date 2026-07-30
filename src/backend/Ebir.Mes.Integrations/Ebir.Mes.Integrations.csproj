@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Ebir.Mes.Integrations</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ebir.Mes.Application\Ebir.Mes.Application.csproj" />
+  </ItemGroup>
+</Project>
+

@@ -1,0 +1,73 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Domain", "src\backend\Ebir.Mes.Domain\Ebir.Mes.Domain.csproj", "{7C1DD67D-91D5-442C-86DE-788D42F62F23}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Application", "src\backend\Ebir.Mes.Application\Ebir.Mes.Application.csproj", "{330C0B45-EB06-4A92-9DE8-95125CC1066B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Infrastructure", "src\backend\Ebir.Mes.Infrastructure\Ebir.Mes.Infrastructure.csproj", "{95506066-1BC2-4E66-801A-1A8768AA2B83}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Integrations", "src\backend\Ebir.Mes.Integrations\Ebir.Mes.Integrations.csproj", "{44F24C3E-8A19-4A94-89C0-AEAC0424EC15}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Api", "src\backend\Ebir.Mes.Api\Ebir.Mes.Api.csproj", "{D1557DEB-BAFC-4B1E-A80D-9C3EA61C354A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Worker", "src\backend\Ebir.Mes.Worker\Ebir.Mes.Worker.csproj", "{2611A08A-312F-41BC-9A26-35497151D8AC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Domain.Tests", "tests\backend\Ebir.Mes.Domain.Tests\Ebir.Mes.Domain.Tests.csproj", "{4576C40D-E8DA-4D50-B6E5-EE71E616E6B9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Application.Tests", "tests\backend\Ebir.Mes.Application.Tests\Ebir.Mes.Application.Tests.csproj", "{9D7A8952-85C2-443F-85E0-8F29E034CCEA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.IntegrationTests", "tests\backend\Ebir.Mes.IntegrationTests\Ebir.Mes.IntegrationTests.csproj", "{15F7999B-4DE6-419A-870E-C3944617AC89}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.ArchitectureTests", "tests\backend\Ebir.Mes.ArchitectureTests\Ebir.Mes.ArchitectureTests.csproj", "{09229BC3-7C8D-4624-B641-6C3C8178EA48}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7C1DD67D-91D5-442C-86DE-788D42F62F23}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7C1DD67D-91D5-442C-86DE-788D42F62F23}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7C1DD67D-91D5-442C-86DE-788D42F62F23}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7C1DD67D-91D5-442C-86DE-788D42F62F23}.Release|Any CPU.Build.0 = Release|Any CPU
+		{330C0B45-EB06-4A92-9DE8-95125CC1066B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{330C0B45-EB06-4A92-9DE8-95125CC1066B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{330C0B45-EB06-4A92-9DE8-95125CC1066B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{330C0B45-EB06-4A92-9DE8-95125CC1066B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95506066-1BC2-4E66-801A-1A8768AA2B83}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95506066-1BC2-4E66-801A-1A8768AA2B83}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95506066-1BC2-4E66-801A-1A8768AA2B83}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95506066-1BC2-4E66-801A-1A8768AA2B83}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44F24C3E-8A19-4A94-89C0-AEAC0424EC15}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44F24C3E-8A19-4A94-89C0-AEAC0424EC15}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44F24C3E-8A19-4A94-89C0-AEAC0424EC15}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44F24C3E-8A19-4A94-89C0-AEAC0424EC15}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D1557DEB-BAFC-4B1E-A80D-9C3EA61C354A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D1557DEB-BAFC-4B1E-A80D-9C3EA61C354A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D1557DEB-BAFC-4B1E-A80D-9C3EA61C354A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D1557DEB-BAFC-4B1E-A80D-9C3EA61C354A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2611A08A-312F-41BC-9A26-35497151D8AC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2611A08A-312F-41BC-9A26-35497151D8AC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2611A08A-312F-41BC-9A26-35497151D8AC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2611A08A-312F-41BC-9A26-35497151D8AC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4576C40D-E8DA-4D50-B6E5-EE71E616E6B9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4576C40D-E8DA-4D50-B6E5-EE71E616E6B9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4576C40D-E8DA-4D50-B6E5-EE71E616E6B9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4576C40D-E8DA-4D50-B6E5-EE71E616E6B9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9D7A8952-85C2-443F-85E0-8F29E034CCEA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9D7A8952-85C2-443F-85E0-8F29E034CCEA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9D7A8952-85C2-443F-85E0-8F29E034CCEA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9D7A8952-85C2-443F-85E0-8F29E034CCEA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{15F7999B-4DE6-419A-870E-C3944617AC89}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{15F7999B-4DE6-419A-870E-C3944617AC89}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{15F7999B-4DE6-419A-870E-C3944617AC89}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{15F7999B-4DE6-419A-870E-C3944617AC89}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
+

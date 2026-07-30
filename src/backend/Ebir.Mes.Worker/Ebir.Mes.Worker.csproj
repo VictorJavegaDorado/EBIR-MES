@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Ebir.Mes.Worker</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\Ebir.Mes.Application\Ebir.Mes.Application.csproj" />
+    <ProjectReference Include="..\Ebir.Mes.Infrastructure\Ebir.Mes.Infrastructure.csproj" />
+    <ProjectReference Include="..\Ebir.Mes.Integrations\Ebir.Mes.Integrations.csproj" />
+  </ItemGroup>
+</Project>
+

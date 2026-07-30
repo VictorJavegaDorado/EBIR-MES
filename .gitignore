@@ -1,0 +1,24 @@
+.vs/
+.idea/
+.vscode/
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/coverage/
+*.user
+*.suo
+*.log
+.env
+.env.*
+!.env.example
+
+# Estado operativo generado en el servidor; no pertenece al código fuente.
+/runtime/
+
+# La referencia local anterior requiere una revisión de secretos antes de
+# incorporarla al repositorio del servidor.
+/legacy-reference/node-express-backend/
+/legacy-reference/discovery/
+/legacy-reference/presentation-tools/
+/legacy-reference/previews/
