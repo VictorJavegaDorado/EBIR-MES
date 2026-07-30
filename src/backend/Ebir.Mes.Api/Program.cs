@@ -15,6 +15,7 @@ builder.Services.AddScoped<MarkShiftChangePending>();
 builder.Services.AddScoped<FinishLineSession>();
 builder.Services.AddScoped<StartOperatorStop>();
 builder.Services.AddScoped<FinishOperatorStop>();
+builder.Services.AddScoped<StartCapacitySubstitution>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -39,6 +40,9 @@ builder.Services.AddScoped<IOperatorStopStarter>(_ =>
 builder.Services.AddScoped<IOperatorStopFinisher>(_ =>
     new SqlOperatorStopFinisher(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<ICapacitySubstitutionStarter>(_ =>
+    new SqlCapacitySubstitutionStarter(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.MapGet("/health/live", () => Results.Ok(new
@@ -59,6 +63,7 @@ app.MapShiftChangePendingEndpoints();
 app.MapFinishLineSessionEndpoints();
 app.MapOperatorStopEndpoints();
 app.MapFinishOperatorStopEndpoints();
+app.MapCapacitySubstitutionEndpoints();
 app.Run();
 
 public partial class Program;

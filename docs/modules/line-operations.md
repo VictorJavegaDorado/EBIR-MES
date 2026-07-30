@@ -90,3 +90,15 @@ sustitución finalizada automáticamente —si existe— y los recursos activos.
 Los rechazos `52300–52317` se traducen a códigos funcionales seguros; las
 solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no
 clasificados se ocultan tras `503`.
+
+## Inicio de sustitución de capacidad
+
+`POST /api/line-sessions/{sessionId}/capacity-substitutions` recibe
+`replacedOperatorId`, `substituteSupervisorId`, `reason` y `correlationId`.
+El motivo es obligatorio, se normaliza y no puede superar 250 caracteres; las
+dos personas deben ser distintas.
+
+Una respuesta `201` incluye la sustitución, el fichaje productivo creado para
+el supervisor y los recursos activos. Los rechazos `52400–52418` se traducen a
+códigos funcionales seguros; las solicitudes inválidas devuelven `400`, los
+conflictos `409` y los fallos no clasificados se ocultan tras `503`.
