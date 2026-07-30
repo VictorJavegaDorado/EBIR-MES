@@ -102,3 +102,15 @@ Una respuesta `201` incluye la sustitución, el fichaje productivo creado para
 el supervisor y los recursos activos. Los rechazos `52400–52418` se traducen a
 códigos funcionales seguros; las solicitudes inválidas devuelven `400`, los
 conflictos `409` y los fallos no clasificados se ocultan tras `503`.
+
+## Finalización de sustitución de capacidad
+
+`POST /api/capacity-substitutions/{substitutionId}/finish` recibe
+`supervisorId`, `reason` y `correlationId`. La sustitución y el supervisor deben
+ser identificadores positivos; el motivo es obligatorio, se normaliza y no
+puede superar 250 caracteres.
+
+Una respuesta `200` incluye la sustitución finalizada, los recursos productivos
+que permanecen activos y la correlación recibida. Los rechazos `52500–52519`
+se traducen a códigos funcionales seguros; las solicitudes inválidas devuelven
+`400`, los conflictos `409` y los fallos no clasificados se ocultan tras `503`.
