@@ -81,3 +81,12 @@ recursos productivos que permanecen activos y la correlación. Los rechazos
 conocidos de `prod.iniciar_paro_operario` (`52200–52213`) se traducen a códigos
 funcionales; las solicitudes inválidas devuelven `400`, los conflictos `409` y
 los fallos no clasificados se ocultan tras `503`.
+
+## Finalización de paro de operario
+
+`POST /api/line-sessions/{sessionId}/operator-stops/finish` recibe `employeeId`
+y `correlationId`. Una respuesta `200` incluye el paro finalizado, la
+sustitución finalizada automáticamente —si existe— y los recursos activos.
+Los rechazos `52300–52317` se traducen a códigos funcionales seguros; las
+solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no
+clasificados se ocultan tras `503`.
