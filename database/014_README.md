@@ -55,4 +55,8 @@ prevuelo/fixtures (`00_PREVUELO_Y_FIXTURES_014.sql`), funcionales
 (`01_FUNCIONALES_014.sql`), concurrencia en dos clientes independientes
 (`05_CONCURRENCIA_A_014.sql` y `06_CONCURRENCIA_B_014.sql`), permisos
 (`07_PERMISOS_014.sql`) y limpieza (`99_LIMPIEZA_014.sql`). Cada fase requerirá
-autorización propia; ningún script de prueba se ejecuta durante esta entrega.
+autorización propia. Los funcionales prueban `55402` con auditoría sintética de
+autor válido y `55403` sin filas parciales; la concurrencia valida tanto el
+reintento idéntico como el único ganador ante correlaciones distintas mediante
+barreras de ambos clientes. Ningún script de prueba se ejecuta durante esta
+entrega.

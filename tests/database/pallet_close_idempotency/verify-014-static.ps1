@@ -89,6 +89,23 @@ foreach ($errorNumber in '55400', '55402', '55403', '51400') {
     }
 }
 
+foreach ($fragment in @('empleado_id, entidad', "N'ZZTEST_OTRA_OPERACION', @op", '55403 dejo filas parciales', '@@TRANCOUNT')) {
+    if (-not $functionalSql.Contains($fragment)) {
+        throw "La fase funcional no protege el contrato 55403: $fragment"
+    }
+}
+
+$clientA = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '05_CONCURRENCIA_A_014.sql'))
+$clientB = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot '06_CONCURRENCIA_B_014.sql'))
+foreach ($fragment in @("codigo_nav=N'ZZ14-OP1'", "'14050100-0000-0000-0000-000000000001'", 'BARRERA_IDENTICA', '@@TRANCOUNT')) {
+    if (-not $clientA.Contains($fragment) -or -not $clientB.Contains($fragment)) {
+        throw "Los clientes no mantienen el contrato de carrera identica: $fragment"
+    }
+}
+if (-not $clientB.Contains('51403') -or -not $clientB.Contains('BARRERA_DISTINTA')) {
+    throw 'La carrera de correlaciones distintas no verifica ganador y rechazo 51403.'
+}
+
 $permissionsPath = Join-Path $PSScriptRoot '07_PERMISOS_014.sql'
 $permissionsSql = [System.IO.File]::ReadAllText($permissionsPath)
 if (-not $permissionsSql.Contains("prod.cerrar_palet_idempotente") -or

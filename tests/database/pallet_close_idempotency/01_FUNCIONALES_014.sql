@@ -23,13 +23,18 @@ BEGIN TRY
     EXEC prod.cerrar_palet_idempotente @reserva, 19, @op, NULL, 1, N'FIN_TURNO', @correlacion, @palet_repetido OUTPUT;
     THROW 57103, 'Se admitieron parametros distintos.', 1;
 END TRY BEGIN CATCH IF ERROR_NUMBER() <> 55403 THROW; END CATCH;
+IF (SELECT COUNT(*) FROM prod.palets WHERE reserva_palet_id = @reserva) <> 1
+ OR (SELECT COUNT(*) FROM nav.operaciones WHERE palet_id = @palet AND tipo = N'SALIDA_PALET') <> 1
+ OR (SELECT COUNT(*) FROM imp.etiquetas WHERE palet_id = @palet AND tipo = N'PALET') <> 1
+ OR @@TRANCOUNT <> 0
+    THROW 57103, '55403 dejo filas parciales o una transaccion abierta.', 1;
 BEGIN TRY
     EXEC prod.cerrar_palet_idempotente @reserva, 20, @op, NULL, 0, NULL, NULL, @palet_repetido OUTPUT;
     THROW 57104, 'Se admitio correlacion nula.', 1;
 END TRY BEGIN CATCH IF ERROR_NUMBER() <> 55400 THROW; END CATCH;
 
-INSERT aud.eventos (tipo_evento, entidad, entidad_id, correlacion_id, fecha_utc)
-VALUES (N'ZZTEST_OTRA_OPERACION', N'ZZTEST', 1, '14010200-0000-0000-0000-000000000001', SYSUTCDATETIME());
+INSERT aud.eventos (tipo_evento, empleado_id, entidad, entidad_id, correlacion_id, fecha_utc)
+VALUES (N'ZZTEST_OTRA_OPERACION', @op, N'ZZTEST', 1, '14010200-0000-0000-0000-000000000001', SYSUTCDATETIME());
 BEGIN TRY
     EXEC prod.cerrar_palet_idempotente @reserva, 20, @op, NULL, 0, NULL, '14010200-0000-0000-0000-000000000001', @palet_repetido OUTPUT;
     THROW 57105, 'Se admitio correlacion de otra operacion.', 1;
@@ -38,11 +43,12 @@ BEGIN TRY
     EXEC prod.cerrar_palet_idempotente @reserva, 0, @op, NULL, 0, NULL, '14010300-0000-0000-0000-000000000001', @palet_repetido OUTPUT;
     THROW 57106, 'No se propago 51400.', 1;
 END TRY BEGIN CATCH IF ERROR_NUMBER() <> 51400 THROW; END CATCH;
+IF @@TRANCOUNT <> 0 THROW 57107, 'Un rechazo funcional dejo una transaccion abierta.', 1;
 DECLARE @orden_concurrencia bigint = (SELECT orden_id FROM prod.ordenes WHERE numero_orden = N'ZZ14-CONC');
 DECLARE @sesion_concurrencia_a bigint = (SELECT MIN(sesion_linea_id) FROM prod.sesiones_linea WHERE orden_id = @orden_concurrencia);
 DECLARE @sesion_concurrencia_b bigint = (SELECT MAX(sesion_linea_id) FROM prod.sesiones_linea WHERE orden_id = @orden_concurrencia);
 DECLARE @reserva_concurrencia_a bigint, @reserva_concurrencia_b bigint;
 EXEC prod.reservar_palet @orden_concurrencia, @sesion_concurrencia_a, 20, @op, '14010400-0000-0000-0000-000000000001', @reserva_concurrencia_a OUTPUT;
 EXEC prod.reservar_palet @orden_concurrencia, @sesion_concurrencia_b, 20, @op, '14010400-0000-0000-0000-000000000002', @reserva_concurrencia_b OUTPUT;
-IF @reserva_concurrencia_a IS NULL OR @reserva_concurrencia_b IS NULL THROW 57107, 'No se pudieron preparar las carreras concurrentes.', 1;
+IF @reserva_concurrencia_a IS NULL OR @reserva_concurrencia_b IS NULL THROW 57108, 'No se pudieron preparar las carreras concurrentes.', 1;
 PRINT N'FUNCIONALES 014: OK';
