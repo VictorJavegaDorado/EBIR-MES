@@ -1,11 +1,14 @@
 using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
+using Ebir.Mes.Api.Endpoints.Replenishment;
 using Ebir.Mes.Api.Endpoints.Scrap;
 using Ebir.Mes.Application.LineIdentification;
 using Ebir.Mes.Application.LineSessions;
+using Ebir.Mes.Application.Replenishment;
 using Ebir.Mes.Application.Scrap;
 using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
+using Ebir.Mes.Infrastructure.Replenishment;
 using Ebir.Mes.Infrastructure.Scrap;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,6 +26,7 @@ builder.Services.AddScoped<FinishCapacitySubstitution>();
 builder.Services.AddScoped<CorrectCurrentShiftTimeEntry>();
 builder.Services.AddScoped<RegisterScrap>();
 builder.Services.AddScoped<ReviewScrap>();
+builder.Services.AddScoped<CreateReplenishmentRequest>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -62,6 +66,9 @@ builder.Services.AddScoped<IScrapRegistrar>(_ =>
 builder.Services.AddScoped<IScrapReviewer>(_ =>
     new SqlScrapReviewer(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IReplenishmentRequestCreator>(_ =>
+    new SqlReplenishmentRequestCreator(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.MapGet("/health/live", () => Results.Ok(new
@@ -87,6 +94,7 @@ app.MapFinishCapacitySubstitutionEndpoints();
 app.MapCorrectCurrentShiftTimeEntryEndpoints();
 app.MapRegisterScrapEndpoints();
 app.MapReviewScrapEndpoints();
+app.MapCreateReplenishmentRequestEndpoints();
 app.Run();
 
 public partial class Program;

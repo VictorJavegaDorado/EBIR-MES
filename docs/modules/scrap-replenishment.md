@@ -37,3 +37,16 @@ scrap original, el tipo de revisión y la correlación. El endpoint no llama a
 NAV. Los rechazos `55100–55122` se traducen a códigos funcionales seguros; las
 solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no
 clasificados se ocultan tras `503`.
+
+## Creación de solicitud de reaprovisionamiento
+
+`POST /api/line-sessions/{sessionId}/replenishment-requests` recibe
+`orderComponentId`, `requestedQuantity`, `requestedByEmployeeId`, `scrapId`
+opcional y `correlationId`. Los identificadores informados y la cantidad deben
+ser positivos. La solicitud puede responder a una falta ordinaria o vincularse
+al valor efectivo de un scrap de la misma sesión.
+
+Una respuesta `201` incluye la solicitud en estado `PENDIENTE`, el scrap
+vinculado —si existe— y la correlación. Los rechazos `55200–55217` se traducen
+a códigos funcionales seguros; las solicitudes inválidas devuelven `400`, los
+conflictos `409` y los fallos no clasificados se ocultan tras `503`.
