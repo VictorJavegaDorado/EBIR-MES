@@ -27,6 +27,7 @@ builder.Services.AddScoped<CorrectCurrentShiftTimeEntry>();
 builder.Services.AddScoped<RegisterScrap>();
 builder.Services.AddScoped<ReviewScrap>();
 builder.Services.AddScoped<CreateReplenishmentRequest>();
+builder.Services.AddScoped<TransitionReplenishmentRequest>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -69,6 +70,9 @@ builder.Services.AddScoped<IScrapReviewer>(_ =>
 builder.Services.AddScoped<IReplenishmentRequestCreator>(_ =>
     new SqlReplenishmentRequestCreator(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IReplenishmentRequestTransitioner>(_ =>
+    new SqlReplenishmentRequestTransitioner(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.MapGet("/health/live", () => Results.Ok(new
@@ -95,6 +99,7 @@ app.MapCorrectCurrentShiftTimeEntryEndpoints();
 app.MapRegisterScrapEndpoints();
 app.MapReviewScrapEndpoints();
 app.MapCreateReplenishmentRequestEndpoints();
+app.MapTransitionReplenishmentRequestEndpoints();
 app.Run();
 
 public partial class Program;

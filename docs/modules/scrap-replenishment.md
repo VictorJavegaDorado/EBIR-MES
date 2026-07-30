@@ -50,3 +50,20 @@ Una respuesta `201` incluye la solicitud en estado `PENDIENTE`, el scrap
 vinculado —si existe— y la correlación. Los rechazos `55200–55217` se traducen
 a códigos funcionales seguros; las solicitudes inválidas devuelven `400`, los
 conflictos `409` y los fallos no clasificados se ocultan tras `503`.
+
+## Transición de solicitud de reaprovisionamiento
+
+`POST /api/replenishment-requests/{requestId}/transitions` recibe `newState`,
+`employeeId`, `comment` y `correlationId`. Los estados destino admitidos son
+`ACEPTADA`, `EN_CAMINO`, `ENTREGADA`, `RECHAZADA` y `CANCELADA`. El comentario
+es obligatorio para rechazar o cancelar y no puede superar 500 caracteres.
+
+La máquina de estados permite `PENDIENTE` hacia `ACEPTADA`, `RECHAZADA` o
+`CANCELADA`; `ACEPTADA` hacia `EN_CAMINO`, `RECHAZADA` o `CANCELADA`; y
+`EN_CAMINO` hacia `ENTREGADA` o `CANCELADA`. Tras la aceptación, solo el
+aprovisionador asignado puede continuarla.
+
+Una respuesta `200` incluye la solicitud, su nuevo estado y la correlación.
+Los rechazos `55300–55311` se traducen a códigos funcionales seguros; las
+solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no
+clasificados se ocultan tras `503`.
