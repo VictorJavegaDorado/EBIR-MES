@@ -7,7 +7,7 @@ mantendrán estables aunque la implementación interna evolucione.
 |---|---|---|---|---|
 | Identificación de línea | `modules/line-identification.md` | `Application/LineIdentification` | `features/line-identification` | `Application.Tests/LineIdentification`, `IntegrationTests/LineIdentification`, `component/features/line-identification` |
 | Sesiones, turnos y fichajes | `modules/line-operations.md` | `Application/LineSessions`, `Infrastructure/LineSessions`, `Api/Endpoints/LineSessions` | `features/line-session` | `Application.Tests/LineSessions`, `IntegrationTests/LineSessions` |
-| Cierre manual de palé | `modules/palletization.md` | `Application/Pallets/ClosePallet` | `features/pallet-close` | `Application.Tests/Pallets/ClosePallet` |
+| Cierre manual de palé | `modules/palletization.md` | `Application/Pallets/ClosePallet` | `features/pallet-close` | `Application.Tests/Pallets/ClosePallet`, `IntegrationTests/Pallets`, `component/features/pallet-close` |
 | Scrap | `modules/scrap-replenishment.md` | `Application/Scrap` | `features/scrap-register` | `Application.Tests/Scrap` |
 | Reaprovisionamiento | `modules/scrap-replenishment.md` | `Application/Replenishment` | `features/replenishment-request` | `Application.Tests/Replenishment` |
 | Impresión | Documento del módulo consumidor | `Integrations/Printing` | Estado dentro de la feature | `IntegrationTests/Printing` |
