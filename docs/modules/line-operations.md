@@ -36,3 +36,13 @@ de palé creada en el primer inicio —o `null` si no corresponde crearla— y l
 correlación recibida. Los rechazos conocidos de
 `prod.registrar_entrada_productiva` devuelven `409` con códigos funcionales. Los
 errores SQL no clasificados se ocultan tras `503`.
+
+## Salida productiva
+
+`POST /api/line-sessions/{sessionId}/exits` recibe `employeeId` y
+`correlationId`, con las mismas reglas de identificadores que la entrada.
+
+Una salida correcta devuelve `200`, el número de recursos productivos que
+permanecen activos en la sesión y la correlación recibida. Los rechazos
+conocidos de `prod.registrar_salida_productiva` devuelven `409`; las solicitudes
+inválidas devuelven `400` y los fallos no clasificados se ocultan tras `503`.
