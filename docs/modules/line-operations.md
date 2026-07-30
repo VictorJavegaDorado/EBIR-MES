@@ -11,3 +11,16 @@ La base normativa detallada está en los paquetes SQL 011 y 012:
 La API será la única autoridad para iniciar y finalizar estas transiciones. El
 cliente muestra el estado devuelto y no reconstruye las reglas horarias.
 
+## Apertura de sesión
+
+`POST /api/line-sessions` recibe `orderId`, `lineId`, `palletFormatOrderId`,
+`supervisorId`, `outsideScheduleConfirmed` y `correlationId`. Los cuatro
+identificadores deben ser positivos y `correlationId` debe ser un UUID distinto
+de cero.
+
+Una apertura correcta devuelve `201` con el identificador de sesión y conserva
+el identificador de correlación. Los rechazos productivos conocidos del
+procedimiento `prod.abrir_sesion_linea` devuelven `409` mediante códigos
+funcionales estables. Las solicitudes inválidas devuelven `400` y los fallos no
+clasificados de infraestructura devuelven `503`; nunca se exponen números,
+mensajes ni objetos internos de SQL Server.
