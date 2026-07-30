@@ -58,3 +58,15 @@ ejecución realizó el cambio (`true`) o si ya estaba pendiente (`false`). Los
 rechazos conocidos de `prod.marcar_cambio_turno_pendiente` devuelven `409`; las
 solicitudes inválidas devuelven `400` y los fallos no clasificados se ocultan
 tras `503`.
+
+## Finalización de sesión de turno
+
+`POST /api/line-sessions/{sessionId}/finish-shift` recibe `supervisorId` y
+`correlationId`. Ambos identificadores y la sesión deben ser válidos y
+positivos.
+
+Una finalización correcta devuelve `200`, el número de fichajes cerrados por el
+sistema y la correlación recibida. Los rechazos conocidos de
+`prod.finalizar_sesion_turno` devuelven `409` mediante códigos funcionales que
+no exponen detalles de NAV, impresión o SQL. Las solicitudes inválidas
+devuelven `400` y los fallos no clasificados se ocultan tras `503`.

@@ -12,6 +12,7 @@ builder.Services.AddScoped<OpenLineSession>();
 builder.Services.AddScoped<RegisterProductiveEntry>();
 builder.Services.AddScoped<RegisterProductiveExit>();
 builder.Services.AddScoped<MarkShiftChangePending>();
+builder.Services.AddScoped<FinishLineSession>();
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -26,6 +27,9 @@ builder.Services.AddScoped<IProductiveExitRegistrar>(_ =>
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IShiftChangePendingMarker>(_ =>
     new SqlShiftChangePendingMarker(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<ILineSessionFinisher>(_ =>
+    new SqlLineSessionFinisher(
         builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
@@ -44,6 +48,7 @@ app.MapLineIdentificationEndpoints();
 app.MapLineSessionEndpoints();
 app.MapProductiveExitEndpoints();
 app.MapShiftChangePendingEndpoints();
+app.MapFinishLineSessionEndpoints();
 app.Run();
 
 public partial class Program;
