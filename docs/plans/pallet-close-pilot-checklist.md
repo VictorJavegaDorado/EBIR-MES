@@ -1,5 +1,30 @@
 # Checklist de piloto: cierre manual de palé
 
+## Estado de preparación
+
+Validado el 30/07/2026:
+
+- flujo frontend integrado desde `App`;
+- carga de reservas, empleados y supervisores desde la API;
+- validaciones, estados de carga y tratamiento seguro de errores;
+- conservación de correlación al reintentar sin cambios e invalidación al editar;
+- confirmación visible del palé cerrado;
+- cierre completo validado manualmente contra `EBIR_MES_TEST`;
+- pruebas backend y frontend, TypeScript y build superados;
+- release `20260730.1-86662f7` generada con manifiesto y hashes.
+
+Validado el 31/07/2026:
+
+- hosting conjunto API+SPA en `api\wwwroot`;
+- rutas API, assets, fallback SPA y respuestas `404` cubiertas por cinco
+  pruebas de integración;
+- candidata `20260731.2-86662f7-combined-candidate` con 97 hashes verificados;
+- prueba en loopback correcta con integraciones externas deshabilitadas.
+
+La release no está activada. La candidata combinada procede de un árbol sin
+commit y sirve únicamente como evidencia técnica. Consultar
+`../../deploy/iis/PILOT-RUNBOOK.md` antes de cualquier cambio de IIS.
+
 ## Precondiciones
 
 - `HEAD` validado y artefactos backend/frontend compilados.
@@ -29,6 +54,7 @@
 - Correlación, palé y códigos funcionales de cada caso.
 - Un único palé y una única intención de impresión/NAV.
 - Logs buscables por correlación sin datos personales ni detalles SQL.
+- Manifiesto y hashes de la release candidata.
 
 ## Criterios de parada
 

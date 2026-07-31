@@ -1,0 +1,100 @@
+CONTEXTO DE CONTINUACIÓN - VIERNES
+==================================
+
+Estado del repositorio
+----------------------
+- Entorno real: MES.EBIR.LOCAL, repositorio C:\MES.
+- Rama: main.
+- HEAD y origin/main verificados:
+  86662f7fd8a01de50a74a9f6f4a6c08105b7c9cc
+- El cierre manual de palé continúa publicado y validado con el palé 15 y la
+  correlación 0d8effbe-2d85-41df-9602-4b3395f2b631.
+- El árbol permanece deliberadamente sin commit para presentar y revisar los
+  cambios antes de publicar.
+
+Hosting conjunto implementado
+-----------------------------
+- El frontend compilado se integra en api\wwwroot durante dotnet publish.
+- La API sirve archivos estáticos y el documento predeterminado.
+- Las rutas /api/* conservan prioridad.
+- El fallback a index.html solo se aplica a rutas sin archivo fuera de /api.
+- Una API desconocida y un asset inexistente devuelven 404.
+- Se añadieron cinco pruebas de integración para API, assets y navegación SPA.
+- Se añadió deploy\New-PilotRelease.ps1 para generar releases completas con
+  manifiesto, hashes y bloqueo exclusivo por ReleaseId.
+- Get-PilotPreflight.ps1 identifica hosting combinado y valida la estructura y
+  el esquema mínimo de la lista de hashes.
+
+Release combinada validada
+--------------------------
+- Candidata válida:
+  runtime\releases\20260731.2-86662f7-combined-candidate
+- Contenido superior exacto: api, metadata y worker.
+- API: 52 archivos; Worker: 45; frontend integrado: 4.
+- Manifiesto: 97 archivos.
+- CSV: columnas Path, Sha256 y Length.
+- Verificación independiente: 97 hashes, 0 discrepancias.
+- Prueba de proceso real solo en loopback:
+  - raíz: 200;
+  - asset compilado: 200;
+  - /api/system/info: 200 JSON;
+  - integraciones externas: false;
+  - navegación SPA: 200 y mismo index.html;
+  - API desconocida: 404;
+  - asset inexistente: 404.
+- El proceso temporal se detuvo al terminar y no quedó ninguna API candidata.
+
+Candidatas inválidas que no deben activarse
+-------------------------------------------
+- 20260731.0-86662f7-combined-candidate:
+  CSV de hashes generado con un esquema incorrecto.
+- 20260731.1-86662f7-combined-candidate:
+  dos invocaciones remotas simultáneas con el mismo ID dejaron un directorio de
+  trabajo anidado.
+- Ambas permanecen como evidencia diagnóstica y el preflight las marca con
+  packageStructureValid=false.
+- El generador fue endurecido con un bloqueo exclusivo por ReleaseId.
+
+Validaciones superadas
+----------------------
+- dotnet format --verify-no-changes.
+- build Release: 0 errores y 0 advertencias.
+- pruebas de aplicación: 112/112.
+- pruebas de integración: 324/324, incluidas las cinco nuevas de hosting.
+- pruebas frontend: 14/14.
+- TypeScript correcto.
+- build frontend correcto.
+- npm audit: 0 vulnerabilidades.
+- parser PowerShell correcto para los dos scripts.
+- estructura del repositorio correcta: 21 rutas y 10 proyectos .NET.
+- revisión estática del paquete y pruebas 014 correcta, sin ejecutar SQL.
+- git diff --check correcto.
+
+Estado de infraestructura
+-------------------------
+- IIS solo se inspeccionó en lectura.
+- El sitio MES continúa iniciado y apunta a C:\MES\runtime\bootstrap.
+- runtime\current es un directorio vacío ordinario; no es un enlace activo.
+- El Worker no está instalado.
+- No se contactó NAV, RFID físico ni impresoras.
+- No se ejecutó SQL.
+- No se configuraron ni mostraron secretos.
+
+Pendiente antes de activar
+--------------------------
+1. Presentar el diff y las evidencias y recibir conformidad.
+2. Crear commit y publicar únicamente tras autorización.
+3. Generar una release final desde el commit limpio; no reutilizar una
+   candidata creada con -AllowDirty.
+4. Verificar de nuevo manifiesto, todos los hashes y preflight.
+5. Recibir autorización independiente para configuración externa, cambio
+   controlado de runtime\current/IIS y rollback.
+
+Límites vigentes
+----------------
+- No activar ni modificar IIS sin autorización explícita.
+- No contactar NAV.
+- No contactar RFID físico.
+- No contactar impresoras.
+- No ejecutar SQL sin la autorización específica de la fase.
+- No almacenar secretos en el repositorio ni en web.config.

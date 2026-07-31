@@ -87,6 +87,8 @@ builder.Services.AddScoped<IPalletCloseOptionsReader>(_ =>
         builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapGet("/health/live", () => Results.Ok(new
 {
     status = "ok",
@@ -114,6 +116,32 @@ app.MapCreateReplenishmentRequestEndpoints();
 app.MapTransitionReplenishmentRequestEndpoints();
 app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
+app.MapFallback("{*path:nonfile}", async context =>
+{
+    if (context.Request.Path.StartsWithSegments(
+        "/api",
+        StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    var environment =
+        context.RequestServices.GetRequiredService<IWebHostEnvironment>();
+    var indexPath = Path.Combine(
+        environment.WebRootPath ?? string.Empty,
+        "index.html");
+
+    if (!File.Exists(indexPath))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await Results.File(
+        indexPath,
+        "text/html; charset=utf-8").ExecuteAsync(context);
+});
 app.Run();
 
 public partial class Program;
