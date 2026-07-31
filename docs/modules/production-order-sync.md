@@ -61,6 +61,9 @@ de orden exacto y una correlacion. El entorno, la empresa, la raiz SOAP y los
 limites de resiliencia proceden de configuracion del servidor, nunca del
 navegador.
 
+La raiz SOAP termina en `/WS/`; el adaptador agrega despues la empresa y la
+pagina NAV. Por ejemplo, la raiz de `EBIRTEST` no incluye de nuevo `EBIR`.
+
 La respuesta publica `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`. Las validaciones
 funcionales se traducen a `400`, `404` o `409`; los fallos de NAV, SQL o de
 configuracion se ocultan tras un `503` seguro. El cliente NAV utiliza la
@@ -73,9 +76,10 @@ al terminar.
 ## Estado y limites pendientes de autorizacion
 
 - El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta instalado y validado en
-  `EBIR_MES_TEST`; la bandeja quedo vacia tras retirar la prueba.
-- Configurar y ejecutar una primera invocacion manual desde la API contra
   `EBIR_MES_TEST`.
+- La primera invocacion manual desde la API fue validada con la orden
+  `29516CI/1508`. La bandeja conserva un snapshot con una linea, dos operaciones
+  y 28 componentes para el siguiente bloque.
 - Programar periodicidad solo despues de validar el disparador manual.
 - Promover snapshots desde `nav.*_entrada` a `prod.ordenes`.
 - Invocar codeunits que registren tiempos, consumos, salidas o cierres.

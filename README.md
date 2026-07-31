@@ -6,13 +6,18 @@ scrap, reaprovisionamiento, impresión e integración controlada con NAV.
 
 ## Estado
 
-La base `EBIR_MES_TEST` contiene los paquetes SQL 001–014 instalados y
+La base `EBIR_MES_TEST` contiene los paquetes SQL 001–015 instalados y
 validados. La estructura de aplicación es un monolito modular .NET con una
 interfaz React. La primera vertical, `LineIdentification`, ya dispone de caso
 de uso, consulta parametrizada, API, interfaz y pruebas sin haber ejecutado SQL
 durante su implementación. El backend Node/Express de exploración y los
 prototipos anteriores se conservan en `legacy-reference`; no forman parte de la
 nueva aplicación.
+
+La lectura de ordenes lanzadas desde NAV y su persistencia idempotente en la
+bandeja `nav` estan implementadas. El disparador HTTP manual fue validado con
+una orden real bajo `EBIR\MES$`; el primer snapshot controlado permanece en la
+bandeja y todavia no se promueve a `prod.ordenes`.
 
 ## Estructura
 
