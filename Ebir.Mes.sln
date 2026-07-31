@@ -22,6 +22,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.IntegrationTests",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.ArchitectureTests", "tests\backend\Ebir.Mes.ArchitectureTests\Ebir.Mes.ArchitectureTests.csproj", "{09229BC3-7C8D-4624-B641-6C3C8178EA48}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ebir.Mes.Integrations.Tests", "tests\backend\Ebir.Mes.Integrations.Tests\Ebir.Mes.Integrations.Tests.csproj", "{51F54709-64C1-40D4-BE60-A5F90E3C3799}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -68,6 +70,10 @@ Global
 		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{09229BC3-7C8D-4624-B641-6C3C8178EA48}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51F54709-64C1-40D4-BE60-A5F90E3C3799}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51F54709-64C1-40D4-BE60-A5F90E3C3799}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51F54709-64C1-40D4-BE60-A5F90E3C3799}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51F54709-64C1-40D4-BE60-A5F90E3C3799}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
 
