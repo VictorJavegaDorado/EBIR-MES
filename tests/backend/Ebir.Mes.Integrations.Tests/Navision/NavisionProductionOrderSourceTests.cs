@@ -9,6 +9,29 @@ namespace Ebir.Mes.Integrations.Tests.Navision;
 public sealed class NavisionProductionOrderSourceTests
 {
     [Fact]
+    public async Task ReadOrderAsync_uses_exact_order_filter()
+    {
+        string? requestBody = null;
+        var handler = new StubHandler(async request =>
+        {
+            requestBody = await request.Content!.ReadAsStringAsync();
+            return SoapResponse(ProductionOrdersResponse);
+        });
+
+        var result = await CreateSource(handler).ReadOrderAsync(
+            ProductionOrderStatus.Released,
+            " of26-00042 ",
+            CancellationToken.None);
+
+        Assert.Equal("OF26-00042", result!.OrderNumber);
+        Assert.Contains("<Field>Status</Field>", requestBody);
+        Assert.Contains("<Criteria>Released</Criteria>", requestBody);
+        Assert.Contains("<Field>No</Field>", requestBody);
+        Assert.Contains("<Criteria>OF26-00042</Criteria>", requestBody);
+        Assert.Contains("<setSize>2</setSize>", requestBody);
+    }
+
+    [Fact]
     public async Task ReadAsync_maps_records_and_limits_released_query()
     {
         string? requestBody = null;

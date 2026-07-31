@@ -40,6 +40,30 @@ public sealed class NavisionProductionOrderSource(
         return MapRecords(document, OrdersPage, MapOrder);
     }
 
+    public async Task<ProductionOrderRecord?> ReadOrderAsync(
+        ProductionOrderStatus status,
+        string orderNumber,
+        CancellationToken cancellationToken)
+    {
+        var normalizedOrderNumber = NormalizeOrderNumber(orderNumber);
+        var document = await reader.ReadMultipleAsync(
+            OrdersPage,
+            [
+                new NavisionFilter("Status", ToNavisionStatus(status)),
+                new NavisionFilter("No", normalizedOrderNumber)
+            ],
+            2,
+            cancellationToken);
+        var records = MapRecords(document, OrdersPage, MapOrder);
+        return records.Count switch
+        {
+            0 => null,
+            1 => records[0],
+            _ => throw new ProductionOrderSourceUnavailableException(
+                "NAV returned more than one production order for an exact key.")
+        };
+    }
+
     public async Task<IReadOnlyList<ProductionOrderLineRecord>> ReadLinesAsync(
         ProductionOrderStatus status,
         string orderNumber,

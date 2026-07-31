@@ -27,6 +27,9 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 16. `014A_cerrar_palet_idempotente.sql` — aplicado atómicamente y validado el
     30/07/2026.
 
+17. `015A_bandeja_entrada_ordenes_nav.sql` - preparado; pendiente de
+    autorizacion SQL independiente.
+
 ## Reglas
 
 - Ejecutar con una identidad de despliegue, nunca con `EBIR\MES$`.
@@ -105,6 +108,14 @@ eliminados.
 - Diseñar y desarrollar después WC/pausa de calor, sustituciones, correcciones de
   fichajes, scrap y reaprovisionamiento.
 - Copia de seguridad antes de introducir datos productivos o ejecutar nuevas migraciones.
+
+## Paquete 015 preparado y no instalado
+
+`nav.aplicar_snapshot_orden` y sus tablas de bandeja reciben de forma
+idempotente cabecera, linea, ruta y componentes leidos de NAV. El diseno no
+escribe en NAV ni promociona aun la orden a produccion. El alcance, contrato y
+errores se detallan en `015_README.md`. No se ha conectado a SQL ni ejecutado
+el paquete durante su preparacion.
 
 ## Paquete 014 instalado y validado
 

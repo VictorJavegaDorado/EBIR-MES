@@ -7,6 +7,11 @@ public interface IProductionOrderSource
         int maximumRecords,
         CancellationToken cancellationToken);
 
+    Task<ProductionOrderRecord?> ReadOrderAsync(
+        ProductionOrderStatus status,
+        string orderNumber,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ProductionOrderLineRecord>> ReadLinesAsync(
         ProductionOrderStatus status,
         string orderNumber,
