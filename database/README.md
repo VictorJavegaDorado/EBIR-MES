@@ -1,7 +1,7 @@
 # Paquete SQL — EBIR MES
 
-Estado: paquetes `001–014` aplicados y validados. El paquete `014` se instaló,
-probó y limpió el 30/07/2026.
+Estado: paquetes `001–015` aplicados y validados. El paquete `015` se instaló,
+probó y limpió el 31/07/2026.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -27,8 +27,8 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 16. `014A_cerrar_palet_idempotente.sql` — aplicado atómicamente y validado el
     30/07/2026.
 
-17. `015A_bandeja_entrada_ordenes_nav.sql` - preparado; pendiente de
-    autorizacion SQL independiente.
+17. `015A_bandeja_entrada_ordenes_nav.sql` - instalado y validado el
+    31/07/2026.
 
 ## Reglas
 
@@ -109,13 +109,14 @@ eliminados.
   fichajes, scrap y reaprovisionamiento.
 - Copia de seguridad antes de introducir datos productivos o ejecutar nuevas migraciones.
 
-## Paquete 015 preparado y no instalado
+## Paquete 015 instalado y validado
 
 `nav.aplicar_snapshot_orden` y sus tablas de bandeja reciben de forma
 idempotente cabecera, linea, ruta y componentes leidos de NAV. El diseno no
 escribe en NAV ni promociona aun la orden a produccion. El alcance, contrato y
-errores se detallan en `015_README.md`. No se ha conectado a SQL ni ejecutado
-el paquete durante su preparacion.
+errores se detallan en `015_README.md`. Se instalo con copia previa y se valido
+extremo a extremo con NAV TEST el 31/07/2026; los fixtures fueron eliminados y
+`DBCC CHECKDB` termino sin errores.
 
 ## Paquete 014 instalado y validado
 

@@ -53,8 +53,8 @@ maximo tres veces ante timeouts, errores de transporte, `408`, `429` o respuesta
 
 ## Estado y limites pendientes de autorizacion
 
-- El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta preparado pero no se ha
-  ejecutado.
+- El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta instalado y validado en
+  `EBIR_MES_TEST`; la bandeja quedo vacia tras retirar la prueba.
 - Registrar el caso de uso en API o Worker y programar su disparador.
 - Promover snapshots desde `nav.*_entrada` a `prod.ordenes`.
 - Invocar codeunits que registren tiempos, consumos, salidas o cierres.

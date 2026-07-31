@@ -1,6 +1,6 @@
 # Paquete 015 - bandeja idempotente de ordenes NAV
 
-Estado: **preparado y revisable; no instalado**.
+Estado: **instalado y validado el 31/07/2026**.
 
 Base unica autorizable: `EBIR_MES_TEST`.
 
@@ -41,9 +41,20 @@ lote obligatorio ni se ha confirmado la unidad de los tiempos operativos.
 55507  la orden no tiene exactamente una linea
 ```
 
-## Instalacion pendiente
+## Instalacion y validacion realizadas
 
-El paquete tiene guardas de base y precondiciones, se instala en una transaccion
-y valida objetos y permiso al terminar. Antes de ejecutarlo hacen falta una
-autorizacion SQL independiente, copia de seguridad y preflight contra
-`EBIR_MES_TEST`. Preparar este archivo no autoriza su ejecucion.
+Antes de instalar se creo y verifico con checksum la copia `COPY_ONLY`
+`D:\BBDD\EBIR_MES_TEST_pre015_20260731_1430.bak`. El paquete se aplico en una
+transaccion y creo cinco tablas, el procedimiento y el permiso `EXECUTE` de
+`mes_runtime`.
+
+La prueba extremo a extremo se ejecuto como `EBIR\MES$` contra NAV TEST y SQL
+TEST. Uso la orden real lanzada `29516CI/1508`, con una linea, dos operaciones
+de ruta y 28 componentes, y comprobo `CREADA`, repeticion con la misma
+correlacion, `SIN_CAMBIOS`, `ACTUALIZADA` y restauracion del snapshot original.
+No se escribio en NAV.
+
+Las filas de prueba se eliminaron al terminar; las cinco tablas de bandeja y el
+historial quedaron vacios. La empresa real `EBIR` permanece activa en el entorno
+`EBIRTEST` como configuracion. `DBCC CHECKDB` finalizo sin errores. La evidencia
+completa esta en `tests/database/production_order_sync/RESULTADO_EJECUCION_2026-07-31.md`.
