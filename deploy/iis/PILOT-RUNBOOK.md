@@ -10,7 +10,8 @@ autorización explícita antes de activar el piloto.
 - El application pool `MES` usa `NetworkService`.
 - `AspNetCoreModuleV2` está instalado.
 - `C:\MES\runtime\current` todavía no es un enlace a una versión.
-- La release final combinada es `20260731.3-6e54bf8-combined`.
+- La release final combinada debe tener en su manifiesto el mismo commit que
+  `HEAD`; el preflight muestra las versiones disponibles para comprobarlo.
 - El servicio `MES Worker` no está instalado.
 
 Ejecutar la comprobación de solo lectura:
