@@ -1,19 +1,23 @@
 using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
 using Ebir.Mes.Api.Endpoints.Pallets;
+using Ebir.Mes.Api.Endpoints.ProductionOrders;
 using Ebir.Mes.Api.Endpoints.Replenishment;
 using Ebir.Mes.Api.Endpoints.Scrap;
 using Ebir.Mes.Application.LineIdentification;
 using Ebir.Mes.Application.LineSessions;
 using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Pallets.ClosePalletOptions;
+using Ebir.Mes.Application.ProductionOrders;
 using Ebir.Mes.Application.Replenishment;
 using Ebir.Mes.Application.Scrap;
 using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
 using Ebir.Mes.Infrastructure.Pallets;
+using Ebir.Mes.Infrastructure.ProductionOrders;
 using Ebir.Mes.Infrastructure.Replenishment;
 using Ebir.Mes.Infrastructure.Scrap;
+using Ebir.Mes.Integrations.Navision;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
@@ -34,6 +38,27 @@ builder.Services.AddScoped<CreateReplenishmentRequest>();
 builder.Services.AddScoped<TransitionReplenishmentRequest>();
 builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<GetPalletCloseOptions>();
+builder.Services.AddScoped<SynchronizeProductionOrder>();
+builder.Services.AddHttpClient(
+        ProductionOrderSynchronizationConfiguration.HttpClientName)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        UseDefaultCredentials = true,
+        PreAuthenticate = true
+    });
+builder.Services.AddScoped<IProductionOrderSource>(services =>
+{
+    var configuration = ProductionOrderSynchronizationConfiguration.Read(
+        services.GetRequiredService<IConfiguration>());
+    return new NavisionProductionOrderSource(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient(
+            ProductionOrderSynchronizationConfiguration.HttpClientName),
+        configuration.CreateNavisionOptions());
+});
+builder.Services.AddScoped<IProductionOrderSnapshotStore>(services =>
+    new SqlProductionOrderSnapshotStore(
+        services.GetRequiredService<IConfiguration>()
+            .GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -116,6 +141,7 @@ app.MapCreateReplenishmentRequestEndpoints();
 app.MapTransitionReplenishmentRequestEndpoints();
 app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
+app.MapProductionOrderSynchronizationEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
 {
     if (context.Request.Path.StartsWithSegments(

@@ -51,11 +51,32 @@ Las lecturas pueden repetirse porque no cambian estado. Se reintentan como
 maximo tres veces ante timeouts, errores de transporte, `408`, `429` o respuestas
 `5xx`. Los errores funcionales y respuestas SOAP no validas no se reintentan.
 
+## Disparador administrativo controlado
+
+La API compone `IProductionOrderSource`, `IProductionOrderSnapshotStore` y
+`SynchronizeProductionOrder`, pero el disparador permanece desactivado por
+defecto. Cuando la configuracion operativa lo habilita, el endpoint
+`POST /api/admin/production-orders/synchronize` acepta exclusivamente un numero
+de orden exacto y una correlacion. El entorno, la empresa, la raiz SOAP y los
+limites de resiliencia proceden de configuracion del servidor, nunca del
+navegador.
+
+La respuesta publica `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`. Las validaciones
+funcionales se traducen a `400`, `404` o `409`; los fallos de NAV, SQL o de
+configuracion se ocultan tras un `503` seguro. El cliente NAV utiliza la
+identidad del proceso y no realiza ninguna llamada durante el arranque.
+
+Habilitar el disparador no activa IIS ni programa periodicidad. En la fase
+manual debe habilitarse solo para la ventana de prueba y volver a deshabilitarse
+al terminar.
+
 ## Estado y limites pendientes de autorizacion
 
 - El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta instalado y validado en
   `EBIR_MES_TEST`; la bandeja quedo vacia tras retirar la prueba.
-- Registrar el caso de uso en API o Worker y programar su disparador.
+- Configurar y ejecutar una primera invocacion manual desde la API contra
+  `EBIR_MES_TEST`.
+- Programar periodicidad solo despues de validar el disparador manual.
 - Promover snapshots desde `nav.*_entrada` a `prod.ordenes`.
 - Invocar codeunits que registren tiempos, consumos, salidas o cierres.
 - Activar el adaptador en API, Worker o IIS.
