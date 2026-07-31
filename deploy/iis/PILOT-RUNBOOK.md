@@ -10,20 +10,20 @@ autorización explícita antes de activar el piloto.
 - El application pool `MES` usa `NetworkService`.
 - `AspNetCoreModuleV2` está instalado.
 - `C:\MES\runtime\current` todavía no es un enlace a una versión.
-- La release combinada de validación es
-  `20260731.2-86662f7-combined-candidate`.
+- La release final combinada es `20260731.3-6e54bf8-combined`.
 - El servicio `MES Worker` no está instalado.
 
 Ejecutar la comprobación de solo lectura:
 
 ```powershell
+$expectedCommit = (& git -C C:\MES rev-parse HEAD).Trim()
 powershell -ExecutionPolicy Bypass -File C:\MES\deploy\iis\Get-PilotPreflight.ps1 `
-  -ExpectedCommit 86662f7fd8a01de50a74a9f6f4a6c08105b7c9cc
+  -ExpectedCommit $expectedCommit
 ```
 
 ## Estado del routing y bloqueo de activación
 
-El bloqueo técnico de hosting conjunto está resuelto en el árbol local:
+El bloqueo técnico de hosting conjunto está resuelto en `main`:
 
 - la publicación de la API incorpora el frontend en `api\wwwroot`;
 - la API sirve archivos estáticos;
@@ -33,8 +33,8 @@ El bloqueo técnico de hosting conjunto está resuelto en el árbol local:
 - cinco pruebas de integración cubren estos casos;
 - la candidata `.2` fue verificada en loopback sin modificar IIS.
 
-La candidata todavía no debe activarse: procede de un árbol sin commit mediante
-`-AllowDirty`, falta crear una release final desde un commit limpio y siguen
+La release final procede de un commit limpio, está publicada y sus 97 hashes
+han sido verificados sin discrepancias. Todavía no debe activarse: siguen
 pendientes la configuración externa, la autorización de IIS y el rollback
 controlado.
 
