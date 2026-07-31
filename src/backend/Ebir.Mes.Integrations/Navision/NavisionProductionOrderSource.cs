@@ -1,8 +1,4 @@
-using System.Diagnostics;
 using System.Globalization;
-using System.Net;
-using System.Text;
-using System.Xml;
 using System.Xml.Linq;
 using Ebir.Mes.Application.ProductionOrders;
 
@@ -14,174 +10,106 @@ public sealed class NavisionProductionOrderSource(
     : IProductionOrderSource
 {
     public const int MaximumPageSize = 100;
+    public const int MaximumOrderNumberLength = 20;
 
-    private const string PageName = "WS_CPP_ProdOrderList";
-    private const string PageNamespace =
-        "urn:microsoft-dynamics-schemas/page/ws_cpp_prodorderlist";
-    private const string SoapEnvelopeNamespace =
-        "http://schemas.xmlsoap.org/soap/envelope/";
-    private const string SoapAction = PageNamespace + ":ReadMultiple";
-    private static readonly ActivitySource ActivitySource =
-        new("Ebir.Mes.Integrations.Navision");
+    private static readonly NavisionPage OrdersPage = new(
+        "WS_CPP_ProdOrderList",
+        "urn:microsoft-dynamics-schemas/page/ws_cpp_prodorderlist");
+    private static readonly NavisionPage LinesPage = new(
+        "WS_CPP_ProdOrderLineList",
+        "urn:microsoft-dynamics-schemas/page/ws_cpp_prodorderlinelist");
+    private static readonly NavisionPage RoutingPage = new(
+        "WS_CPP_RutaOrdenProduccion",
+        "urn:microsoft-dynamics-schemas/page/ws_cpp_rutaordenproduccion");
+    private static readonly NavisionPage ComponentsPage = new(
+        "WS_CPP_Componentes",
+        "urn:microsoft-dynamics-schemas/page/ws_cpp_componentes");
+    private readonly NavisionSoapPageReader reader = new(httpClient, options);
 
     public async Task<IReadOnlyList<ProductionOrderRecord>> ReadAsync(
         ProductionOrderStatus status,
         int maximumRecords,
         CancellationToken cancellationToken)
     {
-        if (maximumRecords < 1 || maximumRecords > MaximumPageSize)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(maximumRecords),
-                $"The NAV page size must be between 1 and {MaximumPageSize}.");
-        }
-
-        using var activity = ActivitySource.StartActivity(
-            "navision.production-orders.read",
-            ActivityKind.Client);
-        activity?.SetTag("navision.page", PageName);
-        activity?.SetTag("navision.company", options.Company);
-        activity?.SetTag("navision.status", status.ToString());
-        activity?.SetTag("navision.maximum_records", maximumRecords);
-
-        for (var attempt = 1; attempt <= options.MaximumReadAttempts; attempt++)
-        {
-            try
-            {
-                using var request = CreateRequest(status, maximumRecords);
-                using var timeoutSource =
-                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeoutSource.CancelAfter(options.RequestTimeout);
-
-                using var response = await httpClient.SendAsync(
-                    request,
-                    HttpCompletionOption.ResponseHeadersRead,
-                    timeoutSource.Token);
-                var responseBody = await response.Content.ReadAsStringAsync(
-                    timeoutSource.Token);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var records = ParseResponse(responseBody);
-                    activity?.SetTag("navision.record_count", records.Count);
-                    return records;
-                }
-
-                if (IsTransient(response.StatusCode) &&
-                    attempt < options.MaximumReadAttempts)
-                {
-                    AddRetryEvent(activity, attempt, response.StatusCode);
-                    await DelayBeforeRetryAsync(attempt, cancellationToken);
-                    continue;
-                }
-
-                throw CreateUnavailableException(
-                    response.StatusCode,
-                    responseBody);
-            }
-            catch (OperationCanceledException exception)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                if (attempt < options.MaximumReadAttempts)
-                {
-                    await DelayBeforeRetryAsync(attempt, cancellationToken);
-                    continue;
-                }
-
-                throw new ProductionOrderSourceUnavailableException(
-                    "NAV did not answer within the configured timeout.",
-                    exception);
-            }
-            catch (HttpRequestException exception)
-            {
-                if (attempt < options.MaximumReadAttempts)
-                {
-                    await DelayBeforeRetryAsync(attempt, cancellationToken);
-                    continue;
-                }
-
-                throw new ProductionOrderSourceUnavailableException(
-                    "NAV production orders are currently unavailable.",
-                    exception);
-            }
-        }
-
-        throw new UnreachableException();
+        ValidatePageSize(maximumRecords);
+        var document = await reader.ReadMultipleAsync(
+            OrdersPage,
+            [new NavisionFilter("Status", ToNavisionStatus(status))],
+            maximumRecords,
+            cancellationToken);
+        return MapRecords(document, OrdersPage, MapOrder);
     }
 
-    private HttpRequestMessage CreateRequest(
+    public async Task<IReadOnlyList<ProductionOrderLineRecord>> ReadLinesAsync(
         ProductionOrderStatus status,
-        int maximumRecords)
+        string orderNumber,
+        int maximumRecords,
+        CancellationToken cancellationToken)
     {
-        XNamespace soap = SoapEnvelopeNamespace;
-        XNamespace page = PageNamespace;
-        var envelope = new XDocument(
-            new XElement(
-                soap + "Envelope",
-                new XElement(
-                    soap + "Body",
-                    new XElement(
-                        page + "ReadMultiple",
-                        new XElement(
-                            page + "filter",
-                            new XElement(page + "Field", "Status"),
-                            new XElement(page + "Criteria", ToNavisionStatus(status))),
-                        new XElement(page + "bookmarkKey", string.Empty),
-                        new XElement(page + "setSize", maximumRecords)))));
-
-        var company = Uri.EscapeDataString(options.Company);
-        var endpoint = new Uri(
-            options.ServiceRoot,
-            $"{company}/Page/{PageName}");
-        var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = new StringContent(
-                envelope.ToString(SaveOptions.DisableFormatting),
-                Encoding.UTF8,
-                "text/xml")
-        };
-        request.Headers.TryAddWithoutValidation("SOAPAction", SoapAction);
-        return request;
+        ValidatePageSize(maximumRecords);
+        var normalizedOrderNumber = NormalizeOrderNumber(orderNumber);
+        var document = await reader.ReadMultipleAsync(
+            LinesPage,
+            [
+                new NavisionFilter("Status", ToNavisionStatus(status)),
+                new NavisionFilter("Prod_Order_No", normalizedOrderNumber)
+            ],
+            maximumRecords,
+            cancellationToken);
+        return MapRecords(document, LinesPage, MapLine);
     }
 
-    private static IReadOnlyList<ProductionOrderRecord> ParseResponse(
-        string responseBody)
+    public async Task<IReadOnlyList<ProductionOrderRoutingStepRecord>>
+        ReadRoutingAsync(
+            string orderNumber,
+            int maximumRecords,
+            CancellationToken cancellationToken)
+    {
+        ValidatePageSize(maximumRecords);
+        var normalizedOrderNumber = NormalizeOrderNumber(orderNumber);
+        var document = await reader.ReadMultipleAsync(
+            RoutingPage,
+            [new NavisionFilter("Prod_Order_No", normalizedOrderNumber)],
+            maximumRecords,
+            cancellationToken);
+        return MapRecords(document, RoutingPage, MapRoutingStep);
+    }
+
+    public async Task<IReadOnlyList<ProductionOrderComponentRecord>>
+        ReadComponentsAsync(
+            ProductionOrderStatus status,
+            string orderNumber,
+            int maximumRecords,
+            CancellationToken cancellationToken)
+    {
+        ValidatePageSize(maximumRecords);
+        var normalizedOrderNumber = NormalizeOrderNumber(orderNumber);
+        var document = await reader.ReadMultipleAsync(
+            ComponentsPage,
+            [
+                new NavisionFilter("Status", ToNavisionStatus(status)),
+                new NavisionFilter("Prod_Order_No", normalizedOrderNumber)
+            ],
+            maximumRecords,
+            cancellationToken);
+        return MapRecords(document, ComponentsPage, MapComponent);
+    }
+
+    private static IReadOnlyList<T> MapRecords<T>(
+        XDocument document,
+        NavisionPage page,
+        Func<XElement, XNamespace, T> mapper)
     {
         try
         {
-            using var stringReader = new StringReader(responseBody);
-            using var xmlReader = XmlReader.Create(
-                stringReader,
-                new XmlReaderSettings
-                {
-                    DtdProcessing = DtdProcessing.Prohibit,
-                    XmlResolver = null
-                });
-            var document = XDocument.Load(xmlReader);
-            XNamespace soap = SoapEnvelopeNamespace;
-            XNamespace page = PageNamespace;
-
-            var fault = document.Descendants(soap + "Fault").SingleOrDefault();
-            if (fault is not null)
-            {
-                var faultCode = fault.Element("faultcode")?.Value;
-                throw new ProductionOrderSourceUnavailableException(
-                    string.IsNullOrWhiteSpace(faultCode)
-                        ? "NAV rejected the production order query."
-                        : $"NAV rejected the production order query ({faultCode}).");
-            }
-
+            XNamespace pageNamespace = page.Namespace;
             return document
-                .Descendants(page + "WS_CPP_ProdOrderList")
-                .Select(record => MapRecord(record, page))
+                .Descendants(pageNamespace + page.Name)
+                .Select(record => mapper(record, pageNamespace))
                 .ToArray();
         }
-        catch (ProductionOrderSourceUnavailableException)
-        {
-            throw;
-        }
         catch (Exception exception)
-            when (exception is XmlException or FormatException or InvalidOperationException)
+            when (exception is FormatException or OverflowException)
         {
             throw new ProductionOrderSourceUnavailableException(
                 "NAV returned an invalid production order response.",
@@ -189,7 +117,7 @@ public sealed class NavisionProductionOrderSource(
         }
     }
 
-    private static ProductionOrderRecord MapRecord(
+    private static ProductionOrderRecord MapOrder(
         XElement record,
         XNamespace page)
     {
@@ -209,6 +137,116 @@ public sealed class NavisionProductionOrderSource(
             ParseDate(Value(record, page + "Due_Date")));
     }
 
+    private static ProductionOrderLineRecord MapLine(
+        XElement record,
+        XNamespace page)
+    {
+        return new ProductionOrderLineRecord(
+            RequiredValue(record, page + "Prod_Order_No"),
+            ParseStatus(RequiredValue(record, page + "Status")),
+            RequiredValue(record, page + "Item_No"),
+            Value(record, page + "Variant_Code"),
+            Value(record, page + "Description"),
+            Value(record, page + "Location_Code"),
+            ParseDecimal(Value(record, page + "Quantity")),
+            ParseDecimal(Value(record, page + "Finished_Quantity")),
+            ParseDecimal(Value(record, page + "Remaining_Quantity")),
+            ParseDecimal(Value(record, page + "Scrap_Percent")),
+            ParseDate(Value(record, page + "Due_Date")),
+            ParseDate(Value(record, page + "Starting_Date")),
+            ParseDate(Value(record, page + "Ending_Date")),
+            Value(record, page + "Production_BOM_No"));
+    }
+
+    private static ProductionOrderRoutingStepRecord MapRoutingStep(
+        XElement record,
+        XNamespace page)
+    {
+        return new ProductionOrderRoutingStepRecord(
+            RequiredValue(record, page + "Prod_Order_No"),
+            ParseInt(RequiredValue(record, page + "Routing_Reference_No")),
+            Value(record, page + "Routing_No"),
+            RequiredValue(record, page + "Operation_No"),
+            Value(record, page + "Previous_Operation_No"),
+            Value(record, page + "Next_Operation_No"),
+            ParseRoutingType(RequiredValue(record, page + "Type")),
+            RequiredValue(record, page + "No"),
+            Value(record, page + "Description"),
+            ParseDateTime(Value(record, page + "Starting_Date_Time")),
+            ParseDateTime(Value(record, page + "Ending_Date_Time")),
+            ParseDecimal(Value(record, page + "Setup_Time")),
+            ParseDecimal(Value(record, page + "Run_Time")),
+            ParseDecimal(Value(record, page + "Wait_Time")),
+            ParseDecimal(Value(record, page + "Move_Time")),
+            ParseDecimal(Value(record, page + "Fixed_Scrap_Quantity")),
+            Value(record, page + "Routing_Link_Code"),
+            ParseDecimal(Value(record, page + "Scrap_Factor_Percent")),
+            ParseRoutingStatus(Value(record, page + "Routing_Status")),
+            Value(record, page + "Location_Code"),
+            ParseBool(Value(record, page + "IsSigning")));
+    }
+
+    private static ProductionOrderComponentRecord MapComponent(
+        XElement record,
+        XNamespace page)
+    {
+        return new ProductionOrderComponentRecord(
+            RequiredValue(record, page + "Prod_Order_No"),
+            ParseInt(RequiredValue(record, page + "Prod_Order_Line_No")),
+            ParseInt(RequiredValue(record, page + "Line_No")),
+            ParseStatus(RequiredValue(record, page + "Status")),
+            RequiredValue(record, page + "Item_No"),
+            Value(record, page + "Variant_Code"),
+            Value(record, page + "Description"),
+            ParseDecimal(Value(record, page + "Quantity_per")),
+            ParseDecimal(Value(record, page + "Expected_Quantity")),
+            ParseDecimal(Value(record, page + "Remaining_Quantity")),
+            ParseDecimal(Value(record, page + "Act_Consumption_Qty")),
+            Value(record, page + "Unit_of_Measure_Code"),
+            ParseFlushingMethod(RequiredValue(record, page + "Flushing_Method")),
+            Value(record, page + "Routing_Link_Code"),
+            Value(record, page + "Cod_Operacion"),
+            Value(record, page + "Location_Code"),
+            Value(record, page + "Bin_Code"),
+            ParseDecimal(Value(record, page + "Qty_Picked")),
+            ParseBool(Value(record, page + "Substitution_Available")));
+    }
+
+    private static string NormalizeOrderNumber(string orderNumber)
+    {
+        ArgumentNullException.ThrowIfNull(orderNumber);
+        var normalized = orderNumber.Trim().ToUpperInvariant();
+        if (normalized.Length == 0 ||
+            normalized.Length > MaximumOrderNumberLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(orderNumber),
+                $"The NAV order number must contain between 1 and {MaximumOrderNumberLength} characters.");
+        }
+
+        if (normalized.Contains("..", StringComparison.Ordinal) ||
+            normalized.Any(character =>
+                !char.IsLetterOrDigit(character) &&
+                character is not '-' and not '/' and not '_' and not '.'))
+        {
+            throw new ArgumentException(
+                "The NAV order number contains filter control characters.",
+                nameof(orderNumber));
+        }
+
+        return normalized;
+    }
+
+    private static void ValidatePageSize(int maximumRecords)
+    {
+        if (maximumRecords < 1 || maximumRecords > MaximumPageSize)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(maximumRecords),
+                $"The NAV page size must be between 1 and {MaximumPageSize}.");
+        }
+    }
+
     private static string RequiredValue(XElement record, XName name)
     {
         var value = Value(record, name);
@@ -225,10 +263,24 @@ public sealed class NavisionProductionOrderSource(
             ? 0m
             : decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
 
+    private static int ParseInt(string value) =>
+        int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);
+
+    private static bool ParseBool(string value) =>
+        !string.IsNullOrWhiteSpace(value) && bool.Parse(value);
+
     private static DateOnly? ParseDate(string value) =>
         string.IsNullOrWhiteSpace(value)
             ? null
             : DateOnly.ParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    private static DateTime? ParseDateTime(string value) =>
+        string.IsNullOrWhiteSpace(value)
+            ? null
+            : DateTime.Parse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind);
 
     private static ProductionOrderStatus ParseStatus(string value) =>
         value switch
@@ -253,58 +305,36 @@ public sealed class NavisionProductionOrderSource(
             _ => throw new ArgumentOutOfRangeException(nameof(status))
         };
 
-    private static bool IsTransient(HttpStatusCode statusCode) =>
-        statusCode is HttpStatusCode.RequestTimeout or
-            HttpStatusCode.TooManyRequests ||
-        (int)statusCode >= 500;
-
-    private static ProductionOrderSourceUnavailableException
-        CreateUnavailableException(
-            HttpStatusCode statusCode,
-            string responseBody)
-    {
-        var faultCode = TryReadFaultCode(responseBody);
-        var detail = string.IsNullOrWhiteSpace(faultCode)
-            ? $"HTTP {(int)statusCode}"
-            : faultCode;
-        return new ProductionOrderSourceUnavailableException(
-            $"NAV rejected the production order query ({detail}).");
-    }
-
-    private static string? TryReadFaultCode(string responseBody)
-    {
-        try
+    private static ProductionRoutingStepType ParseRoutingType(string value) =>
+        value switch
         {
-            var document = XDocument.Parse(responseBody);
-            XNamespace soap = SoapEnvelopeNamespace;
-            return document
-                .Descendants(soap + "Fault")
-                .Elements("faultcode")
-                .SingleOrDefault()
-                ?.Value;
-        }
-        catch (XmlException)
+            "Work_Center" => ProductionRoutingStepType.WorkCenter,
+            "Machine_Center" => ProductionRoutingStepType.MachineCenter,
+            _ => throw new FormatException($"Unknown NAV routing type: {value}.")
+        };
+
+    private static ProductionRoutingStatus ParseRoutingStatus(string value) =>
+        value switch
         {
-            return null;
-        }
-    }
+            "" or "_blank_" => ProductionRoutingStatus.NotStarted,
+            "Planned" => ProductionRoutingStatus.Planned,
+            "In_Progress" => ProductionRoutingStatus.InProgress,
+            "Finished" => ProductionRoutingStatus.Finished,
+            _ => throw new FormatException($"Unknown NAV routing status: {value}.")
+        };
 
-    private static void AddRetryEvent(
-        Activity? activity,
-        int attempt,
-        HttpStatusCode statusCode)
-    {
-        activity?.AddEvent(new ActivityEvent(
-            "navision.read.retry",
-            tags: new ActivityTagsCollection
-            {
-                ["attempt"] = attempt,
-                ["http.status_code"] = (int)statusCode
-            }));
-    }
-
-    private static Task DelayBeforeRetryAsync(
-        int attempt,
-        CancellationToken cancellationToken) =>
-        Task.Delay(TimeSpan.FromMilliseconds(100 * attempt), cancellationToken);
+    private static ProductionComponentFlushingMethod ParseFlushingMethod(
+        string value) =>
+        value switch
+        {
+            "Manual" => ProductionComponentFlushingMethod.Manual,
+            "Forward" => ProductionComponentFlushingMethod.Forward,
+            "Backward" => ProductionComponentFlushingMethod.Backward,
+            "Pick__x002B__Forward" =>
+                ProductionComponentFlushingMethod.PickAndForward,
+            "Pick__x002B__Backward" =>
+                ProductionComponentFlushingMethod.PickAndBackward,
+            _ => throw new FormatException(
+                $"Unknown NAV component flushing method: {value}.")
+        };
 }
