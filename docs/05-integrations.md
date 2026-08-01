@@ -14,6 +14,11 @@ reserva, procesa y confirma. El desbloqueo manual es una acción controlada y
 auditada. Desarrollo y pruebas utilizan impresoras simuladas sin dirección de
 red ni protocolo físico.
 
+El worker está deshabilitado por defecto. El modo `Simulated` crea un recibo
+JSON idempotente por trabajo y conserva en él el lote incluido en la etiqueta.
+Una reserva caducada se clasifica como resultado desconocido y nunca se
+reimprime automáticamente.
+
 ## RFID
 
 La lectura física pertenece al borde de integración. El servidor recibe un
