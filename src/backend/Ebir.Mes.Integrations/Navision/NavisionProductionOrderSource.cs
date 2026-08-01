@@ -18,6 +18,9 @@ public sealed class NavisionProductionOrderSource(
     private static readonly NavisionPage LinesPage = new(
         "WS_CPP_ProdOrderLineList",
         "urn:microsoft-dynamics-schemas/page/ws_cpp_prodorderlinelist");
+    private static readonly NavisionPage ReleasedOrdersPage = new(
+        "WS_CPP_OPLanzadas",
+        "urn:microsoft-dynamics-schemas/page/ws_cpp_oplanzadas");
     private static readonly NavisionPage RoutingPage = new(
         "WS_CPP_RutaOrdenProduccion",
         "urn:microsoft-dynamics-schemas/page/ws_cpp_rutaordenproduccion");
@@ -81,6 +84,26 @@ public sealed class NavisionProductionOrderSource(
             maximumRecords,
             cancellationToken);
         return MapRecords(document, LinesPage, MapLine);
+    }
+
+    public async Task<ProductionOrderLotRecord?> ReadLotAsync(
+        string orderNumber,
+        CancellationToken cancellationToken)
+    {
+        var normalizedOrderNumber = NormalizeOrderNumber(orderNumber);
+        var document = await reader.ReadMultipleAsync(
+            ReleasedOrdersPage,
+            [new NavisionFilter("No", normalizedOrderNumber)],
+            2,
+            cancellationToken);
+        var records = MapRecords(document, ReleasedOrdersPage, MapLot);
+        return records.Count switch
+        {
+            0 => null,
+            1 => records[0],
+            _ => throw new ProductionOrderSourceUnavailableException(
+                "NAV returned more than one output lot for an exact production order key.")
+        };
     }
 
     public async Task<IReadOnlyList<ProductionOrderRoutingStepRecord>>
@@ -181,6 +204,14 @@ public sealed class NavisionProductionOrderSource(
             ParseDate(Value(record, page + "Ending_Date")),
             Value(record, page + "Production_BOM_No"));
     }
+
+    private static ProductionOrderLotRecord MapLot(
+        XElement record,
+        XNamespace page) =>
+        new(
+            RequiredValue(record, page + "No"),
+            RequiredValue(record, page + "Source_No"),
+            Value(record, page + "Cód_Lote_Salida"));
 
     private static ProductionOrderRoutingStepRecord MapRoutingStep(
         XElement record,

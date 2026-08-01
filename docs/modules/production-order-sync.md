@@ -12,6 +12,8 @@ entrada. NAV permanece exclusivamente en lectura.
 - Lineas: `WS_CPP_ProdOrderLineList`.
 - Ruta y operaciones: `WS_CPP_RutaOrdenProduccion`.
 - Componentes: `WS_CPP_Componentes`.
+- Lote de salida del producto terminado: `Cód_Lote_Salida` de
+  `WS_CPP_OPLanzadas`.
 - Unica operacion permitida: `ReadMultiple`.
 - Estado inicial de trabajo: ordenes lanzadas (`Released`).
 - Cada consulta exige un limite entre 1 y 100 registros.
@@ -27,8 +29,8 @@ exige exactamente una linea por orden.
 
 ## Bandeja de entrada idempotente
 
-El caso de uso lee por numero exacto una orden `Released`, su linea, ruta y
-componentes. Normaliza entorno, empresa y orden, rechaza relaciones incoherentes
+El caso de uso lee por numero exacto una orden `Released`, su lote de salida,
+linea, ruta y componentes. Normaliza entorno, empresa y orden, rechaza relaciones incoherentes
 y no acepta exactamente 100 detalles para evitar persistir una pagina
 posiblemente truncada.
 
@@ -41,21 +43,21 @@ su SHA-256 y llama a `nav.aplicar_snapshot_orden`. El procedimiento preparado:
 - devuelve `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`;
 - sustituye cabecera y detalles atomicamente cuando NAV ha cambiado.
 
-La bandeja no alimenta todavia `prod.ordenes`. Ese paso requiere resolver de
-forma explicita el lote obligatorio y confirmar la unidad de tiempo NAV; no se
-inventan valores productivos.
+El lote es obligatorio, procede exclusivamente de NAV y debe corresponder a la
+misma orden y producto. MES no lo calcula ni permite sustituirlo manualmente.
 
 ## Promocion controlada a produccion
 
-El paquete 016 instala `nav.promover_orden_entrada`. Durante el piloto, la
-promocion exige un lote, la cuenta que lo proporciono y una operacion NAV
-explicitos. La cantidad debe ser un entero exacto y el tiempo de ejecucion de
+El paquete 016 instala la promocion base. El paquete 017 añade el contrato que
+consume exclusivamente el lote persistido con el snapshot; el endpoint solo
+recibe la orden de entrada, una operacion NAV y la correlacion. La cantidad debe
+ser un entero exacto y el tiempo de ejecucion de
 la operacion debe ser positivo y representable sin redondeo en minutos por
 unidad.
 
 La primera promocion crea atomicamente `prod.ordenes` y sus componentes. Una
 nueva correlacion con el mismo snapshot y decisiones devuelve `SIN_CAMBIOS`.
-Un cambio de snapshot, lote u operacion no sobrescribe los datos productivos:
+Un cambio de snapshot, lote NAV u operacion no sobrescribe los datos productivos:
 devuelve `REVISION` y bloquea la orden en ese estado. Repetir una correlacion
 solo es valido con exactamente el mismo contenido.
 
@@ -96,9 +98,11 @@ al terminar.
   `EBIR_MES_TEST`.
 - El paquete `016A_promover_ordenes_nav.sql` esta instalado y validado en
   `EBIR_MES_TEST`; todavia no se ha promovido ninguna orden real.
-- La primera invocacion manual desde la API fue validada con la orden
-  `29516CI/1508`. La bandeja conserva un snapshot con una linea, dos operaciones
-  y 28 componentes para el siguiente bloque.
+- El paquete `017A_lote_nav_ordenes_entrada.sql` esta preparado y pendiente de
+  autorizacion de instalacion.
+- La primera invocacion manual se hizo usando `29516CI/1508` como numero de
+  orden. Ese valor es el producto; el snapshot historico conservado no debe
+  promocionarse.
 - Programar periodicidad solo despues de validar el disparador manual.
 - Ejecutar una promocion manual real desde `nav.*_entrada` a `prod.ordenes`.
 - Invocar codeunits que registren tiempos, consumos, salidas o cierres.

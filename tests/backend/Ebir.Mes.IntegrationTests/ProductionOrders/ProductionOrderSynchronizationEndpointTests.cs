@@ -226,6 +226,12 @@ public sealed class ProductionOrderSynchronizationEndpointTests
             CancellationToken cancellationToken) =>
             Task.FromResult(Order);
 
+        public Task<ProductionOrderLotRecord?> ReadLotAsync(
+            string orderNumber,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ProductionOrderLotRecord?>(
+                new("OF26-00042", "ITEM-01", "FL2600042"));
+
         public Task<IReadOnlyList<ProductionOrderLineRecord>> ReadLinesAsync(
             ProductionOrderStatus status,
             string orderNumber,

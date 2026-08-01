@@ -1,7 +1,7 @@
 # Paquete SQL — EBIR MES
 
-Estado: paquetes `001–015` aplicados y validados. El paquete `015` se instaló,
-probó y limpió el 31/07/2026.
+Estado: paquetes `001–016` aplicados y validados. El paquete `017` esta
+preparado y pendiente de autorizacion de instalacion.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -29,6 +29,8 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 
 17. `015A_bandeja_entrada_ordenes_nav.sql` - instalado y validado el
     31/07/2026.
+18. `016A_promover_ordenes_nav.sql` - instalado y validado el 01/08/2026.
+19. `017A_lote_nav_ordenes_entrada.sql` - preparado, no instalado.
 
 ## Reglas
 

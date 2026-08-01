@@ -9,17 +9,13 @@ public sealed class PromoteProductionOrder(IProductionOrderPromotionStore store)
         ArgumentNullException.ThrowIfNull(command);
         var normalized = command with
         {
-            Lot = Normalize(command.Lot),
-            OperationNumber = Normalize(command.OperationNumber).ToUpperInvariant(),
-            LotProvidedBy = Normalize(command.LotProvidedBy)
+            OperationNumber = Normalize(command.OperationNumber).ToUpperInvariant()
         };
         if (normalized.InboundOrderId <= 0)
             throw Rejected("NAV_INBOUND_ORDER_INVALID", "La orden de entrada no es válida.");
         if (normalized.CorrelationId == Guid.Empty)
             throw Rejected("NAV_PROMOTION_ID_REQUIRED", "La correlación de promoción es obligatoria.");
-        Validate(normalized.Lot, 50, "NAV_PROMOTION_LOT_INVALID", "El lote es obligatorio y admite 50 caracteres.");
         Validate(normalized.OperationNumber, 30, "NAV_PROMOTION_OPERATION_INVALID", "La operación productiva es obligatoria y admite 30 caracteres.");
-        Validate(normalized.LotProvidedBy, 256, "NAV_PROMOTION_LOT_PROVIDER_INVALID", "Debe identificarse quién proporcionó el lote.");
         return store.PromoteAsync(normalized, cancellationToken);
     }
 

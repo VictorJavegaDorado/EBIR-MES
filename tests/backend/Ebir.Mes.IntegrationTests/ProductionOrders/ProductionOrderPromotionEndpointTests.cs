@@ -47,10 +47,10 @@ public sealed class ProductionOrderPromotionEndpointTests
     {
         using var factory = EnabledFactory(new StubStore());
         using var response = await factory.CreateClient().PostAsJsonAsync(
-            "/api/admin/production-orders/promote", Request() with { Lot = "" });
+            "/api/admin/production-orders/promote", Request() with { OperationNumber = "" });
         using var body = await ReadBodyAsync(response);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal("NAV_PROMOTION_LOT_INVALID",
+        Assert.Equal("NAV_PROMOTION_OPERATION_INVALID",
             body.RootElement.GetProperty("code").GetString());
     }
 
@@ -82,7 +82,7 @@ public sealed class ProductionOrderPromotionEndpointTests
         });
 
     private static PromoteProductionOrderRequest Request(Guid? correlation = null) =>
-        new(2, "LOTE-01", "20", "EBIR\\supervisor", correlation ?? Guid.NewGuid());
+        new(2, "20", correlation ?? Guid.NewGuid());
 
     private static async Task<JsonDocument> ReadBodyAsync(HttpResponseMessage response) =>
         JsonDocument.Parse(await response.Content.ReadAsStringAsync());

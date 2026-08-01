@@ -18,16 +18,16 @@ public sealed class SqlProductionOrderPromotionStore(string? connectionString)
         {
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken);
-            await using var command = new SqlCommand("nav.promover_orden_entrada", connection)
+            await using var command = new SqlCommand(
+                "nav.promover_orden_entrada_con_lote_nav",
+                connection)
             {
                 CommandType = CommandType.StoredProcedure,
                 CommandTimeout = 30
             };
             command.Parameters.Add("@promocion_id", SqlDbType.UniqueIdentifier).Value = request.CorrelationId;
             command.Parameters.Add("@orden_entrada_id", SqlDbType.BigInt).Value = request.InboundOrderId;
-            command.Parameters.Add("@lote", SqlDbType.NVarChar, 50).Value = request.Lot;
             command.Parameters.Add("@operacion_codigo", SqlDbType.NVarChar, 30).Value = request.OperationNumber;
-            command.Parameters.Add("@lote_proporcionado_por", SqlDbType.NVarChar, 256).Value = request.LotProvidedBy;
             var orderId = command.Parameters.Add("@orden_id", SqlDbType.BigInt);
             orderId.Direction = ParameterDirection.Output;
             var outcome = command.Parameters.Add("@resultado", SqlDbType.NVarChar, 20);
@@ -63,9 +63,9 @@ public sealed class SqlProductionOrderPromotionStore(string? connectionString)
         {
             55600 => ("NAV_PROMOTION_ID_REQUIRED", "La correlación de promoción es obligatoria.", false),
             55601 => ("NAV_INBOUND_ORDER_INVALID", "La orden de entrada no es válida.", false),
-            55602 => ("NAV_PROMOTION_LOT_INVALID", "El lote es obligatorio.", false),
+            55602 => ("NAV_PROMOTION_LOT_INVALID", "La orden de entrada no contiene un lote NAV válido.", false),
             55603 => ("NAV_PROMOTION_OPERATION_INVALID", "La operación productiva es obligatoria.", false),
-            55604 => ("NAV_PROMOTION_LOT_PROVIDER_INVALID", "Debe identificarse quién proporcionó el lote.", false),
+            55604 => ("NAV_PROMOTION_LOT_PROVIDER_INVALID", "El origen del lote NAV no es válido.", false),
             55605 => ("NAV_INBOUND_ORDER_NOT_FOUND", "La orden de entrada no existe.", false),
             55606 => ("NAV_INBOUND_ORDER_NOT_RELEASED", "La orden NAV no está lanzada.", false),
             55607 => ("NAV_SINGLE_LINE_ORDER_REQUIRED", "El piloto requiere exactamente una línea NAV.", false),

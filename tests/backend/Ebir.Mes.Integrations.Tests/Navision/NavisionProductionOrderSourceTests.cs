@@ -117,6 +117,32 @@ public sealed class NavisionProductionOrderSourceTests
     }
 
     [Fact]
+    public async Task ReadLotAsync_reads_output_lot_from_released_order_page()
+    {
+        string? requestBody = null;
+        Uri? requestUri = null;
+        var handler = new StubHandler(async request =>
+        {
+            requestUri = request.RequestUri;
+            requestBody = await request.Content!.ReadAsStringAsync();
+            return SoapResponse(ProductionOrderLotResponse);
+        });
+
+        var result = await CreateSource(handler).ReadLotAsync(
+            " of26-00042 ", CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("OF26-00042", result.OrderNumber);
+        Assert.Equal("ITEM-01", result.ProductNumber);
+        Assert.Equal("OF2600042", result.LotNumber);
+        Assert.Equal(
+            new Uri("http://nav.test/instance/WS/EBIR/Page/WS_CPP_OPLanzadas"),
+            requestUri);
+        Assert.Contains("<Field>No</Field>", requestBody);
+        Assert.Contains("<Criteria>OF26-00042</Criteria>", requestBody);
+    }
+
+    [Fact]
     public async Task ReadRoutingAsync_maps_route_and_requires_exact_order()
     {
         string? requestBody = null;
@@ -382,6 +408,24 @@ public sealed class NavisionProductionOrderSourceTests
                   <Ending_Date>2026-08-01</Ending_Date>
                   <Production_BOM_No>BOM-01</Production_BOM_No>
                 </WS_CPP_ProdOrderLineList>
+              </ReadMultiple_Result>
+            </ReadMultiple_Result>
+          </soap:Body>
+        </soap:Envelope>
+        """;
+
+    private const string ProductionOrderLotResponse = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+          <soap:Body>
+            <ReadMultiple_Result xmlns="urn:microsoft-dynamics-schemas/page/ws_cpp_oplanzadas">
+              <ReadMultiple_Result>
+                <WS_CPP_OPLanzadas>
+                  <Key>LOT-KEY</Key>
+                  <No>OF26-00042</No>
+                  <Source_No>ITEM-01</Source_No>
+                  <Cód_Lote_Salida>OF2600042</Cód_Lote_Salida>
+                </WS_CPP_OPLanzadas>
               </ReadMultiple_Result>
             </ReadMultiple_Result>
           </soap:Body>

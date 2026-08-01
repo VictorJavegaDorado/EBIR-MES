@@ -11,6 +11,7 @@ public sealed class SynchronizeProductionOrderTests
         var source = new StubSource
         {
             Order = Order(),
+            Lot = Lot(" FL2600042 "),
             Lines = [Line()],
             Routing = [Route("020"), Route("010")],
             Components = [Component(20000), Component(10000)]
@@ -30,6 +31,7 @@ public sealed class SynchronizeProductionOrderTests
         Assert.NotNull(store.Snapshot);
         Assert.Equal("EBIRTEST", store.Snapshot.EnvironmentCode);
         Assert.Equal("EBIR", store.Snapshot.CompanyCode);
+        Assert.Equal("FL2600042", store.Snapshot.LotNumber);
         Assert.Equal(["010", "020"], store.Snapshot.Routing.Select(step => step.OperationNumber));
         Assert.Equal([10000, 20000], store.Snapshot.Components.Select(component => component.LineNumber));
         Assert.Equal(synchronizationId, store.SynchronizationId);
@@ -60,6 +62,30 @@ public sealed class SynchronizeProductionOrderTests
             () => ExecuteAsync(source));
 
         Assert.Equal("NAV_SINGLE_LINE_ORDER_REQUIRED", exception.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_an_order_without_output_lot()
+    {
+        var source = ValidSource();
+        source.Lot = null;
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PRODUCTION_ORDER_LOT_REQUIRED", exception.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_a_lot_from_another_product()
+    {
+        var source = ValidSource();
+        source.Lot = Lot("FL2600042") with { ProductNumber = "OTHER" };
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PRODUCTION_ORDER_LOT_MISMATCH", exception.Code);
     }
 
     [Fact]
@@ -97,6 +123,7 @@ public sealed class SynchronizeProductionOrderTests
     private static StubSource ValidSource() => new()
     {
         Order = Order(),
+        Lot = Lot("FL2600042"),
         Lines = [Line()],
         Routing = [Route("010")],
         Components = [Component(10000)]
@@ -108,6 +135,9 @@ public sealed class SynchronizeProductionOrderTests
     private static ProductionOrderRecord Order() => new(
         "OF26-00042", ProductionOrderStatus.Released, "PRODUCTO", "ITEM-01",
         "RUTA-01", 100m, "FABRICA", new(2026, 7, 31), null, null);
+
+    private static ProductionOrderLotRecord Lot(string lotNumber) =>
+        new("OF26-00042", "ITEM-01", lotNumber);
 
     private static ProductionOrderLineRecord Line() => new(
         "OF26-00042", ProductionOrderStatus.Released, "ITEM-01", "", "PRODUCTO",
@@ -128,6 +158,7 @@ public sealed class SynchronizeProductionOrderTests
     private sealed class StubSource : IProductionOrderSource
     {
         public ProductionOrderRecord? Order { get; set; }
+        public ProductionOrderLotRecord? Lot { get; set; }
         public IReadOnlyList<ProductionOrderLineRecord> Lines { get; set; } = [];
         public IReadOnlyList<ProductionOrderRoutingStepRecord> Routing { get; set; } = [];
         public IReadOnlyList<ProductionOrderComponentRecord> Components { get; set; } = [];
@@ -139,6 +170,10 @@ public sealed class SynchronizeProductionOrderTests
         public Task<ProductionOrderRecord?> ReadOrderAsync(
             ProductionOrderStatus status, string orderNumber, CancellationToken cancellationToken) =>
             Task.FromResult(Order);
+
+        public Task<ProductionOrderLotRecord?> ReadLotAsync(
+            string orderNumber, CancellationToken cancellationToken) =>
+            Task.FromResult(Lot);
 
         public Task<IReadOnlyList<ProductionOrderLineRecord>> ReadLinesAsync(
             ProductionOrderStatus status, string orderNumber, int maximumRecords,

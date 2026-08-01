@@ -32,9 +32,12 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
         {
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken);
+            await using var transaction =
+                (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
             await using var command = new SqlCommand(
                 "nav.aplicar_snapshot_orden",
-                connection)
+                connection,
+                transaction)
             {
                 CommandType = CommandType.StoredProcedure,
                 CommandTimeout = 30
@@ -67,6 +70,21 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
                 throw new ProductionOrderSynchronizationUnavailableException(
                     "La sincronización no devolvió un resultado completo.");
             }
+
+            await using var lotCommand = new SqlCommand(
+                "nav.registrar_lote_snapshot_orden",
+                connection,
+                transaction)
+            {
+                CommandType = CommandType.StoredProcedure,
+                CommandTimeout = 30
+            };
+            lotCommand.Parameters.Add("@orden_entrada_id", SqlDbType.BigInt).Value =
+                Convert.ToInt64(inboundOrderId.Value);
+            lotCommand.Parameters.Add("@snapshot_hash", SqlDbType.VarBinary, 32).Value = hash;
+            lotCommand.Parameters.Add("@lote", SqlDbType.NVarChar, 50).Value = snapshot.LotNumber;
+            await lotCommand.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             return new ProductionOrderSynchronizationResult(
                 Convert.ToInt64(inboundOrderId.Value),
@@ -134,6 +152,12 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
                 "El snapshot NAV contiene datos incoherentes.", false),
             55507 => ("NAV_SINGLE_LINE_ORDER_REQUIRED",
                 "El piloto requiere exactamente una línea por orden NAV.", false),
+            55700 => ("NAV_INBOUND_ORDER_INVALID",
+                "La orden de entrada no es válida.", false),
+            55701 => ("NAV_PRODUCTION_ORDER_LOT_INVALID",
+                "El lote de salida NAV no es válido.", false),
+            55702 => ("NAV_SNAPSHOT_LOT_MISMATCH",
+                "El lote no corresponde al snapshot NAV persistido.", false),
             _ => default
         };
         return rejection != default;

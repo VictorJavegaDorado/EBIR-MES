@@ -30,8 +30,8 @@ public static class ProductionOrderPromotionEndpoints
         try
         {
             var result = await useCase.ExecuteAsync(new(
-                request.InboundOrderId, request.Lot, request.OperationNumber,
-                request.LotProvidedBy, request.CorrelationId), cancellationToken);
+                request.InboundOrderId, request.OperationNumber,
+                request.CorrelationId), cancellationToken);
             var outcome = result.Outcome switch
             {
                 ProductionOrderPromotionOutcome.Created => "CREADA",
@@ -53,8 +53,7 @@ public static class ProductionOrderPromotionEndpoints
             var status = exception.Code switch
             {
                 "NAV_INBOUND_ORDER_INVALID" or "NAV_PROMOTION_ID_REQUIRED" or
-                "NAV_PROMOTION_LOT_INVALID" or "NAV_PROMOTION_OPERATION_INVALID" or
-                "NAV_PROMOTION_LOT_PROVIDER_INVALID" => StatusCodes.Status400BadRequest,
+                "NAV_PROMOTION_OPERATION_INVALID" => StatusCodes.Status400BadRequest,
                 "NAV_INBOUND_ORDER_NOT_FOUND" => StatusCodes.Status404NotFound,
                 _ => StatusCodes.Status409Conflict
             };

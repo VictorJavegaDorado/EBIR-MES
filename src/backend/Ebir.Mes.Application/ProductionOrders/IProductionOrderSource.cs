@@ -12,6 +12,10 @@ public interface IProductionOrderSource
         string orderNumber,
         CancellationToken cancellationToken);
 
+    Task<ProductionOrderLotRecord?> ReadLotAsync(
+        string orderNumber,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ProductionOrderLineRecord>> ReadLinesAsync(
         ProductionOrderStatus status,
         string orderNumber,

@@ -16,6 +16,7 @@ public sealed class SqlProductionOrderSnapshotStoreTests
 
         Assert.Equal(first, second);
         Assert.Contains("\"environmentCode\":\"EBIRTEST\"", first);
+        Assert.Contains("\"lotNumber\":\"FL2600042\"", first);
         Assert.Contains("\"status\":\"Released\"", first);
         Assert.Contains("\"type\":\"WorkCenter\"", first);
     }
@@ -41,6 +42,9 @@ public sealed class SqlProductionOrderSnapshotStoreTests
     [InlineData(55505, false)]
     [InlineData(55506, false)]
     [InlineData(55507, false)]
+    [InlineData(55700, false)]
+    [InlineData(55701, false)]
+    [InlineData(55702, false)]
     public void TryTranslate_maps_known_errors(int number, bool unavailable)
     {
         Assert.True(SqlProductionOrderSnapshotStore.TryTranslate(number, out var rejection));
@@ -55,6 +59,7 @@ public sealed class SqlProductionOrderSnapshotStoreTests
     private static ProductionOrderSnapshot Snapshot() => new(
         "EBIRTEST",
         "EBIR",
+        "FL2600042",
         new("OF26-00042", ProductionOrderStatus.Released, "PRODUCTO", "ITEM-01",
             "RUTA-01", 100m, "FABRICA", null, null, null),
         new("OF26-00042", ProductionOrderStatus.Released, "ITEM-01", "", "PRODUCTO",
