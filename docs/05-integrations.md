@@ -26,3 +26,8 @@ identificador normalizado y ejecuta las mismas reglas que para una entrada
 manual autorizada. No se contactará con dispositivos hasta una fase
 expresamente autorizada.
 
+`POST /api/operator-identification/rfid` normaliza el UID en memoria, calcula
+una huella HMAC-SHA256 con una clave externa y resuelve únicamente credenciales
+activas. El UID no se registra ni se devuelve. Sin clave externa el endpoint
+falla de forma segura con 503.
+

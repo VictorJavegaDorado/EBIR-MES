@@ -3,6 +3,7 @@ using Ebir.Mes.Api.Endpoints.LineSessions;
 using Ebir.Mes.Api.Endpoints.Pallets;
 using Ebir.Mes.Api.Endpoints.ProductionOrders;
 using Ebir.Mes.Api.Endpoints.Replenishment;
+using Ebir.Mes.Api.Endpoints.Rfid;
 using Ebir.Mes.Api.Endpoints.Scrap;
 using Ebir.Mes.Application.LineIdentification;
 using Ebir.Mes.Application.LineSessions;
@@ -10,14 +11,17 @@ using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Pallets.ClosePalletOptions;
 using Ebir.Mes.Application.ProductionOrders;
 using Ebir.Mes.Application.Replenishment;
+using Ebir.Mes.Application.Rfid;
 using Ebir.Mes.Application.Scrap;
 using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
 using Ebir.Mes.Infrastructure.Pallets;
 using Ebir.Mes.Infrastructure.ProductionOrders;
 using Ebir.Mes.Infrastructure.Replenishment;
+using Ebir.Mes.Infrastructure.Rfid;
 using Ebir.Mes.Infrastructure.Scrap;
 using Ebir.Mes.Integrations.Navision;
+using Ebir.Mes.Integrations.Rfid;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddProblemDetails();
@@ -41,6 +45,13 @@ builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<SynchronizeProductionOrder>();
 builder.Services.AddScoped<PromoteProductionOrder>();
 builder.Services.AddScoped<ListSelectableProductionOrders>();
+builder.Services.AddScoped<IdentifyEmployeeByRfid>();
+builder.Services.AddSingleton<IRfidCredentialFingerprinter>(_ =>
+    new HmacSha256RfidCredentialFingerprinter(
+        builder.Configuration["Rfid:LookupKey"]));
+builder.Services.AddScoped<IRfidEmployeeReader>(_ =>
+    new SqlRfidEmployeeReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddHttpClient(
         ProductionOrderSynchronizationConfiguration.HttpClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -154,6 +165,7 @@ app.MapPalletCloseOptionsEndpoints();
 app.MapProductionOrderSynchronizationEndpoints();
 app.MapProductionOrderPromotionEndpoints();
 app.MapProductionOrderSelectionEndpoints();
+app.MapRfidIdentificationEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
 {
     if (context.Request.Path.StartsWithSegments(
