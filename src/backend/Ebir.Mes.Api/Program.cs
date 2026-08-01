@@ -40,6 +40,7 @@ builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<SynchronizeProductionOrder>();
 builder.Services.AddScoped<PromoteProductionOrder>();
+builder.Services.AddScoped<ListSelectableProductionOrders>();
 builder.Services.AddHttpClient(
         ProductionOrderSynchronizationConfiguration.HttpClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -62,6 +63,10 @@ builder.Services.AddScoped<IProductionOrderSnapshotStore>(services =>
             .GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IProductionOrderPromotionStore>(services =>
     new SqlProductionOrderPromotionStore(
+        services.GetRequiredService<IConfiguration>()
+            .GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionOrderSelectionReader>(services =>
+    new SqlProductionOrderSelectionReader(
         services.GetRequiredService<IConfiguration>()
             .GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
@@ -148,6 +153,7 @@ app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
 app.MapProductionOrderSynchronizationEndpoints();
 app.MapProductionOrderPromotionEndpoints();
+app.MapProductionOrderSelectionEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
 {
     if (context.Request.Path.StartsWithSegments(

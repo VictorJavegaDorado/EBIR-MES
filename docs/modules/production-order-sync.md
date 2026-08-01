@@ -70,6 +70,14 @@ Las lecturas pueden repetirse porque no cambian estado. Se reintentan como
 maximo tres veces ante timeouts, errores de transporte, `408`, `429` o respuestas
 `5xx`. Los errores funcionales y respuestas SOAP no validas no se reintentan.
 
+## Seleccion operativa
+
+`GET /api/production-orders` expone hasta 100 ordenes MES operativas en estado
+`IMPORTADA`, `ABIERTA` o `PICO_PENDIENTE`, ordenadas por importacion reciente.
+La pantalla permite buscar por orden, producto, descripcion o lote y conserva
+el lote NAV como dato de solo lectura. Seleccionar una orden no abre una sesion
+ni cambia su estado.
+
 ## Disparador administrativo controlado
 
 La API compone `IProductionOrderSource`, `IProductionOrderSnapshotStore` y
