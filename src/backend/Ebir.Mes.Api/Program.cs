@@ -39,6 +39,7 @@ builder.Services.AddScoped<TransitionReplenishmentRequest>();
 builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<SynchronizeProductionOrder>();
+builder.Services.AddScoped<PromoteProductionOrder>();
 builder.Services.AddHttpClient(
         ProductionOrderSynchronizationConfiguration.HttpClientName)
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
@@ -57,6 +58,10 @@ builder.Services.AddScoped<IProductionOrderSource>(services =>
 });
 builder.Services.AddScoped<IProductionOrderSnapshotStore>(services =>
     new SqlProductionOrderSnapshotStore(
+        services.GetRequiredService<IConfiguration>()
+            .GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionOrderPromotionStore>(services =>
+    new SqlProductionOrderPromotionStore(
         services.GetRequiredService<IConfiguration>()
             .GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
@@ -142,6 +147,7 @@ app.MapTransitionReplenishmentRequestEndpoints();
 app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
 app.MapProductionOrderSynchronizationEndpoints();
+app.MapProductionOrderPromotionEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
 {
     if (context.Request.Path.StartsWithSegments(

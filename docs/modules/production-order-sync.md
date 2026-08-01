@@ -45,6 +45,23 @@ La bandeja no alimenta todavia `prod.ordenes`. Ese paso requiere resolver de
 forma explicita el lote obligatorio y confirmar la unidad de tiempo NAV; no se
 inventan valores productivos.
 
+## Promocion controlada a produccion
+
+El paquete 016 instala `nav.promover_orden_entrada`. Durante el piloto, la
+promocion exige un lote, la cuenta que lo proporciono y una operacion NAV
+explicitos. La cantidad debe ser un entero exacto y el tiempo de ejecucion de
+la operacion debe ser positivo y representable sin redondeo en minutos por
+unidad.
+
+La primera promocion crea atomicamente `prod.ordenes` y sus componentes. Una
+nueva correlacion con el mismo snapshot y decisiones devuelve `SIN_CAMBIOS`.
+Un cambio de snapshot, lote u operacion no sobrescribe los datos productivos:
+devuelve `REVISION` y bloquea la orden en ese estado. Repetir una correlacion
+solo es valido con exactamente el mismo contenido.
+
+El endpoint administrativo `POST /api/admin/production-orders/promote` esta
+deshabilitado por defecto y no consulta ni escribe en NAV.
+
 ## Resiliencia
 
 Las lecturas pueden repetirse porque no cambian estado. Se reintentan como
@@ -77,11 +94,13 @@ al terminar.
 
 - El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta instalado y validado en
   `EBIR_MES_TEST`.
+- El paquete `016A_promover_ordenes_nav.sql` esta instalado y validado en
+  `EBIR_MES_TEST`; todavia no se ha promovido ninguna orden real.
 - La primera invocacion manual desde la API fue validada con la orden
   `29516CI/1508`. La bandeja conserva un snapshot con una linea, dos operaciones
   y 28 componentes para el siguiente bloque.
 - Programar periodicidad solo despues de validar el disparador manual.
-- Promover snapshots desde `nav.*_entrada` a `prod.ordenes`.
+- Ejecutar una promocion manual real desde `nav.*_entrada` a `prod.ordenes`.
 - Invocar codeunits que registren tiempos, consumos, salidas o cierres.
 - Activar el adaptador en API, Worker o IIS.
 - Contactar RFID o impresoras.
