@@ -21,8 +21,9 @@ BEGIN TRY
     ALTER TABLE nav.ordenes_entrada
         ADD lote nvarchar(50) NULL;
 
-    ALTER TABLE nav.ordenes_entrada ADD CONSTRAINT CK_nav_ordenes_entrada_lote
-        CHECK (lote IS NULL OR LEN(LTRIM(RTRIM(lote))) > 0);
+    EXEC sys.sp_executesql N'
+ALTER TABLE nav.ordenes_entrada ADD CONSTRAINT CK_nav_ordenes_entrada_lote
+    CHECK (lote IS NULL OR LEN(LTRIM(RTRIM(lote))) > 0);';
 
     DECLARE @registrar_lote nvarchar(max) = N'
 CREATE PROCEDURE nav.registrar_lote_snapshot_orden
