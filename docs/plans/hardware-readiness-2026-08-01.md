@@ -51,3 +51,6 @@ El contrato de carga ya está versionado sin valores reales. El archivo de
 configuración deberá permanecer fuera de `C:\MES` y aportar los datos de esta
 lista después de su revisión. La validación inicial se ejecutará con rollback;
 preparar el paquete no autoriza instalarlo ni conectar hardware.
+
+La lista exacta que debe recogerse en fábrica y el orden de continuación están
+consolidados en `pilot-readiness-2026-08-02.md`.

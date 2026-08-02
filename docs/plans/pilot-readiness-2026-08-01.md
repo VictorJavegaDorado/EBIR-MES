@@ -53,6 +53,9 @@ temporal de API y SPA volvió a devolver la orden `FL20-02277` desde TEST. No
 había ningún navegador conectado a la sesión, por lo que la inspección visual
 manual continúa pendiente; no se sustituyó por una simulación visual.
 
+El cierre actualizado y la secuencia de continuación están en
+`docs/plans/pilot-readiness-2026-08-02.md`.
+
 ## Condiciones para cerrar el piloto físico
 
 1. Publicar o confirmar una fuente NAV de empleados estrictamente de lectura.
