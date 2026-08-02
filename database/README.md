@@ -111,6 +111,18 @@ eliminados.
   fichajes, scrap y reaprovisionamiento.
 - Copia de seguridad antes de introducir datos productivos o ejecutar nuevas migraciones.
 
+## Paquete 019 preparado, no instalado
+
+El paquete 019 carga de forma parametrizada los maestros mínimos del piloto
+TEST: una línea, una impresora principal, un lector RFID y tres empleados con
+roles y huellas HMAC. Los valores personales, físicos y criptográficos se
+mantienen fuera del repositorio. La instalación permanece bloqueada hasta
+revisar esos valores, validar con rollback y crear un backup verificado.
+
+La validación parametrizada del 02/08/2026 creó todos los maestros dentro de
+una transacción exterior y terminó con rollback. Una consulta posterior contó
+cero filas sintéticas `ZZ19-*`; el paquete continúa sin instalar.
+
 ## Paquete 015 instalado y validado
 
 `nav.aplicar_snapshot_orden` y sus tablas de bandeja reciben de forma

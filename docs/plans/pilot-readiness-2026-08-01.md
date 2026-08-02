@@ -38,6 +38,21 @@ La diferencia no está en el núcleo transaccional: faltan los maestros y los
 contratos físicos reales, una plantilla aprobada y el ensayo con personas y
 equipos conectados.
 
+## Preparación posterior — 02/08/2026
+
+El paquete 019 quedó diseñado y preparado, pero no instalado. Recibe línea,
+impresora, lector, empleados y huellas RFID como parámetros desde un archivo
+protegido fuera del repositorio. Incluye guardas exclusivas para
+`EBIR_MES_TEST`, prevuelo de solo lectura, validación completa con rollback y
+auditoría resumida. Continúa bloqueado hasta revisar los valores físicos y los
+tres empleados/tarjetas TEST.
+
+La validación sintética completa del 02/08/2026 se ejecutó como
+`EBIR\vjavega`, terminó con rollback y dejó cero filas `ZZ19-*`. La publicación
+temporal de API y SPA volvió a devolver la orden `FL20-02277` desde TEST. No
+había ningún navegador conectado a la sesión, por lo que la inspección visual
+manual continúa pendiente; no se sustituyó por una simulación visual.
+
 ## Condiciones para cerrar el piloto físico
 
 1. Publicar o confirmar una fuente NAV de empleados estrictamente de lectura.

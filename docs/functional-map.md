@@ -13,6 +13,7 @@ mantendran estables aunque la implementacion interna evolucione.
 | Scrap | `modules/scrap-replenishment.md` | `Application/Scrap` | `features/scrap-register` | `Application.Tests/Scrap` |
 | Reaprovisionamiento | `modules/scrap-replenishment.md` | `Application/Replenishment` | `features/replenishment-request` | `Application.Tests/Replenishment` |
 | Impresion | Documento del modulo consumidor | `Integrations/Printing` | Estado dentro de la feature | `IntegrationTests/Printing` |
+| Maestros del piloto TEST | `modules/pilot-master-data.md` | Configuracion externa; sin caso de uso runtime | No aplica | `database/pilot_master_data` |
 
 Una fila se anade cuando comienza la implementacion de la funcionalidad, no
 para anticipar modulos hipoteticos.

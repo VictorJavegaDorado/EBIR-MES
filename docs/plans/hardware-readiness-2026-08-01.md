@@ -44,3 +44,10 @@ clasificar primero cada método como lectura o escritura.
 El backend ya normaliza UIDs hexadecimales y calcula una huella HMAC-SHA256.
 El UID original no se persiste ni se devuelve. La clave HMAC debe suministrarse
 como secreto externo `Rfid__LookupKey`; nunca se versiona.
+
+## Paquete 019 preparado — 02/08/2026
+
+El contrato de carga ya está versionado sin valores reales. El archivo de
+configuración deberá permanecer fuera de `C:\MES` y aportar los datos de esta
+lista después de su revisión. La validación inicial se ejecutará con rollback;
+preparar el paquete no autoriza instalarlo ni conectar hardware.
