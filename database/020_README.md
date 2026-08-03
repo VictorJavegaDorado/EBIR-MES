@@ -1,6 +1,6 @@
 # Paquete 020 - rotacion RFID controlada del piloto TEST
 
-Estado: preparado, pendiente de validacion SQL e instalacion autorizada.
+Estado: instalado y verificado el 03/08/2026.
 
 El paquete rota las credenciales RFID vigentes de los dos empleados TEST con
 rol `OPERARIO`. Revoca las credenciales anteriores, crea dos nuevas y registra
@@ -35,3 +35,6 @@ una unica conexion y dentro de una transaccion exterior.
 
 La rotacion no cambia roles, no activa releases y no contacta NAV, lectores ni
 impresoras.
+
+La ejecucion controlada se documenta en
+`tests/database/pilot_rfid_rotation/RESULTADO_EJECUCION_2026-08-03.md`.
