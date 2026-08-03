@@ -36,7 +36,7 @@ export function AppShell({ children }: AppShellProps) {
 
         <div className="environment-pill">
           <span className="environment-dot" />
-          Entorno de desarrollo
+          Piloto TEST
         </div>
 
         <div className="clock" aria-label="Fecha y hora actuales">
@@ -50,10 +50,10 @@ export function AppShell({ children }: AppShellProps) {
       <footer className="app-footer">
         <span>EBIR MES</span>
         <span className="footer-separator" />
-        <span>Terminal sin línea asignada</span>
+        <span>Terminal de producción</span>
         <span className="footer-status">
           <span className="environment-dot" />
-          Interfaz de desarrollo
+          Flujo operativo guiado
         </span>
       </footer>
     </div>
