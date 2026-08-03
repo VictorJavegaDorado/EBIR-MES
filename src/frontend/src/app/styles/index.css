@@ -1,18 +1,27 @@
 :root {
-  color: #15231f;
-  background: #eff2ed;
+  color: #1A202C;
+  background: #EDF2F7;
   font-family: "Segoe UI", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --forest: #153c31;
-  --forest-deep: #0d2922;
-  --lime: #d8f03a;
-  --lime-deep: #b8d30f;
-  --paper: #fbfcf8;
-  --ink: #15231f;
-  --muted: #6d7974;
-  --border: #d9dfd8;
-  --shadow: 0 18px 50px rgba(28, 50, 42, 0.1);
+  --global-palette1: #3182CE;
+  --global-palette2: #2B6CB0;
+  --global-palette3: #1A202C;
+  --global-palette4: #2D3748;
+  --global-palette5: #4A5568;
+  --global-palette6: #718096;
+  --global-palette7: #EDF2F7;
+  --global-palette8: #F7FAFC;
+  --global-palette9: #ffffff;
+  --forest: var(--global-palette4);
+  --forest-deep: var(--global-palette3);
+  --lime: var(--global-palette1);
+  --lime-deep: var(--global-palette2);
+  --paper: var(--global-palette8);
+  --ink: var(--global-palette3);
+  --muted: var(--global-palette6);
+  --border: var(--global-palette7);
+  --shadow: 0 18px 50px rgba(26, 32, 44, 0.1);
 }
 
 * {
@@ -24,8 +33,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 10% 15%, rgba(216, 240, 58, 0.14), transparent 22rem),
-    linear-gradient(135deg, #f3f5f1 0%, #e8ece7 100%);
+    radial-gradient(circle at 10% 15%, rgba(49, 130, 206, 0.14), transparent 22rem),
+    linear-gradient(135deg, var(--global-palette8) 0%, var(--global-palette7) 100%);
 }
 
 button,
@@ -94,7 +103,7 @@ a {
 
 .brand small {
   margin-top: 1px;
-  color: #b8c8c2;
+  color: var(--global-palette7);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -105,7 +114,7 @@ a {
   align-items: center;
   gap: 9px;
   padding: 8px 13px;
-  color: #d6e1dd;
+  color: var(--global-palette7);
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
@@ -141,7 +150,7 @@ a {
 
 .clock span {
   margin-top: 5px;
-  color: #b8c8c2;
+  color: var(--global-palette7);
   font-size: 12px;
   text-transform: capitalize;
 }
@@ -166,7 +175,7 @@ a {
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #527064;
+  color: var(--global-palette5);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.16em;
@@ -212,7 +221,7 @@ h1 {
 }
 
 .shift-card span {
-  color: #b8c8c2;
+  color: var(--global-palette7);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.11em;
@@ -227,7 +236,7 @@ h1 {
 }
 
 .shift-card small {
-  color: #d6e1dd;
+  color: var(--global-palette7);
 }
 
 .workspace-grid {
@@ -780,7 +789,7 @@ h1 {
 .idempotency-badge {
   min-width: 210px;
   padding: 17px 20px;
-  color: #d6e1dd;
+  color: var(--global-palette7);
   background: var(--forest-deep);
   border-left: 5px solid var(--lime);
   border-radius: 7px;
@@ -1101,7 +1110,7 @@ h1 {
 .selected-order-summary {
   min-width: 230px;
   padding: 16px 20px;
-  color: #d6e1dd;
+  color: var(--global-palette7);
   background: var(--forest-deep);
   border-left: 5px solid var(--lime);
   border-radius: 7px;
