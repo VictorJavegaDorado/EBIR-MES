@@ -35,3 +35,15 @@ Preparar el paquete no autoriza instalarlo. Antes de persistir datos se deben
 revisar los valores reales, crear y verificar un backup y recibir autorización
 expresa para esa fase. La instalación tampoco habilita el worker, activa una
 release ni contacta NAV, RFID o impresoras.
+
+## Rotacion de credenciales del piloto
+
+Una credencial RFID ya instalada no se sustituye editando el paquete 019. La
+rotacion se entrega en un paquete posterior e inmutable que recibe un archivo
+protegido fuera del repositorio, revoca la credencial activa, crea la nueva y
+registra una auditoria resumida. La operacion debe ser transaccional: ningun
+empleado puede quedar sin credencial activa si falla el alta nueva.
+
+Los valores originales de las tarjetas nunca se muestran ni se persisten. Una
+credencial expuesta por un canal no protegido se considera comprometida y no
+se provisiona.
