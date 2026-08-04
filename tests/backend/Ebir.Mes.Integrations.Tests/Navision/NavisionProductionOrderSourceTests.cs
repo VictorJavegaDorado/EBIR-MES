@@ -173,7 +173,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("3", first.CapacityNumber);
         Assert.Equal("ALMACEN", first.Description);
         Assert.Equal(0.5m, first.SetupTime);
-        Assert.Equal(1.25m, first.RunTime);
+        Assert.Equal(2m, first.RunTime);
         Assert.Equal(ProductionRoutingStatus.NotStarted, first.Status);
         Assert.False(first.IsSigning);
 
@@ -182,7 +182,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("005", second.PreviousOperationNumber);
         Assert.Equal(ProductionRoutingStepType.MachineCenter, second.Type);
         Assert.Equal("9784", second.CapacityNumber);
-        Assert.Equal(2.25m, second.RunTime);
+        Assert.Equal(2.5m, second.RunTime);
         Assert.Equal(ProductionRoutingStatus.NotStarted, second.Status);
         Assert.True(second.IsSigning);
 
@@ -561,8 +561,7 @@ public sealed class NavisionProductionOrderSourceTests
                 <d:Starting_Date_Time>2026-08-04T08:00:00</d:Starting_Date_Time>
                 <d:Ending_Date_Time>2026-08-04T09:00:00</d:Ending_Date_Time>
                 <d:Setup_Time>0.5</d:Setup_Time>
-                <d:Run_Time>1.25</d:Run_Time>
-                <d:Run_Time_Unit_of_Meas_Code>MINUTOS</d:Run_Time_Unit_of_Meas_Code>
+                <d:Run_Time>0.00138888888888890000</d:Run_Time>
                 <d:Wait_Time>0</d:Wait_Time>
                 <d:Move_Time>0</d:Move_Time>
                 <d:Fixed_Scrap_Quantity>0</d:Fixed_Scrap_Quantity>
@@ -588,7 +587,7 @@ public sealed class NavisionProductionOrderSourceTests
                 <d:No>9784</d:No>
                 <d:Description>OPERACION PILOTO</d:Description>
                 <d:Setup_Time>0</d:Setup_Time>
-                <d:Run_Time>2.25</d:Run_Time>
+                <d:Run_Time>0.00173611111111110000</d:Run_Time>
                 <d:Wait_Time>0</d:Wait_Time>
                 <d:Move_Time>0</d:Move_Time>
                 <d:Fixed_Scrap_Quantity>0</d:Fixed_Scrap_Quantity>

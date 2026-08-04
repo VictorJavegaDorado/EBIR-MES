@@ -13,7 +13,7 @@ public sealed class SynchronizeProductionOrderTests
             Order = Order(),
             Lot = Lot(" FL2600042 "),
             Lines = [Line()],
-            Routing = [Route("020"), Route("010")],
+            Routing = [Route("020", "3"), Route("010")],
             Components = [Component(20000), Component(10000)]
         };
         var store = new StubStore(new(
@@ -128,6 +128,42 @@ public sealed class SynchronizeProductionOrderTests
         Assert.Equal("NAV_ORDER_DETAIL_PAGE_LIMIT_REACHED", exception.Code);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_rejects_an_order_without_a_paterna_operation()
+    {
+        var source = ValidSource();
+        source.Routing = [Route("010", "3")];
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PATERNA_OPERATION_NOT_UNIQUE", exception.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_more_than_one_paterna_operation()
+    {
+        var source = ValidSource();
+        source.Routing = [Route("010"), Route("020")];
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PATERNA_OPERATION_NOT_UNIQUE", exception.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_a_paterna_operation_without_run_time()
+    {
+        var source = ValidSource();
+        source.Routing = [Route("010") with { RunTime = 0m }];
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PATERNA_RUN_TIME_INVALID", exception.Code);
+    }
+
     private static Task<ProductionOrderSynchronizationResult> ExecuteAsync(StubSource source) =>
         new SynchronizeProductionOrder(
             source,
@@ -157,9 +193,11 @@ public sealed class SynchronizeProductionOrderTests
         "OF26-00042", ProductionOrderStatus.Released, "ITEM-01", "", "PRODUCTO",
         "FABRICA", 100m, 0m, 100m, 0m, null, new(2026, 7, 31), null, "BOM-01");
 
-    private static ProductionOrderRoutingStepRecord Route(string operation) => new(
+    private static ProductionOrderRoutingStepRecord Route(
+        string operation,
+        string capacityNumber = SynchronizeProductionOrder.PaternaCapacityNumber) => new(
         "OF26-00042", 10000, "RUTA-01", operation, "", "",
-        ProductionRoutingStepType.WorkCenter, "CT-01", "OPERACION", null, null,
+        ProductionRoutingStepType.WorkCenter, capacityNumber, "OPERACION", null, null,
         0m, 1m, 0m, 0m, 0m, "", 0m, ProductionRoutingStatus.Planned,
         "FABRICA", false);
 

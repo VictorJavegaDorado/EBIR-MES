@@ -12,6 +12,7 @@ internal sealed class NavisionODataRoutingReader(
     NavisionOptions options)
 {
     private const string RoutingEntity = "WS_CPP_RutaOrdenProduccion";
+    private const decimal MinutesPerDay = 24m * 60m;
     private static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
     private static readonly XNamespace Data =
         "http://schemas.microsoft.com/ado/2007/08/dataservices";
@@ -191,7 +192,7 @@ internal sealed class NavisionODataRoutingReader(
             ParseDateTime(Value(properties, "Starting_Date_Time")),
             ParseDateTime(Value(properties, "Ending_Date_Time")),
             ParseDecimal(Value(properties, "Setup_Time")),
-            ParseDecimal(Value(properties, "Run_Time")),
+            ParseRunTimeMinutes(Value(properties, "Run_Time")),
             ParseDecimal(Value(properties, "Wait_Time")),
             ParseDecimal(Value(properties, "Move_Time")),
             ParseDecimal(Value(properties, "Fixed_Scrap_Quantity")),
@@ -217,6 +218,12 @@ internal sealed class NavisionODataRoutingReader(
         string.IsNullOrWhiteSpace(value)
             ? 0m
             : decimal.Parse(value, NumberStyles.Number, CultureInfo.InvariantCulture);
+
+    private static decimal ParseRunTimeMinutes(string value) =>
+        decimal.Round(
+            ParseDecimal(value) * MinutesPerDay,
+            1,
+            MidpointRounding.AwayFromZero);
 
     private static int ParseInt(string value) =>
         int.Parse(value, NumberStyles.Integer, CultureInfo.InvariantCulture);

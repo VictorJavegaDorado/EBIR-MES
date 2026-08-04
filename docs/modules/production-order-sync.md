@@ -35,7 +35,10 @@ exige exactamente una linea por orden.
 El caso de uso lee por numero exacto una orden `Released`, su lote de salida,
 linea, ruta y componentes. Normaliza entorno, empresa y orden, rechaza relaciones incoherentes
 y no acepta exactamente 100 detalles para evitar persistir una pagina
-posiblemente truncada.
+posiblemente truncada. La orden solo entra en la bandeja MES cuando la ruta
+contiene exactamente una operacion de tipo `Centro trabajo` cuyo numero de
+centro es `1`, identificador funcional de Paterna. Las ordenes sin esa operacion
+o con mas de una coincidencia se rechazan antes de cualquier escritura SQL.
 
 El adaptador SQL serializa el snapshot completo de forma determinista, calcula
 su SHA-256 y llama a `nav.aplicar_snapshot_orden`. El procedimiento preparado:
@@ -60,10 +63,12 @@ ser un entero exacto y el tiempo de ejecucion de
 la operacion debe ser positivo y representable sin redondeo en minutos por
 unidad.
 
-Los valores de tiempo de ruta se conservan con el valor numerico publicado por
-NAV, sin conversion implicita en el lector. Antes de elegir una operacion para
-promocion se debe verificar que la unidad publicada por la pagina OData es
-minutos y que el valor satisface el contrato decimal de produccion.
+La pagina OData publica `Run_Time` como fraccion decimal de dia, aunque no
+expone un campo de unidad. El lector lo convierte a minutos por unidad
+multiplicando por 1440 y lo normaliza a una cifra decimal, precision del
+contrato productivo. `Setup_Time`, `Wait_Time` y `Move_Time` conservan el valor
+numerico publicado; no participan en la promocion. La operacion Paterna debe
+tener un tiempo de ejecucion convertido positivo.
 
 La primera promocion crea atomicamente `prod.ordenes` y sus componentes. Una
 nueva correlacion con el mismo snapshot y decisiones devuelve `SIN_CAMBIOS`.

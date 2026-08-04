@@ -9,6 +9,7 @@ public sealed class SynchronizeProductionOrder(
     public const int MaximumCompanyCodeLength = 50;
     public const int MaximumOrderNumberLength = 20;
     public const int MaximumLotNumberLength = 50;
+    public const string PaternaCapacityNumber = "1";
 
     public async Task<ProductionOrderSynchronizationResult> ExecuteAsync(
         ProductionOrderSynchronizationCommand command,
@@ -164,6 +165,28 @@ public sealed class SynchronizeProductionOrder(
             throw Rejected(
                 "NAV_ORDER_ROUTING_MISMATCH",
                 "La ruta NAV no corresponde a una única línea de la orden.");
+        }
+
+        var paternaOperations = routing
+            .Where(step =>
+                step.Type == ProductionRoutingStepType.WorkCenter &&
+                string.Equals(
+                    step.CapacityNumber.Trim(),
+                    PaternaCapacityNumber,
+                    StringComparison.Ordinal))
+            .ToArray();
+        if (paternaOperations.Length != 1)
+        {
+            throw Rejected(
+                "NAV_PATERNA_OPERATION_NOT_UNIQUE",
+                "La orden debe contener exactamente una operación del centro de trabajo Paterna.");
+        }
+
+        if (paternaOperations[0].RunTime <= 0m)
+        {
+            throw Rejected(
+                "NAV_PATERNA_RUN_TIME_INVALID",
+                "La operación de Paterna debe tener un tiempo de ejecución positivo.");
         }
 
         if (components.Any(component =>

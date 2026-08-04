@@ -243,7 +243,13 @@ public sealed class ProductionOrderSynchronizationEndpointTests
             string orderNumber,
             int maximumRecords,
             CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ProductionOrderRoutingStepRecord>>([]);
+            Task.FromResult<IReadOnlyList<ProductionOrderRoutingStepRecord>>(
+                [new(
+                    "OF26-00042", 10000, "RUTA-01", "010", "", "",
+                    ProductionRoutingStepType.WorkCenter,
+                    SynchronizeProductionOrder.PaternaCapacityNumber,
+                    "BANCO DE MONTAJE", null, null, 0m, 2m, 0m, 0m, 0m, "",
+                    0m, ProductionRoutingStatus.NotStarted, "FABRICA", false)]);
 
         public Task<IReadOnlyList<ProductionOrderComponentRecord>> ReadComponentsAsync(
             ProductionOrderStatus status,
