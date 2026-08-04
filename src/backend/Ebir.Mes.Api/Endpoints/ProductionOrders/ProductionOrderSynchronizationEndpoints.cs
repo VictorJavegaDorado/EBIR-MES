@@ -78,7 +78,8 @@ public static class ProductionOrderSynchronizationEndpoints
                   ProductionOrderSynchronizationUnavailableException)
         {
             logger.LogError(
-                "Production order synchronization unavailable for correlation {CorrelationId}.",
+                exception,
+                "Production order synchronization unavailable for correlation {CorrelationId}",
                 request.CorrelationId);
             return Unavailable(
                 "NAV_PRODUCTION_ORDER_SYNCHRONIZATION_UNAVAILABLE",
