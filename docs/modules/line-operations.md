@@ -91,6 +91,14 @@ Los rechazos `52300–52317` se traducen a códigos funcionales seguros; las
 solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no
 clasificados se ocultan tras `503`.
 
+## Integracion con la mesa de produccion
+
+La experiencia integrada y las reglas funcionales confirmadas se documentan
+en `production-workstation.md`. El contrato objetivo requiere que el primer
+RFID productivo inicie el tiempo. El contrato actual de apertura exige siempre
+supervisor y debe revisarse antes de conectar la interfaz; esta documentacion
+no cambia todavia el comportamiento instalado.
+
 ## Inicio de sustitución de capacidad
 
 `POST /api/line-sessions/{sessionId}/capacity-substitutions` recibe

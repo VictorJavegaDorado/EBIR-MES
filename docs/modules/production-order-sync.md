@@ -13,6 +13,8 @@ entrada. NAV permanece exclusivamente en lectura.
 - Ruta y operaciones OData Atom mediante `GET`:
   `WS_CPP_RutaOrdenProduccion`.
 - Componentes SOAP `ReadMultiple`: `WS_CPP_Componentes`.
+- Formato de palet ODataV4 `WS_CPP_UndMedProd`, filtrado por producto y codigo
+  exacto `POK` (pendiente de implementacion y paquete SQL).
 - Lote de salida del producto terminado: `Cód_Lote_Salida` de
   `WS_CPP_OPLanzadas`, mediante SOAP `ReadMultiple`.
 - Estado inicial de trabajo: ordenes lanzadas (`Released`).
@@ -29,6 +31,11 @@ entrada. NAV permanece exclusivamente en lectura.
 La relacion de componentes conserva los numeros de linea de NAV. La pagina de
 lineas publicada no expone su numero de linea, por lo que durante el piloto se
 exige exactamente una linea por orden.
+
+El contrato objetivo del formato POK, sus validaciones y su uso por la mesa de
+produccion estan documentados en `production-workstation.md`. La lectura real
+TEST confirmo los campos `Item_No`, `Code` y `Qty_per_Unit_of_Measure`; el
+lector y la persistencia todavia no estan implementados.
 
 ## Bandeja de entrada idempotente
 

@@ -45,3 +45,18 @@ cualquier edición invalida la correlación anterior.
 Los logs registran reserva, correlación, resultado y código funcional. No
 registran nombres de empleados, secretos ni detalles SQL.
 
+## Regla funcional de la mesa de produccion
+
+La regla confirmada para el siguiente corte es que cualquier operario
+productivo activo pueda cerrar un palet ordinario desde la mesa. El servidor,
+no el navegador, determina si se trata del ultimo palet. El ultimo cierre exige
+un supervisor activo y queda auditado.
+
+Esta regla obliga a revisar el contrato que actualmente exige supervisor para
+cualquier cierre parcial. Hasta completar esa revision siguen vigentes las
+validaciones instaladas; la interfaz no debe eludirlas ni simular un cierre.
+
+El formato y las unidades por palet procederan del registro `POK` publicado por
+NAV en `WS_CPP_UndMedProd`, segun el contrato descrito en
+`production-workstation.md`.
+
