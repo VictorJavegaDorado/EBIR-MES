@@ -143,49 +143,154 @@ public sealed class NavisionProductionOrderSourceTests
     }
 
     [Fact]
-    public async Task ReadRoutingAsync_maps_route_and_requires_exact_order()
+    public async Task ReadRoutingAsync_maps_odata_routes_and_uses_exact_filter()
     {
-        string? requestBody = null;
-        string? soapAction = null;
-        var handler = new StubHandler(async request =>
+        HttpMethod? requestMethod = null;
+        Uri? requestUri = null;
+        bool? hasContent = null;
+        bool? hasSoapAction = null;
+        var handler = new StubHandler(request =>
         {
-            requestBody = await request.Content!.ReadAsStringAsync();
-            soapAction = request.Headers.GetValues("SOAPAction").Single();
-            return SoapResponse(ProductionOrderRoutingResponse);
+            requestMethod = request.Method;
+            requestUri = request.RequestUri;
+            hasContent = request.Content is not null;
+            hasSoapAction = request.Headers.Contains("SOAPAction");
+            return Task.FromResult(ODataResponse(ProductionOrderRoutingResponse));
         });
 
         var result = await CreateSource(handler).ReadRoutingAsync(
-            "of26-00042",
+            " fl26-00001 ",
             20,
             CancellationToken.None);
 
-        var step = Assert.Single(result);
-        Assert.Equal("OF26-00042", step.OrderNumber);
-        Assert.Equal(10000, step.RoutingReferenceNumber);
-        Assert.Equal("RUTA-01", step.RoutingNumber);
-        Assert.Equal("010", step.OperationNumber);
-        Assert.Equal("005", step.PreviousOperationNumber);
-        Assert.Equal("020", step.NextOperationNumber);
-        Assert.Equal(ProductionRoutingStepType.WorkCenter, step.Type);
-        Assert.Equal("CT-01", step.CapacityNumber);
-        Assert.Equal("MEZCLADO", step.Description);
-        Assert.Equal(new DateTime(2026, 7, 31, 8, 0, 0), step.StartingAt);
-        Assert.Equal(new DateTime(2026, 7, 31, 10, 0, 0), step.EndingAt);
-        Assert.Equal(0.5m, step.SetupTime);
-        Assert.Equal(2.25m, step.RunTime);
-        Assert.Equal(0.1m, step.WaitTime);
-        Assert.Equal(0.2m, step.MoveTime);
-        Assert.Equal(0.3m, step.FixedScrapQuantity);
-        Assert.Equal("RL-010", step.RoutingLinkCode);
-        Assert.Equal(1.5m, step.ScrapFactorPercent);
-        Assert.Equal(ProductionRoutingStatus.InProgress, step.Status);
-        Assert.Equal("FABRICA", step.LocationCode);
-        Assert.True(step.IsSigning);
+        Assert.Equal(2, result.Count);
+        var first = result[0];
+        Assert.Equal("FL26-00001", first.OrderNumber);
+        Assert.Equal(10000, first.RoutingReferenceNumber);
+        Assert.Equal("27920LG", first.RoutingNumber);
+        Assert.Equal("005", first.OperationNumber);
+        Assert.Equal(ProductionRoutingStepType.WorkCenter, first.Type);
+        Assert.Equal("3", first.CapacityNumber);
+        Assert.Equal("ALMACEN", first.Description);
+        Assert.Equal(0.5m, first.SetupTime);
+        Assert.Equal(1.25m, first.RunTime);
+        Assert.Equal(ProductionRoutingStatus.NotStarted, first.Status);
+        Assert.False(first.IsSigning);
+
+        var second = result[1];
+        Assert.Equal("010", second.OperationNumber);
+        Assert.Equal("005", second.PreviousOperationNumber);
+        Assert.Equal(ProductionRoutingStepType.MachineCenter, second.Type);
+        Assert.Equal("9784", second.CapacityNumber);
+        Assert.Equal(2.25m, second.RunTime);
+        Assert.Equal(ProductionRoutingStatus.NotStarted, second.Status);
+        Assert.True(second.IsSigning);
+
+        Assert.Equal(HttpMethod.Get, requestMethod);
+        Assert.False(hasContent);
+        Assert.False(hasSoapAction);
         Assert.Equal(
-            "urn:microsoft-dynamics-schemas/page/ws_cpp_rutaordenproduccion:ReadMultiple",
-            soapAction);
-        Assert.Contains("<Criteria>OF26-00042</Criteria>", requestBody);
-        Assert.DoesNotContain("<Field>Status</Field>", requestBody);
+            "/instance/OData/Company('EBIR')/WS_CPP_RutaOrdenProduccion",
+            Uri.UnescapeDataString(requestUri!.AbsolutePath));
+        Assert.Equal(
+            "$filter=Prod_Order_No eq 'FL26-00001'&$top=20",
+            Uri.UnescapeDataString(requestUri.Query).TrimStart('?'));
+    }
+
+    [Fact]
+    public async Task ReadRoutingAsync_returns_empty_when_odata_has_no_routes()
+    {
+        var handler = new StubHandler(_ =>
+            Task.FromResult(ODataResponse(EmptyODataResponse)));
+
+        var result = await CreateSource(handler).ReadRoutingAsync(
+            "OF26-00042",
+            100,
+            CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task ReadRoutingAsync_rejects_malformed_odata_without_retry()
+    {
+        var handler = new StubHandler(_ =>
+            Task.FromResult(ODataResponse("<not-xml")));
+
+        var exception =
+            await Assert.ThrowsAsync<ProductionOrderSourceUnavailableException>(
+                () => CreateSource(handler).ReadRoutingAsync(
+                    "OF26-00042",
+                    100,
+                    CancellationToken.None));
+
+        Assert.Equal("NAV returned an invalid routing response.", exception.Message);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task ReadRoutingAsync_retries_transient_http_status(
+        HttpStatusCode transientStatus)
+    {
+        var responseNumber = 0;
+        var handler = new StubHandler(_ =>
+        {
+            responseNumber++;
+            var response = responseNumber == 1
+                ? new HttpResponseMessage(transientStatus)
+                : ODataResponse(EmptyODataResponse);
+            return Task.FromResult(response);
+        });
+
+        var result = await CreateSource(handler).ReadRoutingAsync(
+            "OF26-00042",
+            100,
+            CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task ReadRoutingAsync_retries_timeout()
+    {
+        var responseNumber = 0;
+        var handler = new StubHandler(_ =>
+        {
+            responseNumber++;
+            return responseNumber == 1
+                ? Task.FromException<HttpResponseMessage>(new TaskCanceledException())
+                : Task.FromResult(ODataResponse(EmptyODataResponse));
+        });
+
+        var result = await CreateSource(handler).ReadRoutingAsync(
+            "OF26-00042",
+            100,
+            CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task ReadRoutingAsync_does_not_retry_non_transient_status()
+    {
+        var handler = new StubHandler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.BadRequest)));
+
+        var exception =
+            await Assert.ThrowsAsync<ProductionOrderSourceUnavailableException>(
+                () => CreateSource(handler).ReadRoutingAsync(
+                    "OF26-00042",
+                    100,
+                    CancellationToken.None));
+
+        Assert.Contains("HTTP 400", exception.Message);
+        Assert.Equal(1, handler.CallCount);
     }
 
     [Fact]
@@ -345,6 +450,12 @@ public sealed class NavisionProductionOrderSourceTests
             Content = new StringContent(body, Encoding.UTF8, "text/xml")
         };
 
+    private static HttpResponseMessage ODataResponse(string body) =>
+        new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/atom+xml")
+        };
+
     private sealed class StubHandler(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> responseFactory)
         : HttpMessageHandler
@@ -433,39 +544,72 @@ public sealed class NavisionProductionOrderSourceTests
         """;
 
     private const string ProductionOrderRoutingResponse = """
-        <?xml version="1.0" encoding="utf-8"?>
-        <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-          <soap:Body>
-            <ReadMultiple_Result xmlns="urn:microsoft-dynamics-schemas/page/ws_cpp_rutaordenproduccion">
-              <ReadMultiple_Result>
-                <WS_CPP_RutaOrdenProduccion>
-                  <Key>ROUTE-KEY</Key>
-                  <Prod_Order_No>OF26-00042</Prod_Order_No>
-                  <Operation_No>010</Operation_No>
-                  <Previous_Operation_No>005</Previous_Operation_No>
-                  <Next_Operation_No>020</Next_Operation_No>
-                  <Type>Work_Center</Type>
-                  <No>CT-01</No>
-                  <Description>MEZCLADO</Description>
-                  <Starting_Date_Time>2026-07-31T08:00:00</Starting_Date_Time>
-                  <Ending_Date_Time>2026-07-31T10:00:00</Ending_Date_Time>
-                  <Setup_Time>0.5</Setup_Time>
-                  <Run_Time>2.25</Run_Time>
-                  <Wait_Time>0.1</Wait_Time>
-                  <Move_Time>0.2</Move_Time>
-                  <Fixed_Scrap_Quantity>0.3</Fixed_Scrap_Quantity>
-                  <Routing_Link_Code>RL-010</Routing_Link_Code>
-                  <Scrap_Factor_Percent>1.5</Scrap_Factor_Percent>
-                  <Routing_Status>In_Progress</Routing_Status>
-                  <Location_Code>FABRICA</Location_Code>
-                  <Routing_No>RUTA-01</Routing_No>
-                  <Routing_Reference_No>10000</Routing_Reference_No>
-                  <IsSigning>true</IsSigning>
-                </WS_CPP_RutaOrdenProduccion>
-              </ReadMultiple_Result>
-            </ReadMultiple_Result>
-          </soap:Body>
-        </soap:Envelope>
+        <?xml version="1.0" encoding="utf-8" standalone="yes"?>
+        <feed xmlns="http://www.w3.org/2005/Atom"
+              xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices"
+              xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+          <entry>
+            <content type="application/xml">
+              <m:properties>
+                <d:Prod_Order_No>FL26-00001</d:Prod_Order_No>
+                <d:Operation_No>005</d:Operation_No>
+                <d:Previous_Operation_No></d:Previous_Operation_No>
+                <d:Next_Operation_No>010</d:Next_Operation_No>
+                <d:Type>Centro trabajo</d:Type>
+                <d:No>3</d:No>
+                <d:Description>ALMACEN</d:Description>
+                <d:Starting_Date_Time>2026-08-04T08:00:00</d:Starting_Date_Time>
+                <d:Ending_Date_Time>2026-08-04T09:00:00</d:Ending_Date_Time>
+                <d:Setup_Time>0.5</d:Setup_Time>
+                <d:Run_Time>1.25</d:Run_Time>
+                <d:Run_Time_Unit_of_Meas_Code>MINUTOS</d:Run_Time_Unit_of_Meas_Code>
+                <d:Wait_Time>0</d:Wait_Time>
+                <d:Move_Time>0</d:Move_Time>
+                <d:Fixed_Scrap_Quantity>0</d:Fixed_Scrap_Quantity>
+                <d:Routing_Link_Code>005</d:Routing_Link_Code>
+                <d:Scrap_Factor_Percent>0</d:Scrap_Factor_Percent>
+                <d:Routing_Status></d:Routing_Status>
+                <d:Status>Lanzada</d:Status>
+                <d:Location_Code>FABRICA</d:Location_Code>
+                <d:Routing_No>27920LG</d:Routing_No>
+                <d:Routing_Reference_No>10000</d:Routing_Reference_No>
+                <d:IsSigning>false</d:IsSigning>
+              </m:properties>
+            </content>
+          </entry>
+          <entry>
+            <content type="application/xml">
+              <m:properties>
+                <d:Prod_Order_No>FL26-00001</d:Prod_Order_No>
+                <d:Operation_No>010</d:Operation_No>
+                <d:Previous_Operation_No>005</d:Previous_Operation_No>
+                <d:Next_Operation_No></d:Next_Operation_No>
+                <d:Type>Centro máquina</d:Type>
+                <d:No>9784</d:No>
+                <d:Description>OPERACION PILOTO</d:Description>
+                <d:Setup_Time>0</d:Setup_Time>
+                <d:Run_Time>2.25</d:Run_Time>
+                <d:Wait_Time>0</d:Wait_Time>
+                <d:Move_Time>0</d:Move_Time>
+                <d:Fixed_Scrap_Quantity>0</d:Fixed_Scrap_Quantity>
+                <d:Routing_Link_Code>010</d:Routing_Link_Code>
+                <d:Scrap_Factor_Percent>0</d:Scrap_Factor_Percent>
+                <d:Status>Lanzada</d:Status>
+                <d:Location_Code>FABRICA</d:Location_Code>
+                <d:Routing_No>27920LG</d:Routing_No>
+                <d:Routing_Reference_No>10000</d:Routing_Reference_No>
+                <d:IsSigning>true</d:IsSigning>
+              </m:properties>
+            </content>
+          </entry>
+        </feed>
+        """;
+
+    private const string EmptyODataResponse = """
+        <?xml version="1.0" encoding="utf-8" standalone="yes"?>
+        <feed xmlns="http://www.w3.org/2005/Atom"
+              xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices"
+              xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" />
         """;
 
     private const string ProductionOrderComponentsResponse = """

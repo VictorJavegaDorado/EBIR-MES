@@ -21,13 +21,13 @@ public sealed class NavisionProductionOrderSource(
     private static readonly NavisionPage ReleasedOrdersPage = new(
         "WS_CPP_OPLanzadas",
         "urn:microsoft-dynamics-schemas/page/ws_cpp_oplanzadas");
-    private static readonly NavisionPage RoutingPage = new(
-        "WS_CPP_RutaOrdenProduccion",
-        "urn:microsoft-dynamics-schemas/page/ws_cpp_rutaordenproduccion");
     private static readonly NavisionPage ComponentsPage = new(
         "WS_CPP_Componentes",
         "urn:microsoft-dynamics-schemas/page/ws_cpp_componentes");
     private readonly NavisionSoapPageReader reader = new(httpClient, options);
+    private readonly NavisionODataRoutingReader routingReader = new(
+        httpClient,
+        options);
 
     public async Task<IReadOnlyList<ProductionOrderRecord>> ReadAsync(
         ProductionOrderStatus status,
@@ -114,12 +114,8 @@ public sealed class NavisionProductionOrderSource(
     {
         ValidatePageSize(maximumRecords);
         var normalizedOrderNumber = NormalizeOrderNumber(orderNumber);
-        var document = await reader.ReadMultipleAsync(
-            RoutingPage,
-            [new NavisionFilter("Prod_Order_No", normalizedOrderNumber)],
-            maximumRecords,
-            cancellationToken);
-        return MapRecords(document, RoutingPage, MapRoutingStep);
+        return await routingReader.ReadAsync(
+            normalizedOrderNumber, maximumRecords, cancellationToken);
     }
 
     public async Task<IReadOnlyList<ProductionOrderComponentRecord>>
@@ -212,34 +208,6 @@ public sealed class NavisionProductionOrderSource(
             RequiredValue(record, page + "No"),
             RequiredValue(record, page + "Source_No"),
             Value(record, page + "Cód_Lote_Salida"));
-
-    private static ProductionOrderRoutingStepRecord MapRoutingStep(
-        XElement record,
-        XNamespace page)
-    {
-        return new ProductionOrderRoutingStepRecord(
-            RequiredValue(record, page + "Prod_Order_No"),
-            ParseInt(RequiredValue(record, page + "Routing_Reference_No")),
-            Value(record, page + "Routing_No"),
-            RequiredValue(record, page + "Operation_No"),
-            Value(record, page + "Previous_Operation_No"),
-            Value(record, page + "Next_Operation_No"),
-            ParseRoutingType(RequiredValue(record, page + "Type")),
-            RequiredValue(record, page + "No"),
-            Value(record, page + "Description"),
-            ParseDateTime(Value(record, page + "Starting_Date_Time")),
-            ParseDateTime(Value(record, page + "Ending_Date_Time")),
-            ParseDecimal(Value(record, page + "Setup_Time")),
-            ParseDecimal(Value(record, page + "Run_Time")),
-            ParseDecimal(Value(record, page + "Wait_Time")),
-            ParseDecimal(Value(record, page + "Move_Time")),
-            ParseDecimal(Value(record, page + "Fixed_Scrap_Quantity")),
-            Value(record, page + "Routing_Link_Code"),
-            ParseDecimal(Value(record, page + "Scrap_Factor_Percent")),
-            ParseRoutingStatus(Value(record, page + "Routing_Status")),
-            Value(record, page + "Location_Code"),
-            ParseBool(Value(record, page + "IsSigning")));
-    }
 
     private static ProductionOrderComponentRecord MapComponent(
         XElement record,
@@ -358,24 +326,6 @@ public sealed class NavisionProductionOrderSource(
             ProductionOrderStatus.Released => "Released",
             ProductionOrderStatus.Finished => "Finished",
             _ => throw new ArgumentOutOfRangeException(nameof(status))
-        };
-
-    private static ProductionRoutingStepType ParseRoutingType(string value) =>
-        value switch
-        {
-            "Work_Center" => ProductionRoutingStepType.WorkCenter,
-            "Machine_Center" => ProductionRoutingStepType.MachineCenter,
-            _ => throw new FormatException($"Unknown NAV routing type: {value}.")
-        };
-
-    private static ProductionRoutingStatus ParseRoutingStatus(string value) =>
-        value switch
-        {
-            "" or "_blank_" => ProductionRoutingStatus.NotStarted,
-            "Planned" => ProductionRoutingStatus.Planned,
-            "In_Progress" => ProductionRoutingStatus.InProgress,
-            "Finished" => ProductionRoutingStatus.Finished,
-            _ => throw new FormatException($"Unknown NAV routing status: {value}.")
         };
 
     private static ProductionComponentFlushingMethod ParseFlushingMethod(

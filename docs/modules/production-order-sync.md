@@ -8,20 +8,23 @@ entrada. NAV permanece exclusivamente en lectura.
 
 ## Alcance de lectura
 
-- Cabeceras: `WS_CPP_ProdOrderList`.
-- Lineas: `WS_CPP_ProdOrderLineList`.
-- Ruta y operaciones: `WS_CPP_RutaOrdenProduccion`.
-- Componentes: `WS_CPP_Componentes`.
+- Cabeceras SOAP `ReadMultiple`: `WS_CPP_ProdOrderList`.
+- Lineas SOAP `ReadMultiple`: `WS_CPP_ProdOrderLineList`.
+- Ruta y operaciones OData Atom mediante `GET`:
+  `WS_CPP_RutaOrdenProduccion`.
+- Componentes SOAP `ReadMultiple`: `WS_CPP_Componentes`.
 - Lote de salida del producto terminado: `Cód_Lote_Salida` de
-  `WS_CPP_OPLanzadas`.
-- Unica operacion permitida: `ReadMultiple`.
+  `WS_CPP_OPLanzadas`, mediante SOAP `ReadMultiple`.
 - Estado inicial de trabajo: ordenes lanzadas (`Released`).
 - Cada consulta exige un limite entre 1 y 100 registros.
 - Las lecturas de detalle exigen un numero de orden exacto. Se rechazan rangos,
-  comodines y operadores de filtro de NAV.
+  comodines y operadores de filtro de NAV. La ruta usa un `$filter` OData
+  exacto por `Prod_Order_No` y un `$top` limitado.
 - La autenticacion se delega a la identidad del proceso; no se guardan
   credenciales en codigo ni configuracion versionada.
 - Las llamadas solo se producen cuando un caso de uso invoca el adaptador.
+- La lectura permanece estrictamente de solo lectura: no se invocan acciones,
+  codeunits ni verbos de escritura OData.
 
 La relacion de componentes conserva los numeros de linea de NAV. La pagina de
 lineas publicada no expone su numero de linea, por lo que durante el piloto se
@@ -57,6 +60,11 @@ ser un entero exacto y el tiempo de ejecucion de
 la operacion debe ser positivo y representable sin redondeo en minutos por
 unidad.
 
+Los valores de tiempo de ruta se conservan con el valor numerico publicado por
+NAV, sin conversion implicita en el lector. Antes de elegir una operacion para
+promocion se debe verificar que la unidad publicada por la pagina OData es
+minutos y que el valor satisface el contrato decimal de produccion.
+
 La primera promocion crea atomicamente `prod.ordenes` y sus componentes. Una
 nueva correlacion con el mismo snapshot y decisiones devuelve `SIN_CAMBIOS`.
 Un cambio de snapshot, lote NAV u operacion no sobrescribe los datos productivos:
@@ -68,9 +76,10 @@ deshabilitado por defecto y no consulta ni escribe en NAV.
 
 ## Resiliencia
 
-Las lecturas pueden repetirse porque no cambian estado. Se reintentan como
-maximo tres veces ante timeouts, errores de transporte, `408`, `429` o respuestas
-`5xx`. Los errores funcionales y respuestas SOAP no validas no se reintentan.
+Las lecturas SOAP y OData pueden repetirse porque no cambian estado. Se
+reintentan como maximo tres veces ante timeouts, errores de transporte, `408`,
+`429` o respuestas `5xx`. Los errores funcionales y las respuestas XML no
+validas no se reintentan.
 
 ## Seleccion operativa
 
@@ -90,8 +99,11 @@ de orden exacto y una correlacion. El entorno, la empresa, la raiz SOAP y los
 limites de resiliencia proceden de configuracion del servidor, nunca del
 navegador.
 
-La raiz SOAP termina en `/WS/`; el adaptador agrega despues la empresa y la
-pagina NAV. Por ejemplo, la raiz de `EBIRTEST` no incluye de nuevo `EBIR`.
+La raiz configurada termina en `/WS/`. El adaptador SOAP agrega despues la
+empresa y la pagina NAV. El lector de rutas deriva exclusivamente de esa misma
+URI la raiz `/OData/`, conservando esquema, host y puerto, y agrega la empresa y
+la entidad de ruta. No acepta una autoridad externa ni una raiz que no termine
+en `/WS/`. Por ejemplo, la raiz de `EBIRTEST` no incluye de nuevo `EBIR`.
 
 La respuesta publica `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`. Las validaciones
 funcionales se traducen a `400`, `404` o `409`; los fallos de NAV, SQL o de
