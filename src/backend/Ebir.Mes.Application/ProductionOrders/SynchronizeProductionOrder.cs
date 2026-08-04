@@ -75,7 +75,7 @@ public sealed class SynchronizeProductionOrder(
         var snapshot = new ProductionOrderSnapshot(
             environmentCode,
             companyCode,
-            lot!.LotNumber.Trim(),
+            lot?.LotNumber.Trim() ?? string.Empty,
             order,
             lines[0],
             routing
@@ -109,26 +109,22 @@ public sealed class SynchronizeProductionOrder(
                 "NAV devolvió una cabecera de otra orden.");
         }
 
-        if (lot is null || string.IsNullOrWhiteSpace(lot.LotNumber))
+        if (lot is not null)
         {
-            throw Rejected(
-                "NAV_PRODUCTION_ORDER_LOT_REQUIRED",
-                "La orden lanzada no tiene un lote de salida asignado en NAV.");
-        }
+            if (lot.LotNumber.Trim().Length > MaximumLotNumberLength)
+            {
+                throw Rejected(
+                    "NAV_PRODUCTION_ORDER_LOT_INVALID",
+                    "El lote de salida NAV supera la longitud admitida por MES.");
+            }
 
-        if (lot.LotNumber.Trim().Length > MaximumLotNumberLength)
-        {
-            throw Rejected(
-                "NAV_PRODUCTION_ORDER_LOT_INVALID",
-                "El lote de salida NAV supera la longitud admitida por MES.");
-        }
-
-        if (!string.Equals(lot.OrderNumber, orderNumber, StringComparison.Ordinal) ||
-            !string.Equals(lot.ProductNumber, order.ProductNumber, StringComparison.Ordinal))
-        {
-            throw Rejected(
-                "NAV_PRODUCTION_ORDER_LOT_MISMATCH",
-                "El lote NAV no corresponde a la orden y producto solicitados.");
+            if (!string.Equals(lot.OrderNumber, orderNumber, StringComparison.Ordinal) ||
+                !string.Equals(lot.ProductNumber, order.ProductNumber, StringComparison.Ordinal))
+            {
+                throw Rejected(
+                    "NAV_PRODUCTION_ORDER_LOT_MISMATCH",
+                    "El lote NAV no corresponde a la orden y producto solicitados.");
+            }
         }
 
         if (lines.Count != 1)

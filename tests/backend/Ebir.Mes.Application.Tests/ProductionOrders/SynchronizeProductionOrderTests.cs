@@ -65,15 +65,29 @@ public sealed class SynchronizeProductionOrderTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_rejects_an_order_without_output_lot()
+    public async Task ExecuteAsync_saves_an_order_without_output_lot_as_pending()
     {
         var source = ValidSource();
         source.Lot = null;
+        var store = new StubStore(new(1, ProductionOrderSynchronizationOutcome.Created));
 
-        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
-            () => ExecuteAsync(source));
+        await new SynchronizeProductionOrder(source, store).ExecuteAsync(
+            Command(), CancellationToken.None);
 
-        Assert.Equal("NAV_PRODUCTION_ORDER_LOT_REQUIRED", exception.Code);
+        Assert.Equal(string.Empty, store.Snapshot!.LotNumber);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_saves_a_blank_output_lot_as_pending()
+    {
+        var source = ValidSource();
+        source.Lot = Lot("   ");
+        var store = new StubStore(new(1, ProductionOrderSynchronizationOutcome.Created));
+
+        await new SynchronizeProductionOrder(source, store).ExecuteAsync(
+            Command(), CancellationToken.None);
+
+        Assert.Equal(string.Empty, store.Snapshot!.LotNumber);
     }
 
     [Fact]

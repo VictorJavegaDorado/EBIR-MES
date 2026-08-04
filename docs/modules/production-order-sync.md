@@ -43,8 +43,10 @@ su SHA-256 y llama a `nav.aplicar_snapshot_orden`. El procedimiento preparado:
 - devuelve `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`;
 - sustituye cabecera y detalles atomicamente cuando NAV ha cambiado.
 
-El lote es obligatorio, procede exclusivamente de NAV y debe corresponder a la
-misma orden y producto. MES no lo calcula ni permite sustituirlo manualmente.
+El lote procede exclusivamente de NAV. Si viene informado, debe corresponder a la
+misma orden y producto. Puede llegar vacio: MES lo conserva como pendiente, no lo
+calcula ni permite sustituirlo manualmente. Las acciones que requieren trazabilidad,
+incluida la etiqueta final, permanecen bloqueadas hasta disponer del lote.
 
 ## Promocion controlada a produccion
 
@@ -106,8 +108,8 @@ al terminar.
   `EBIR_MES_TEST`.
 - El paquete `016A_promover_ordenes_nav.sql` esta instalado y validado en
   `EBIR_MES_TEST`; todavia no se ha promovido ninguna orden real.
-- El paquete `017A_lote_nav_ordenes_entrada.sql` esta preparado y pendiente de
-  autorizacion de instalacion.
+- El paquete `017A_lote_nav_ordenes_entrada.sql` esta instalado y validado en
+  `EBIR_MES_TEST`.
 - La primera invocacion manual se hizo usando `29516CI/1508` como numero de
   orden. Ese valor es el producto; el snapshot historico conservado no debe
   promocionarse.

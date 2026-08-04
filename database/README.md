@@ -1,6 +1,6 @@
 # Paquete SQL — EBIR MES
 
-Estado: paquetes `001–018` aplicados y validados en `EBIR_MES_TEST`.
+Estado: paquetes `001–018` y `021A` aplicados y validados en `EBIR_MES_TEST`.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -31,6 +31,7 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 18. `016A_promover_ordenes_nav.sql` - instalado y validado el 01/08/2026.
 19. `017A_lote_nav_ordenes_entrada.sql` - instalado y validado el 01/08/2026.
 20. `018A_cola_impresion_worker.sql` - instalado y validado el 01/08/2026.
+21. `021A_lote_salida_opcional.sql` - instalado y validado el 04/08/2026; permite lote de salida NAV pendiente sin inventarlo.
 
 ## Reglas
 
