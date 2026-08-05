@@ -8,4 +8,5 @@ public sealed record ProductionOrderSnapshot(
     ProductionOrderLineRecord Line,
     IReadOnlyList<ProductionOrderRoutingStepRecord> Routing,
     IReadOnlyList<ProductionOrderComponentRecord> Components,
-    ProductionOrderPalletFormatRecord PalletFormat);
+    ProductionOrderPalletFormatRecord PalletFormat,
+    ProductionOrderProductPostingGroupRecord ProductPostingGroup);

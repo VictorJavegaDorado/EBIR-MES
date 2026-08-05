@@ -819,6 +819,83 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.pallet-label-preview {
+  margin: 0 0 22px;
+}
+
+.pallet-label-preview-title {
+  margin: 0 0 9px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pallet-label-sheet {
+  aspect-ratio: 3 / 2;
+  padding: 5%;
+  overflow: hidden;
+  color: #101010;
+  background: white;
+  border: 2px solid #101010;
+  box-shadow: 0 8px 24px rgba(26, 32, 44, 0.14);
+}
+
+.pallet-label-sheet header {
+  min-height: 24%;
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  align-items: center;
+  border-bottom: 3px solid #101010;
+}
+
+.pallet-label-logo {
+  font-size: clamp(28px, 5vw, 48px);
+  font-style: italic;
+  letter-spacing: -0.08em;
+}
+
+.pallet-label-group {
+  padding-left: 8%;
+  font-size: clamp(12px, 1.7vw, 20px);
+  text-align: right;
+  word-break: break-word;
+}
+
+.pallet-label-sheet dl {
+  margin: 3% 0 0;
+}
+
+.pallet-label-sheet dl > div {
+  display: grid;
+  grid-template-columns: 29% minmax(0, 1fr);
+  align-items: baseline;
+  padding: 1.4% 0;
+  border-bottom: 1px solid #777;
+}
+
+.pallet-label-sheet dt {
+  font-size: clamp(9px, 1.15vw, 13px);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pallet-label-sheet dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: clamp(11px, 1.45vw, 17px);
+  font-weight: 800;
+}
+
+.pallet-label-preview > small {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
 .pallet-close-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

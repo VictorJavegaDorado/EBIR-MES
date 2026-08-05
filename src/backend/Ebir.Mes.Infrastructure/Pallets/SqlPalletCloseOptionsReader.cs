@@ -11,17 +11,24 @@ public sealed class SqlPalletCloseOptionsReader(string? connectionString)
         SELECT
             r.reserva_palet_id,
             r.cantidad_reservada,
-            o.numero_orden
+            o.numero_orden,
+            o.producto_codigo,
+            o.producto_descripcion,
+            o.grupo_contable_producto,
+            l.nombre
         FROM prod.reservas_palet AS r
         INNER JOIN prod.sesiones_linea AS s
             ON s.sesion_linea_id = r.sesion_linea_id
         INNER JOIN prod.ordenes AS o
             ON o.orden_id = r.orden_id
+        INNER JOIN cfg.lineas AS l
+            ON l.linea_id = s.linea_id
         INNER JOIN prod.estados_linea AS el
             ON el.linea_id = s.linea_id
            AND el.sesion_linea_id = s.sesion_linea_id
         WHERE s.linea_id = @linea_id
           AND r.estado = N'ACTIVA'
+          AND NULLIF(LTRIM(RTRIM(o.grupo_contable_producto)), N'') IS NOT NULL
         ORDER BY r.creada_utc, r.reserva_palet_id;
 
         SELECT DISTINCT
@@ -109,7 +116,11 @@ public sealed class SqlPalletCloseOptionsReader(string? connectionString)
                 reservations.Add(new(
                     reader.GetInt64(0),
                     reader.GetInt32(1),
-                    reader.GetString(2)));
+                    reader.GetString(2),
+                    reader.GetString(3),
+                    reader.GetString(4),
+                    reader.GetString(5),
+                    reader.GetString(6)));
             }
 
             await reader.NextResultAsync(cancellationToken);

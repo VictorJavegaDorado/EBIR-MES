@@ -33,7 +33,6 @@ public sealed class ClosePallet(IPalletCloser closer)
         if (command.AuthorizingSupervisorId is <= 0) return Invalid("PALLET_SUPERVISOR_ID_INVALID");
         if (command.CorrelationId == Guid.Empty) return Invalid("CORRELATION_ID_INVALID");
         if (!command.IsPartial && command.PartialReason is not null) return Invalid("PALLET_PARTIAL_REASON_NOT_ALLOWED");
-        if (command.IsPartial && command.AuthorizingSupervisorId is null) return Invalid("PALLET_PARTIAL_SUPERVISOR_REQUIRED");
         if (command.IsPartial && command.PartialReason is null) return Invalid("PALLET_PARTIAL_REASON_REQUIRED");
         if (command.IsPartial && !AllowedPartialReasons.Contains(command.PartialReason!)) return Invalid("PALLET_PARTIAL_REASON_INVALID");
         return null;

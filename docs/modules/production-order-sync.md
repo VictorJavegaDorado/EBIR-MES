@@ -15,6 +15,9 @@ entrada. NAV permanece exclusivamente en lectura.
 - Componentes SOAP `ReadMultiple`: `WS_CPP_Componentes`.
 - Formato de palet ODataV4 mediante `GET` a `WS_CPP_UndMedProd`, filtrado por
   producto y codigo exacto `POK`, con `$top=2` para detectar duplicados.
+- Grupo contable de producto ODataV4 mediante `GET` a `ItemSalesAndProfit`,
+  filtrado por `No` exacto, seleccionando `No` y
+  `Gen_Prod_Posting_Group`, con `$top=2` para detectar duplicados.
 - Lote de salida del producto terminado: `Cód_Lote_Salida` de
   `WS_CPP_OPLanzadas`, mediante SOAP `ReadMultiple`.
 - Estado inicial de trabajo: ordenes lanzadas (`Released`).
@@ -37,6 +40,12 @@ produccion estan documentados en `production-workstation.md`. La lectura usa
 los campos `Item_No`, `Code` y `Qty_per_Unit_of_Measure`. El lector y el modelo
 de snapshot estan implementados y la persistencia del paquete 022 esta
 instalada en `EBIR_MES_TEST` desde el 05/08/2026.
+
+El grupo contable tampoco se deduce en MES. Debe existir una unica fila para
+el producto, la clave devuelta debe coincidir exactamente y el codigo debe ser
+no vacio y tener como maximo 50 caracteres. Forma parte del hash del snapshot,
+se persiste en la bandeja y se fija en `prod.ordenes` durante la promocion. El
+paquete 025A que incorpora esa persistencia esta preparado, pero no instalado.
 
 ## Bandeja de entrada idempotente
 
@@ -79,7 +88,8 @@ numerico publicado; no participan en la promocion. La operacion Paterna debe
 tener un tiempo de ejecucion convertido positivo.
 
 La primera promocion crea atomicamente `prod.ordenes`, sus componentes y, con
-el paquete 022, el formato POK en `prod.formatos_palet_orden`. Una
+el paquete 022, el formato POK en `prod.formatos_palet_orden`. Cuando se instale
+025A tambien exigira y fijara el grupo contable de producto. Una
 nueva correlacion con el mismo snapshot y decisiones devuelve `SIN_CAMBIOS`.
 Un cambio de snapshot, lote NAV u operacion no sobrescribe los datos productivos:
 devuelve `REVISION` y bloquea la orden en ese estado. Repetir una correlacion
@@ -130,6 +140,10 @@ manual debe habilitarse solo para la ventana de prueba y volver a deshabilitarse
 al terminar.
 
 ## Estado y limites pendientes de autorizacion
+
+- `025A_grupo_contable_y_cierre_palet.sql` esta preparado para validacion
+  transaccional con rollback. No esta instalado y no debe usarse para un cierre
+  real sin una autorizacion posterior.
 
 - El paquete `022A_formato_palet_pok.sql` esta instalado y validado en
   `EBIR_MES_TEST`. La release activa aun no contiene el lector POK; su despliegue

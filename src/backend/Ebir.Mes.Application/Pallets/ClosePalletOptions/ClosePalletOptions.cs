@@ -3,7 +3,11 @@ namespace Ebir.Mes.Application.Pallets.ClosePalletOptions;
 public sealed record PalletReservationOption(
     long Id,
     int ReservedQuantity,
-    string OrderNumber);
+    string OrderNumber,
+    string ProductNumber,
+    string ProductDescription,
+    string ProductPostingGroup,
+    string LineName);
 
 public sealed record PalletEmployeeOption(
     long Id,

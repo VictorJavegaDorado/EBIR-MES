@@ -20,8 +20,9 @@ reintento: el contrato de persistencia no distingue ambos resultados.
 
 La correlación es obligatoria. Los motivos parciales permitidos son
 `FIN_TURNO`, `FALTA_MATERIAL` y `ULTIMO_PALET`; un cierre parcial requiere
-motivo y supervisor. Un cierre completo no admite motivo y deja al contrato
-SQL determinar si requiere supervisor por ser el último palé.
+motivo. Un cierre completo no admite motivo. El contrato SQL calcula si el
+cierre completa la cantidad objetivo y exige supervisor solo en ese ultimo
+palet, sea parcial o completo.
 
 El backend usa exclusivamente `prod.cerrar_palet_idempotente` cuando el
 paquete 014 esté instalado. Hasta entonces, y ante errores de disponibilidad,
@@ -50,6 +51,11 @@ limita a fichajes abiertos de la sesion activa de la linea y excluye a quien
 tenga un paro de operario abierto. No basta con disponer globalmente del rol
 `OPERARIO` o `SUPERVISOR` en MES.
 
+La misma regla se revalida bajo bloqueo dentro de `prod.cerrar_palet`: el autor
+debe conservar un fichaje abierto en la sesion de la reserva y no puede tener
+un paro individual abierto. Una lista de opciones desactualizada no permite
+cerrar un palet.
+
 ## Plantilla de etiqueta de palet
 
 La plantilla confirmada mide 150 x 100 mm, se prepara para Vretti a 201 dpi y
@@ -66,9 +72,11 @@ dato en el snapshot de la orden y trasladarlo al payload de `imp.etiquetas`.
 Cero o varias coincidencias, o un grupo vacio, bloquean la generacion: la
 plantilla no muestra valores inventados.
 
-La previsualizacion se renderiza con los mismos datos persistidos que consumira
-el trabajo de impresion. Preparar o mostrar esa previsualizacion no habilita el
-Worker ni contacta la impresora fisica.
+La previsualizacion se renderiza en proporcion 150 x 100 con los datos
+persistidos de la reserva y la orden que consumira el trabajo de impresion.
+La cantidad mostrada es la cantidad que el operario va a cerrar. Preparar o
+mostrar esa previsualizacion no crea `imp.etiquetas`, no habilita el Worker ni
+contacta la impresora fisica.
 
 ## Regla funcional de la mesa de produccion
 
@@ -77,9 +85,17 @@ productivo activo pueda cerrar un palet ordinario desde la mesa. El servidor,
 no el navegador, determina si se trata del ultimo palet. El ultimo cierre exige
 un supervisor activo y queda auditado.
 
-Esta regla obliga a revisar el contrato que actualmente exige supervisor para
-cualquier cierre parcial. Hasta completar esa revision siguen vigentes las
-validaciones instaladas; la interfaz no debe eludirlas ni simular un cierre.
+El paquete 025A implementa esta regla en el contrato SQL y agrega el grupo
+contable al JSON persistido de `imp.etiquetas`. Esta preparado pero no
+instalado; hasta autorizar su instalacion siguen vigentes las validaciones de
+la base activa y no debe realizarse un cierre real.
+
+Para la orden de ensayo `FL26-00003`, objetivo 100 y formato POK de 20
+unidades, los palets 1 a 4 son cierres ordinarios realizables por cualquier
+operario activo en la mesa. El quinto completa el objetivo y exige un
+supervisor autorizador vigente. El servidor calcula esa posicion usando las
+cantidades bloqueadas de la orden; el navegador no decide que palet es el
+ultimo.
 
 El formato y las unidades por palet procederan del registro `POK` publicado por
 NAV en `WS_CPP_UndMedProd`, segun el contrato descrito en

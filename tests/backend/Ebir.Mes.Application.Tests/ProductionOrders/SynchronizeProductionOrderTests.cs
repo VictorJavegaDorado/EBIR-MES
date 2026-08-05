@@ -36,6 +36,7 @@ public sealed class SynchronizeProductionOrderTests
         Assert.Equal([10000, 20000], store.Snapshot.Components.Select(component => component.LineNumber));
         Assert.Equal("POK", store.Snapshot.PalletFormat.Code);
         Assert.Equal(20m, store.Snapshot.PalletFormat.QuantityPerUnitMeasure);
+        Assert.Equal("P_MATPRIMA", store.Snapshot.ProductPostingGroup.Code);
         Assert.Equal(synchronizationId, store.SynchronizationId);
     }
 
@@ -199,6 +200,33 @@ public sealed class SynchronizeProductionOrderTests
         Assert.Equal("NAV_PALLET_FORMAT_QUANTITY_INVALID", exception.Code);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_rejects_missing_or_duplicated_product_posting_group()
+    {
+        var source = ValidSource();
+        source.ProductPostingGroups = [];
+        var missing = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+        Assert.Equal("NAV_PRODUCT_POSTING_GROUP_NOT_UNIQUE", missing.Code);
+
+        source.ProductPostingGroups = [ProductPostingGroup(), ProductPostingGroup()];
+        var duplicated = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+        Assert.Equal("NAV_PRODUCT_POSTING_GROUP_NOT_UNIQUE", duplicated.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_a_product_posting_group_from_another_product()
+    {
+        var source = ValidSource();
+        source.ProductPostingGroups = [ProductPostingGroup() with { ProductNumber = "OTHER" }];
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PRODUCT_POSTING_GROUP_INVALID", exception.Code);
+    }
+
     private static StubSource ValidSource() => new()
     {
         Order = Order(),
@@ -239,6 +267,9 @@ public sealed class SynchronizeProductionOrderTests
     private static ProductionOrderPalletFormatRecord PalletFormat() =>
         new("ITEM-01", "POK", 20m);
 
+    private static ProductionOrderProductPostingGroupRecord ProductPostingGroup() =>
+        new("ITEM-01", "P_MATPRIMA");
+
     private sealed class StubSource : IProductionOrderSource
     {
         public ProductionOrderRecord? Order { get; set; }
@@ -248,6 +279,8 @@ public sealed class SynchronizeProductionOrderTests
         public IReadOnlyList<ProductionOrderComponentRecord> Components { get; set; } = [];
         public IReadOnlyList<ProductionOrderPalletFormatRecord> PalletFormats { get; set; } =
             [PalletFormat()];
+        public IReadOnlyList<ProductionOrderProductPostingGroupRecord> ProductPostingGroups
+            { get; set; } = [ProductPostingGroup()];
 
         public Task<IReadOnlyList<ProductionOrderRecord>> ReadAsync(
             ProductionOrderStatus status, int maximumRecords, CancellationToken cancellationToken) =>
@@ -276,6 +309,11 @@ public sealed class SynchronizeProductionOrderTests
         public Task<IReadOnlyList<ProductionOrderPalletFormatRecord>> ReadPalletFormatsAsync(
             string productNumber, string formatCode, int maximumRecords,
             CancellationToken cancellationToken) => Task.FromResult(PalletFormats);
+
+        public Task<IReadOnlyList<ProductionOrderProductPostingGroupRecord>>
+            ReadProductPostingGroupsAsync(
+                string productNumber, int maximumRecords,
+                CancellationToken cancellationToken) => Task.FromResult(ProductPostingGroups);
     }
 
     private sealed class StubStore(ProductionOrderSynchronizationResult result)

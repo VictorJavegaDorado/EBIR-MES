@@ -38,4 +38,10 @@ public interface IProductionOrderSource
         string formatCode,
         int maximumRecords,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProductionOrderProductPostingGroupRecord>>
+        ReadProductPostingGroupsAsync(
+            string productNumber,
+            int maximumRecords,
+            CancellationToken cancellationToken);
 }

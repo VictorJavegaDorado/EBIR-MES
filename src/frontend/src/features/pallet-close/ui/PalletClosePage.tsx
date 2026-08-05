@@ -128,16 +128,12 @@ export function PalletClosePage({ line }: Props = {}) {
       reservationId === null ||
       goodQuantity === null ||
       closedByEmployeeId === null ||
-      (form.authorizingSupervisorId.trim() && supervisor === null) ||
-      (form.isPartial && supervisor === null)
+      (form.authorizingSupervisorId.trim() && supervisor === null)
     ) {
       setViewState({
         status: "error",
         code: "PALLET_CLOSE_INPUT_INVALID",
-        message:
-          form.isPartial && supervisor === null
-            ? "Un cierre parcial requiere un supervisor autorizador."
-            : "Revisa la reserva, la cantidad y los identificadores de empleado.",
+        message: "Revisa la reserva, la cantidad y los identificadores de empleado.",
         retryable: false,
       });
       return;
@@ -218,6 +214,15 @@ export function PalletClosePage({ line }: Props = {}) {
     setForm(initialForm);
     setViewState({ status: "idle" });
   }
+
+  const selectedReservation = optionsState.status === "ready"
+    ? optionsState.options.reservations.find(
+        (reservation) => String(reservation.id) === form.reservationId,
+      ) ?? null
+    : null;
+  const previewQuantity = parsePositiveInteger(form.goodQuantity)
+    ?? selectedReservation?.reservedQuantity
+    ?? null;
 
   return (
     <div className="pallet-close-page">
@@ -399,7 +404,7 @@ export function PalletClosePage({ line }: Props = {}) {
                   disabled={Boolean(line)}
                 />
               )}
-              <small>Opcional; el backend indicará cuándo es obligatorio.</small>
+              <small>El servidor lo exige únicamente para el último palé.</small>
             </div>
 
             <label className="partial-toggle" htmlFor="is-partial">
@@ -479,6 +484,13 @@ export function PalletClosePage({ line }: Props = {}) {
             </div>
           </div>
 
+          {selectedReservation && previewQuantity && (
+            <PalletLabelPreview
+              reservation={selectedReservation}
+              quantity={previewQuantity}
+            />
+          )}
+
           {viewState.status === "idle" && (
             <div className="pallet-result-panel">
               <span aria-hidden="true">P</span>
@@ -540,6 +552,34 @@ export function PalletClosePage({ line }: Props = {}) {
         </div>
       </section>
     </div>
+  );
+}
+
+function PalletLabelPreview({
+  reservation,
+  quantity,
+}: {
+  reservation: PalletCloseOptions["reservations"][number];
+  quantity: number;
+}) {
+  return (
+    <section className="pallet-label-preview" aria-label="Previsualización de etiqueta de palé">
+      <p className="pallet-label-preview-title">Previsualización · 150 × 100 mm</p>
+      <div className="pallet-label-sheet">
+        <header>
+          <strong className="pallet-label-logo">EBIR</strong>
+          <strong className="pallet-label-group">{reservation.productPostingGroup}</strong>
+        </header>
+        <dl>
+          <div><dt>Código</dt><dd>{reservation.productNumber}</dd></div>
+          <div><dt>Artículo</dt><dd>{reservation.productDescription}</dd></div>
+          <div><dt>Nº orden</dt><dd>{reservation.orderNumber}</dd></div>
+          <div><dt>Cantidad</dt><dd>{quantity}</dd></div>
+          <div><dt>Línea</dt><dd>{reservation.lineName}</dd></div>
+        </dl>
+      </div>
+      <small>Vista segura: no envía trabajos a la impresora.</small>
+    </section>
   );
 }
 

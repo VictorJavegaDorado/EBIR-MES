@@ -131,6 +131,16 @@ despues de una validacion transaccional con rollback y un backup `COPY_ONLY`
 verificado. La prueba real acumulo dos fichajes del mismo empleado, desconto sus
 paros y `DBCC CHECKDB` termino sin errores.
 
+## Paquete 025A preparado, no instalado
+
+`025A_grupo_contable_y_cierre_palet.sql` persiste el campo ODataV4
+`Gen_Prod_Posting_Group` junto al snapshot NAV, lo fija en la orden productiva
+y lo incorpora a los datos de etiqueta. Refuerza el cierre para que el autor
+sea un operario actualmente fichado y produciendo en la mesa, y exige
+supervisor solo cuando el palet completa el objetivo de la orden. El paquete
+debe validarse dentro de una transaccion exterior con rollback antes de pedir
+autorizacion para instalarlo. No activa Worker, impresora ni escrituras NAV.
+
 ## Paquete 019 preparado, no instalado
 
 El paquete 019 carga de forma parametrizada los maestros mínimos del piloto

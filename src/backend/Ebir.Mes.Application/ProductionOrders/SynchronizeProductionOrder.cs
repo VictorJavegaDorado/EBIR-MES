@@ -11,6 +11,7 @@ public sealed class SynchronizeProductionOrder(
     public const int MaximumLotNumberLength = 50;
     public const string PaternaCapacityNumber = "1";
     public const string PalletFormatCode = "POK";
+    public const int MaximumProductPostingGroupLength = 50;
 
     public async Task<ProductionOrderSynchronizationResult> ExecuteAsync(
         ProductionOrderSynchronizationCommand command,
@@ -71,18 +72,24 @@ public sealed class SynchronizeProductionOrder(
             PalletFormatCode,
             2,
             cancellationToken);
+        var productPostingGroupsTask = source.ReadProductPostingGroupsAsync(
+            order.ProductNumber,
+            2,
+            cancellationToken);
         await Task.WhenAll(
             lotTask,
             linesTask,
             routingTask,
             componentsTask,
-            palletFormatsTask);
+            palletFormatsTask,
+            productPostingGroupsTask);
 
         var lot = await lotTask;
         var lines = await linesTask;
         var routing = await routingTask;
         var components = await componentsTask;
         var palletFormats = await palletFormatsTask;
+        var productPostingGroups = await productPostingGroupsTask;
         ValidateSnapshot(
             orderNumber,
             order,
@@ -90,7 +97,8 @@ public sealed class SynchronizeProductionOrder(
             lines,
             routing,
             components,
-            palletFormats);
+            palletFormats,
+            productPostingGroups);
 
         var snapshot = new ProductionOrderSnapshot(
             environmentCode,
@@ -107,7 +115,8 @@ public sealed class SynchronizeProductionOrder(
                 .OrderBy(component => component.ProductionOrderLineNumber)
                 .ThenBy(component => component.LineNumber)
                 .ToArray(),
-            palletFormats[0]);
+            palletFormats[0],
+            productPostingGroups[0]);
 
         return await store.SaveAsync(
             snapshot,
@@ -122,7 +131,8 @@ public sealed class SynchronizeProductionOrder(
         IReadOnlyList<ProductionOrderLineRecord> lines,
         IReadOnlyList<ProductionOrderRoutingStepRecord> routing,
         IReadOnlyList<ProductionOrderComponentRecord> components,
-        IReadOnlyList<ProductionOrderPalletFormatRecord> palletFormats)
+        IReadOnlyList<ProductionOrderPalletFormatRecord> palletFormats,
+        IReadOnlyList<ProductionOrderProductPostingGroupRecord> productPostingGroups)
     {
         if (!string.Equals(order.OrderNumber, orderNumber, StringComparison.Ordinal))
         {
@@ -255,6 +265,26 @@ public sealed class SynchronizeProductionOrder(
             throw Rejected(
                 "NAV_PALLET_FORMAT_QUANTITY_INVALID",
                 "La cantidad por palet POK debe ser un entero positivo.");
+        }
+
+        if (productPostingGroups.Count != 1)
+        {
+            throw Rejected(
+                "NAV_PRODUCT_POSTING_GROUP_NOT_UNIQUE",
+                "El producto debe tener exactamente un grupo contable en NAV.");
+        }
+
+        var productPostingGroup = productPostingGroups[0];
+        if (!string.Equals(
+                productPostingGroup.ProductNumber,
+                order.ProductNumber,
+                StringComparison.Ordinal) ||
+            string.IsNullOrWhiteSpace(productPostingGroup.Code) ||
+            productPostingGroup.Code.Trim().Length > MaximumProductPostingGroupLength)
+        {
+            throw Rejected(
+                "NAV_PRODUCT_POSTING_GROUP_INVALID",
+                "El grupo contable NAV no corresponde al producto solicitado.");
         }
     }
 

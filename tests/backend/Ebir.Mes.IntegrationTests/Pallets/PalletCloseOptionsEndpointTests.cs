@@ -15,7 +15,8 @@ public sealed class PalletCloseOptionsEndpointTests
     public async Task GetOptions_ReturnsLineScopedReservationsAndEligibleEmployees()
     {
         var options = new PalletCloseOptionsRecord(
-            [new(44, 20, "OT-100")],
+            [new(44, 20, "OT-100", "27920LG", "Producto piloto",
+                "P_MATPRIMA", "Línea uno")],
             [new(7, "EMP-7", "Operario siete")],
             [new(9, "EMP-9", "Supervisora nueve")]);
         using var factory = CreateFactory(new StubReader(options));
@@ -29,6 +30,9 @@ public sealed class PalletCloseOptionsEndpointTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(44, body.RootElement
             .GetProperty("reservations")[0].GetProperty("id").GetInt64());
+        Assert.Equal("P_MATPRIMA", body.RootElement
+            .GetProperty("reservations")[0]
+            .GetProperty("productPostingGroup").GetString());
         Assert.Equal("Operario siete", body.RootElement
             .GetProperty("employees")[0].GetProperty("name").GetString());
         Assert.Equal("Supervisora nueve", body.RootElement

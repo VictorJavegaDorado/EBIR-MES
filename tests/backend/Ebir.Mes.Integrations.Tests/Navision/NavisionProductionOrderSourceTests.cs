@@ -398,6 +398,71 @@ public sealed class NavisionProductionOrderSourceTests
     }
 
     [Fact]
+    public async Task ReadProductPostingGroupsAsync_maps_exact_odatav4_response()
+    {
+        Uri? requestUri = null;
+        var handler = new StubHandler(request =>
+        {
+            requestUri = request.RequestUri;
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Null(request.Content);
+            return Task.FromResult(JsonResponse(ProductPostingGroupResponse));
+        });
+
+        var result = await CreateSource(handler).ReadProductPostingGroupsAsync(
+            "27920LG", 2, CancellationToken.None);
+
+        var group = Assert.Single(result);
+        Assert.Equal("27920LG", group.ProductNumber);
+        Assert.Equal("P_MATPRIMA", group.Code);
+        Assert.Equal(
+            "/instance/ODataV4/Company('EBIR')/ItemSalesAndProfit",
+            Uri.UnescapeDataString(requestUri!.AbsolutePath));
+        Assert.Equal(
+            "$filter=No eq '27920LG'&$select=No,Gen_Prod_Posting_Group&$top=2",
+            Uri.UnescapeDataString(requestUri.Query).TrimStart('?'));
+    }
+
+    [Fact]
+    public async Task ReadProductPostingGroupsAsync_rejects_malformed_json_without_retry()
+    {
+        var handler = new StubHandler(_ => Task.FromResult(JsonResponse("{not-json")));
+
+        var exception =
+            await Assert.ThrowsAsync<ProductionOrderSourceUnavailableException>(
+                () => CreateSource(handler).ReadProductPostingGroupsAsync(
+                    "27920LG", 2, CancellationToken.None));
+
+        Assert.Equal(
+            "NAV returned an invalid product posting group response.",
+            exception.Message);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task ReadProductPostingGroupsAsync_retries_transient_http_status(
+        HttpStatusCode transientStatus)
+    {
+        var responseNumber = 0;
+        var handler = new StubHandler(_ =>
+        {
+            responseNumber++;
+            return Task.FromResult(responseNumber == 1
+                ? new HttpResponseMessage(transientStatus)
+                : JsonResponse(EmptyJsonResponse));
+        });
+
+        var result = await CreateSource(handler).ReadProductPostingGroupsAsync(
+            "27920LG", 2, CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
     public async Task ReadComponentsAsync_maps_component_linkage_and_quantities()
     {
         string? requestBody = null;
@@ -735,6 +800,18 @@ public sealed class NavisionProductionOrderSourceTests
         """;
 
     private const string EmptyJsonResponse = """{"value":[]}""";
+
+    private const string ProductPostingGroupResponse = """
+        {
+          "@odata.context": "synthetic",
+          "value": [
+            {
+              "No": "27920LG",
+              "Gen_Prod_Posting_Group": "P_MATPRIMA"
+            }
+          ]
+        }
+        """;
 
     private const string ProductionOrderComponentsResponse = """
         <?xml version="1.0" encoding="utf-8"?>

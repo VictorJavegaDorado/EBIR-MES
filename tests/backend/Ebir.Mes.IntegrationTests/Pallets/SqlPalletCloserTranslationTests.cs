@@ -17,6 +17,8 @@ public sealed class SqlPalletCloserTranslationTests
     [InlineData(51407, false)]
     [InlineData(51408, false)]
     [InlineData(51409, false)]
+    [InlineData(51410, false)]
+    [InlineData(51411, false)]
     [InlineData(55400, false)]
     [InlineData(55401, true)]
     [InlineData(55402, false)]

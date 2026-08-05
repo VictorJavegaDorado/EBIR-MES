@@ -78,6 +78,9 @@ public sealed class SqlProductionOrderPromotionStore(string? connectionString)
             55614 => ("NAV_PROMOTION_PALLET_FORMAT_NOT_UNIQUE", "La orden debe contener exactamente un formato POK.", false),
             55615 => ("NAV_PROMOTION_PALLET_FORMAT_INVALID", "El formato POK no corresponde al producto o cantidad de la orden.", false),
             55616 => ("NAV_PROMOTION_PALLET_FORMAT_CONFLICT", "La orden productiva ya contiene otro formato POK.", false),
+            55617 => ("NAV_PROMOTION_PRODUCT_POSTING_GROUP_NOT_UNIQUE", "La orden debe contener un único grupo contable de producto.", false),
+            55618 => ("NAV_PROMOTION_PRODUCT_POSTING_GROUP_INVALID", "El grupo contable no corresponde al producto de la orden.", false),
+            55619 => ("NAV_PROMOTION_PRODUCT_POSTING_GROUP_CONFLICT", "La orden productiva ya contiene otro grupo contable.", false),
             _ => default
         };
         return rejection != default;

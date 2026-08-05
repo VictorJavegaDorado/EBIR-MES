@@ -21,6 +21,10 @@ export type PalletReservationOption = {
   id: number;
   reservedQuantity: number;
   orderNumber: string;
+  productNumber: string;
+  productDescription: string;
+  productPostingGroup: string;
+  lineName: string;
 };
 
 export type PalletEmployeeOption = {

@@ -31,6 +31,8 @@ public sealed class NavisionProductionOrderSource(
     private readonly NavisionODataV4PalletFormatReader palletFormatReader = new(
         httpClient,
         options);
+    private readonly NavisionODataV4ProductPostingGroupReader productPostingGroupReader =
+        new(httpClient, options);
 
     public async Task<IReadOnlyList<ProductionOrderRecord>> ReadAsync(
         ProductionOrderStatus status,
@@ -160,6 +162,23 @@ public sealed class NavisionProductionOrderSource(
         return await palletFormatReader.ReadAsync(
             normalizedProductNumber,
             normalizedFormatCode,
+            maximumRecords,
+            cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<ProductionOrderProductPostingGroupRecord>>
+        ReadProductPostingGroupsAsync(
+            string productNumber,
+            int maximumRecords,
+            CancellationToken cancellationToken)
+    {
+        ValidatePageSize(maximumRecords);
+        var normalizedProductNumber = NormalizeExactFilter(
+            productNumber,
+            50,
+            nameof(productNumber));
+        return await productPostingGroupReader.ReadAsync(
+            normalizedProductNumber,
             maximumRecords,
             cancellationToken);
     }

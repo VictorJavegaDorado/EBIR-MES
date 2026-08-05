@@ -57,7 +57,15 @@ describe("PalletClosePage", () => {
         new Response(
           JSON.stringify({
             reservations: [
-              { id: 44, reservedQuantity: 20, orderNumber: "OT-100" },
+              {
+                id: 44,
+                reservedQuantity: 20,
+                orderNumber: "OT-100",
+                productNumber: "27920LG",
+                productDescription: "Producto piloto",
+                productPostingGroup: "P_MATPRIMA",
+                lineName: "Línea uno",
+              },
             ],
             employees: [{ id: 7, code: "EMP-7", name: "Operario siete" }],
             supervisors: [
@@ -117,6 +125,8 @@ describe("PalletClosePage", () => {
     ) as { goodQuantity: number; closedByEmployeeId: number };
     expect(submitted.goodQuantity).toBe(20);
     expect(submitted.closedByEmployeeId).toBe(7);
+    expect(screen.getByText("P_MATPRIMA")).toBeInTheDocument();
+    expect(screen.getByText("27920LG")).toBeInTheDocument();
     expect(await screen.findByText("Palé 126 cerrado")).toBeInTheDocument();
   });
 
@@ -248,21 +258,37 @@ describe("PalletClosePage", () => {
     );
   });
 
-  it("requires a supervisor before submitting a partial close", async () => {
-    const fetchMock = vi.spyOn(globalThis, "fetch");
+  it("submits a partial close without supervisor when the reason is valid", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { correlationId: string };
+        return new Response(
+          JSON.stringify({ id: 128, correlationId: body.correlationId }),
+          { status: 200 },
+        );
+      },
+    );
     render(<PalletClosePage />);
 
     await fillRequiredFields();
     await userEvent.click(
       screen.getByRole("checkbox", { name: /cierre parcial/i }),
     );
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /motivo del cierre parcial/i }),
+      "FIN_TURNO",
+    );
     await userEvent.click(
       screen.getByRole("button", { name: /confirmar cierre/i }),
     );
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Un cierre parcial requiere un supervisor",
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual(
+      expect.objectContaining({
+        authorizingSupervisorId: null,
+        isPartial: true,
+        partialReason: "FIN_TURNO",
+      }),
     );
   });
 

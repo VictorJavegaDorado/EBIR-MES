@@ -113,6 +113,31 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
                 SqlDbType.Int).Value = decimal.ToInt32(
                     snapshot.PalletFormat.QuantityPerUnitMeasure);
             await palletFormatCommand.ExecuteNonQueryAsync(cancellationToken);
+
+            await using var postingGroupCommand = new SqlCommand(
+                "nav.registrar_grupo_contable_producto_snapshot_orden",
+                connection,
+                transaction)
+            {
+                CommandType = CommandType.StoredProcedure,
+                CommandTimeout = 30
+            };
+            postingGroupCommand.Parameters.Add(
+                "@orden_entrada_id",
+                SqlDbType.BigInt).Value = Convert.ToInt64(inboundOrderId.Value);
+            postingGroupCommand.Parameters.Add(
+                "@snapshot_hash",
+                SqlDbType.VarBinary,
+                32).Value = hash;
+            postingGroupCommand.Parameters.Add(
+                "@producto_codigo",
+                SqlDbType.NVarChar,
+                50).Value = snapshot.ProductPostingGroup.ProductNumber;
+            postingGroupCommand.Parameters.Add(
+                "@grupo_contable_producto",
+                SqlDbType.NVarChar,
+                50).Value = snapshot.ProductPostingGroup.Code;
+            await postingGroupCommand.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             return new ProductionOrderSynchronizationResult(
@@ -197,6 +222,14 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
                 "La cantidad por palet POK debe ser un entero positivo.", false),
             55804 => ("NAV_SNAPSHOT_PALLET_FORMAT_MISMATCH",
                 "El formato POK no corresponde al snapshot NAV persistido.", false),
+            55900 => ("NAV_INBOUND_ORDER_INVALID",
+                "La orden de entrada no es válida.", false),
+            55901 => ("NAV_PRODUCT_POSTING_GROUP_PRODUCT_INVALID",
+                "El producto del grupo contable no es válido.", false),
+            55902 => ("NAV_PRODUCT_POSTING_GROUP_INVALID",
+                "El grupo contable de producto NAV no es válido.", false),
+            55903 => ("NAV_SNAPSHOT_PRODUCT_POSTING_GROUP_MISMATCH",
+                "El grupo contable no corresponde al snapshot NAV persistido.", false),
             _ => default
         };
         return rejection != default;

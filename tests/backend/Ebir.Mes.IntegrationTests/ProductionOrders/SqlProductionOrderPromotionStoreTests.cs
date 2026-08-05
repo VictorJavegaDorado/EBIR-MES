@@ -23,6 +23,9 @@ public sealed class SqlProductionOrderPromotionStoreTests
     [InlineData(55614, false)]
     [InlineData(55615, false)]
     [InlineData(55616, false)]
+    [InlineData(55617, false)]
+    [InlineData(55618, false)]
+    [InlineData(55619, false)]
     public void TryTranslate_maps_known_errors(int number, bool unavailable)
     {
         Assert.True(SqlProductionOrderPromotionStore.TryTranslate(number, out var rejection));

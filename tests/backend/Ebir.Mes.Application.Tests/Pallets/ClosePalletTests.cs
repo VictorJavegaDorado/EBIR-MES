@@ -31,13 +31,24 @@ public sealed class ClosePalletTests
         Assert.Equal("CORRELATION_ID_INVALID", (await new ClosePallet(new StubCloser()).ExecuteAsync(new(1, 1, 1, null, false, null, Guid.Empty), CancellationToken.None)).ErrorCode);
 
     [Theory]
-    [InlineData(null, null, "PALLET_PARTIAL_SUPERVISOR_REQUIRED")]
-    [InlineData(2L, null, "PALLET_PARTIAL_REASON_REQUIRED")]
-    [InlineData(2L, "OTHER", "PALLET_PARTIAL_REASON_INVALID")]
-    public async Task ExecuteAsync_ValidatesPartialClose(long? supervisor, string? reason, string code)
+    [InlineData(null, "PALLET_PARTIAL_REASON_REQUIRED")]
+    [InlineData("OTHER", "PALLET_PARTIAL_REASON_INVALID")]
+    public async Task ExecuteAsync_ValidatesPartialClose(string? reason, string code)
     {
-        var result = await new ClosePallet(new StubCloser()).ExecuteAsync(new(1, 1, 1, supervisor, true, reason, Guid.NewGuid()), CancellationToken.None);
+        var result = await new ClosePallet(new StubCloser()).ExecuteAsync(new(1, 1, 1, null, true, reason, Guid.NewGuid()), CancellationToken.None);
         Assert.Equal(code, result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AllowsPartialCloseWithoutSupervisor()
+    {
+        var closer = new StubCloser();
+        var result = await new ClosePallet(closer).ExecuteAsync(
+            new(1, 1, 1, null, true, "FIN_TURNO", Guid.NewGuid()),
+            CancellationToken.None);
+
+        Assert.Equal(ClosePalletOutcome.Closed, result.Outcome);
+        Assert.Null(closer.Command!.AuthorizingSupervisorId);
     }
 
     [Fact]
