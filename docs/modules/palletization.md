@@ -32,10 +32,16 @@ NAV e impresión se persisten por el procedimiento; el endpoint no los llama.
 ## Preparación operativa del cierre
 
 El terminal identifica primero una línea mediante `GET /api/lines/{code}` y
-consulta `GET /api/lines/{lineId}/pallet-close-options`. Esta consulta de solo
-lectura devuelve las reservas activas de la sesión actual de la línea, los
-empleados MES activos con rol vigente `OPERARIO` o `SUPERVISOR` y los
-supervisores MES activos.
+consulta `GET /api/lines/{lineId}/pallet-close-options` desde la pantalla de
+Trabajo. Esta consulta de solo lectura devuelve las reservas activas de la
+sesión actual de la línea, los empleados MES activos con rol vigente
+`OPERARIO` o `SUPERVISOR` y los supervisores MES activos.
+
+La reserva es interna. La interfaz exige una unica reserva activa, la resuelve
+automaticamente y la presenta como `Palet en curso`, con formato POK y cantidad
+propuesta editable. No muestra identificadores de reserva ni obliga a navegar a
+un modulo separado. Tras un cierre confirmado vuelve a consultar las opciones
+para preparar el siguiente palet dentro de la misma mesa.
 
 Si no hay reservas activas devuelve una lista vacía. El frontend bloquea el
 cierre mientras carga las opciones y permite recuperar un fallo de consulta.
@@ -90,6 +96,10 @@ contable al JSON persistido de `imp.etiquetas`. Esta instalado y validado en
 `EBIR_MES_TEST` desde el 05/08/2026. La release activa
 `20260805.3-3e02370-combined` expone la previsualizacion y consume el grupo ya
 adoptado por la orden. Worker e impresion fisica permanecen desactivados.
+
+El resultado visible confirma el pale y muestra NAV como pendiente de segundo
+plano. No existe un paso NAV manual y la interfaz no declara una confirmacion
+externa que el backend no haya recibido.
 
 Para la orden de ensayo `FL26-00003`, objetivo 100 y formato POK de 20
 unidades, los palets 1 a 4 son cierres ordinarios realizables por cualquier

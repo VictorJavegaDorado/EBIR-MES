@@ -55,12 +55,14 @@ afterEach(() => {
 });
 
 describe("ProductionFlowPage", () => {
-  it("shows the six operator steps without module navigation", () => {
+  it("shows the three operator steps without module navigation", () => {
     render(<ProductionFlowPage />);
 
-    for (const label of ["Línea", "Orden", "Equipo", "Palés", "NAV", "Libre"]) {
+    for (const label of ["Línea", "Orden", "Trabajo"]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
+    expect(screen.queryByText("Equipo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Libre")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Escanea la línea" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
   });
@@ -87,7 +89,7 @@ describe("ProductionFlowPage", () => {
     );
 
     await userEvent.type(screen.getByRole("textbox", { name: /orden de fabricación/i }), "FL20-02277{enter}");
-    expect(screen.getByRole("heading", { name: "Identifica operarios" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Gestiona la producción" })).toBeInTheDocument();
     expect(screen.getByText("FL20-02277")).toBeInTheDocument();
   });
 
@@ -145,6 +147,25 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText(/Actualización automática cada 10 s/i)).toBeInTheDocument();
   });
 
+  it("starts a new order without asking for the line again", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+    await screen.findByRole("heading", { name: "Gestiona la producción" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Nueva orden" }));
+
+    expect(screen.getByRole("heading", { name: "Escanea la orden" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Escanea la orden")).toHaveValue("");
+    expect(screen.getByText(/Línea LINEA-TEST-01 conservada/i)).toBeInTheDocument();
+  });
+
   it("shows the effective server state and freezes a paused operator timer", async () => {
     const pausedTable = {
       ...tableState,
@@ -181,6 +202,9 @@ describe("ProductionFlowPage", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        reservations: [], employees: [], supervisors: [],
+      }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 91, activeResources: 0 }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(pausedTable), { status: 200 }));
 
@@ -191,15 +215,15 @@ describe("ProductionFlowPage", () => {
     await screen.findByText("Operario piloto");
     await userEvent.click(screen.getByRole("button", { name: /Pausa WC de Operario piloto/i }));
 
-    expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/operator-stops");
-    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual(
+    expect(fetchMock.mock.calls[4][0]).toBe("/api/line-sessions/12/operator-stops");
+    expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).toEqual(
       expect.objectContaining({ employeeId: 7, reason: "WC" }),
     );
     expect(await screen.findByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
     expect(screen.getByText(/Pausa registrada/i)).toBeInTheDocument();
   });
 
-  it("keeps NAV confirmation visibly blocked instead of simulating success", async () => {
+  it("keeps pallet work and NAV background status inside the production table", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
@@ -226,11 +250,9 @@ describe("ProductionFlowPage", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /orden de fabricación/i }), "FL20-02277{enter}");
     await userEvent.type(screen.getByRole("textbox", { name: /lector RFID/i }), "SYNTHETIC-CARD{enter}");
     await screen.findByText("Operario piloto");
-    await userEvent.click(screen.getByRole("button", { name: /continuar a palés/i }));
-    await screen.findByText(/completa y cierra los palés/i);
-    await userEvent.click(screen.getByRole("button", { name: /revisar cierre de orden/i }));
-
-    expect(screen.getByRole("heading", { name: /confirmación final pendiente/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /confirmar NAV y liberar línea/i })).toBeDisabled();
+    expect(await screen.findByRole("heading", { name: /cierra el palet desde la mesa/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/NAV se procesa en segundo plano/i).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /continuar a palés/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirmar NAV/i })).not.toBeInTheDocument();
   });
 });

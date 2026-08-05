@@ -27,10 +27,7 @@ import {
 const steps = [
   { number: 1, short: "Línea", title: "Escanea la línea" },
   { number: 2, short: "Orden", title: "Escanea la orden" },
-  { number: 3, short: "Equipo", title: "Identifica operarios" },
-  { number: 4, short: "Palés", title: "Completa los palés" },
-  { number: 5, short: "NAV", title: "Confirma la salida" },
-  { number: 6, short: "Libre", title: "Libera la línea" },
+  { number: 3, short: "Trabajo", title: "Gestiona la producción" },
 ] as const;
 
 type FlowError = { message: string; code: string } | null;
@@ -342,18 +339,49 @@ export function ProductionFlowPage() {
     setNotice("");
   }
 
+  function startNewOrder() {
+    if (!line) return;
+    if (table && table.activeResources > 0) {
+      setError({
+        message: "Retira a los operarios antes de cargar una nueva orden.",
+        code: "ACTIVE_OPERATORS_PREVENT_NEW_ORDER",
+      });
+      return;
+    }
+
+    request.current?.abort();
+    refreshRequest.current?.abort();
+    refreshRequest.current = null;
+    setActiveStep(2);
+    setOrderCode("");
+    setOrder(null);
+    setRfidCredential("");
+    setTable(null);
+    setOperatorAction(null);
+    pendingCorrelations.current.clear();
+    setError(null);
+    setNotice(`Línea ${line.code} conservada. Escanea la nueva orden.`);
+  }
+
   return (
     <div className="production-flow">
       <header className="flow-heading">
         <div>
           <p className="eyebrow">Puesto de producción</p>
           <h1>{steps[activeStep - 1].title}</h1>
-          <p>Un único recorrido, de la línea libre a la salida terminada.</p>
+          <p>Línea, orden y todo el trabajo en una única mesa.</p>
         </div>
-        {(line || order) && (
-          <button className="flow-reset" type="button" onClick={resetFlow}>
-            Cambiar de línea
-          </button>
+        {line && (
+          <div className="flow-heading-actions">
+            {order && (
+              <button className="flow-new-order" type="button" onClick={startNewOrder}>
+                Nueva orden
+              </button>
+            )}
+            <button className="flow-reset" type="button" onClick={resetFlow}>
+              Cambiar de línea
+            </button>
+          </div>
         )}
       </header>
 
@@ -373,7 +401,7 @@ export function ProductionFlowPage() {
         <main className="flow-stage">
           {activeStep === 1 && (
             <ScanStage
-              kicker="Paso 1 de 6"
+              kicker="Paso 1 de 3"
               title="Escanea el código de línea"
               description="La pistola escribe el código y continúa automáticamente con Enter."
               value={lineCode}
@@ -389,7 +417,7 @@ export function ProductionFlowPage() {
 
           {activeStep === 2 && (
             <ScanStage
-              kicker="Paso 2 de 6"
+              kicker="Paso 2 de 3"
               title="Escanea la orden de fabricación"
               description={`${orders.length} orden${orders.length === 1 ? "" : "es"} disponible${orders.length === 1 ? "" : "s"} para esta operación.`}
               value={orderCode}
@@ -407,9 +435,9 @@ export function ProductionFlowPage() {
             <section className="flow-card rfid-stage">
               <div className="stage-number">03</div>
               <div className="stage-copy">
-                <p className="eyebrow">Equipo de la orden</p>
-                <h2>Acerca las tarjetas RFID</h2>
-                <p>Escanea una tarjeta por persona. La credencial se valida y se descarta inmediatamente.</p>
+                <p className="eyebrow">Paso 3 de 3 · Trabajo</p>
+                <h2>Mesa de producción</h2>
+                <p>Gestiona equipo, tiempos y palés sin salir de esta pantalla.</p>
               </div>
               <form className="scan-form" onSubmit={submitRfid}>
                 <label htmlFor="rfid-credential">Lector RFID</label>
@@ -509,38 +537,28 @@ export function ProductionFlowPage() {
                 )}
               </div>
 
-              <button
-                className="continue-action"
-                type="button"
-                disabled={!table || table.activeResources === 0}
-                onClick={() => { setActiveStep(4); setError(null); setNotice("Equipo validado. Revisa los palés activos."); }}
-              >
-                Continuar a palés <span aria-hidden="true">→</span>
-              </button>
-            </section>
-          )}
-
-          {activeStep === 4 && line && (
-            <section className="pallet-stage">
-              <div className="stage-intro">
-                <div className="stage-number">04</div>
-                <div><p className="eyebrow">Paletización</p><h2>Completa y cierra los palés</h2><p>Solo se muestran reservas activas de esta línea.</p></div>
+              <div className="work-pallet-panel">
+                <div className="work-section-heading">
+                  <div>
+                    <p className="eyebrow">Palet en curso</p>
+                    <h3>Cierra el palet desde la mesa</h3>
+                  </div>
+                  <span>NAV se procesa en segundo plano</span>
+                </div>
+                {table ? (
+                  <PalletClosePage
+                    line={line ?? undefined}
+                    palletFormatCode={table.palletFormatCode}
+                    onPalletClosed={(quantity) => {
+                      setNotice(`Palet cerrado con ${quantity} unidades. NAV queda pendiente en segundo plano.`);
+                    }}
+                  />
+                ) : (
+                  <div className="work-pallet-empty">
+                    Identifica al primer operario para preparar el palet.
+                  </div>
+                )}
               </div>
-              <PalletClosePage line={line} />
-              <button className="continue-action secondary" type="button" onClick={() => { setActiveStep(5); setError(null); setNotice(""); }}>
-                Revisar cierre de orden <span aria-hidden="true">→</span>
-              </button>
-            </section>
-          )}
-
-          {activeStep === 5 && (
-            <section className="flow-card blocked-stage">
-              <div className="stage-number">05</div>
-              <p className="eyebrow">NAV y salida de fábrica</p>
-              <h2>Confirmación final pendiente de integración</h2>
-              <p>Este paso quedará habilitado cuando el backend confirme el registro en NAV y la etiqueta de salida. La interfaz no simula una confirmación ni envía impresiones.</p>
-              <div className="blocked-notice"><span aria-hidden="true">!</span><div><strong>Acción bloqueada de forma segura</strong><small>Falta el contrato de cierre de orden y confirmación NAV.</small></div></div>
-              <button className="continue-action" type="button" disabled>Confirmar NAV y liberar línea</button>
             </section>
           )}
 
@@ -552,9 +570,8 @@ export function ProductionFlowPage() {
           <div className="summary-title"><span className="environment-dot" /><div><strong>Operación actual</strong><small>Actualización en tiempo real</small></div></div>
           <SummaryRow label="Línea" value={line?.code ?? "Pendiente"} complete={Boolean(line)} />
           <SummaryRow label="Orden" value={order?.orderNumber ?? "Pendiente"} complete={Boolean(order)} />
-          <SummaryRow label="Producción" value={table ? `${formatDuration(productiveSeconds)} · ${table.activeResources} pers.` : "Pendiente"} complete={Boolean(table)} />
-          <SummaryRow label="Palés" value={activeStep > 4 ? "Revisados" : "Pendiente"} complete={activeStep > 4} />
-          <SummaryRow label="NAV / salida" value="Pendiente" complete={false} />
+          <SummaryRow label="Trabajo" value={table ? `${formatDuration(productiveSeconds)} · ${table.activeResources} pers.` : "Pendiente"} complete={Boolean(table)} />
+          <SummaryRow label="NAV" value="Segundo plano" complete={false} />
           <div className="summary-order">
             <span>Producto</span>
             <strong>{order?.productDescription ?? "Se mostrará al escanear la orden"}</strong>

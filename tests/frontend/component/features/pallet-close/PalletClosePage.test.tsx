@@ -51,7 +51,7 @@ describe("PalletClosePage", () => {
     }
   });
 
-  it("loads line options and uses the selected reservation and employee", async () => {
+  it("loads the current pallet and defaults its quantity and only employee", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
         new Response(
@@ -98,19 +98,12 @@ describe("PalletClosePage", () => {
       />,
     );
 
-    expect(
-      await screen.findByRole("option", { name: /OT-100.*20 uds/i }),
-    ).toBeInTheDocument();
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: /reserva de palé/i }),
-      "44",
-    );
-    await userEvent.selectOptions(
-      screen.getByRole("combobox", { name: /empleado que cierra/i }),
-      "7",
-    );
+    expect(await screen.findByText(/POK.*20 unidades/i)).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /reserva de palé/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /cantidad buena/i })).toHaveValue("20");
+    expect(screen.getByRole("combobox", { name: /empleado que cierra/i })).toHaveValue("7");
     await userEvent.click(
-      screen.getByRole("button", { name: /confirmar cierre/i }),
+      screen.getByRole("button", { name: /cerrar palet/i }),
     );
 
     expect(globalThis.fetch).toHaveBeenNthCalledWith(
@@ -128,6 +121,7 @@ describe("PalletClosePage", () => {
     expect(screen.getByText("P_MATPRIMA")).toBeInTheDocument();
     expect(screen.getByText("27920LG")).toBeInTheDocument();
     expect(await screen.findByText("Palé 126 cerrado")).toBeInTheDocument();
+    expect(screen.getByText(/NAV queda pendiente en segundo plano/i)).toBeInTheDocument();
   });
 
   it("shows a recoverable error when line options cannot be loaded", async () => {
@@ -152,11 +146,57 @@ describe("PalletClosePage", () => {
     );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "No se pueden cargar las opciones de cierre",
+      "No se puede preparar el cierre del palet",
     );
     expect(
       screen.getByRole("button", { name: /reintentar carga/i }),
     ).toBeInTheDocument();
+  });
+
+  it("treats an edited POK quantity as a partial close without exposing reservations", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        reservations: [{
+          id: 44,
+          reservedQuantity: 20,
+          orderNumber: "OT-100",
+          productNumber: "27920LG",
+          productDescription: "Producto piloto",
+          productPostingGroup: "P_MATPRIMA",
+          lineName: "Línea uno",
+        }],
+        employees: [{ id: 7, code: "EMP-7", name: "Operario siete" }],
+        supervisors: [],
+      }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { correlationId: string };
+        return new Response(JSON.stringify({ id: 130, correlationId: body.correlationId }), { status: 200 });
+      });
+
+    render(<PalletClosePage line={{
+      id: 12,
+      code: "L-01",
+      name: "Línea uno",
+      workCenterCode: "CT-01",
+      workCenterName: "Centro uno",
+      operationalStatus: "PRODUCIENDO",
+    }} />);
+
+    const quantity = await screen.findByRole("textbox", { name: /cantidad buena/i });
+    await userEvent.clear(quantity);
+    await userEvent.type(quantity, "19");
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: /motivo de la cantidad distinta/i }),
+      "FALTA_MATERIAL",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /cerrar palet/i }));
+
+    expect(screen.queryByRole("combobox", { name: /reserva de palé/i })).not.toBeInTheDocument();
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual(expect.objectContaining({
+      goodQuantity: 19,
+      isPartial: true,
+      partialReason: "FALTA_MATERIAL",
+    }));
   });
 
   it("rejects incomplete identifiers without calling the API", async () => {

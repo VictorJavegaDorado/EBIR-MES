@@ -118,6 +118,25 @@ operacion esta pendiente se bloquea el boton o lector correspondiente. Un
 error debe conservar linea, orden y mesa, mostrar un codigo funcional seguro y
 permitir reintentar sin duplicar datos.
 
+## Recorrido simplificado del terminal
+
+El piloto presenta unicamente tres pasos: `Linea`, `Orden` y `Trabajo`.
+Identificacion RFID, tiempos, paros y paletizacion conviven dentro de Trabajo;
+el operario no navega a una pantalla de pales ni a un paso NAV. La mesa sigue
+siendo recuperable desde el servidor al recargar.
+
+Las reservas de pale permanecen como garantia tecnica de concurrencia e
+idempotencia, pero no son un concepto visible ni seleccionable. La interfaz
+resuelve la unica reserva activa de la sesion, presenta `POK` y propone su
+cantidad. El operario puede editarla; una cantidad distinta exige el motivo
+funcional que valida el servidor.
+
+NAV se representa mediante mensajes de estado en segundo plano. Registrar un
+pale no implica que el navegador contacte NAV ni impresion. Al terminar la
+orden, la accion principal sera `Nueva orden`, que conserva la linea; cambiar
+de linea queda como accion secundaria. Mientras haya operarios activos no se
+permite abandonar la orden desde esa accion.
+
 `GET /api/production-workstations/state?orderId=...&lineId=...` devuelve la
 sesion activa, reloj del servidor, segundos productivos, recursos efectivos,
 capacidad teorica, POK y operarios activos. Los cronometros avanzan localmente

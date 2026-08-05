@@ -18,7 +18,7 @@ type FormValues = {
   closedByEmployeeId: string;
   authorizingSupervisorId: string;
   isPartial: boolean;
-  partialReason: PartialReason;
+  partialReason: PartialReason | "";
 };
 
 type Attempt = {
@@ -32,7 +32,7 @@ const initialForm: FormValues = {
   closedByEmployeeId: "",
   authorizingSupervisorId: "",
   isPartial: false,
-  partialReason: "FIN_TURNO",
+  partialReason: "",
 };
 
 type OptionsState =
@@ -43,9 +43,11 @@ type OptionsState =
 
 type Props = {
   line?: IdentifiedLine;
+  palletFormatCode?: string;
+  onPalletClosed?: (quantity: number) => void;
 };
 
-export function PalletClosePage({ line }: Props = {}) {
+export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed }: Props = {}) {
   const [form, setForm] = useState<FormValues>(initialForm);
   const [viewState, setViewState] = useState<PalletCloseViewState>({
     status: "idle",
@@ -70,7 +72,7 @@ export function PalletClosePage({ line }: Props = {}) {
     setOptionsState({ status: "loading" });
     getPalletCloseOptions(line.id, request.signal)
       .then((options) => {
-        setOptionsState({ status: "ready", options });
+        acceptOptions(options);
       })
       .catch((error: unknown) => {
         if (request.signal.aborted) {
@@ -87,6 +89,31 @@ export function PalletClosePage({ line }: Props = {}) {
     return () => request.abort();
   }, [line]);
 
+  function acceptOptions(options: PalletCloseOptions) {
+    if (line && options.reservations.length > 1) {
+      setOptionsState({ status: "error", code: "PALLET_CLOSE_OPTIONS_AMBIGUOUS" });
+      return;
+    }
+
+    const reservation = options.reservations[0];
+    setOptionsState({ status: "ready", options });
+    setForm((current) => ({
+      ...current,
+      reservationId: reservation ? String(reservation.id) : "",
+      goodQuantity: reservation ? String(reservation.reservedQuantity) : "",
+      closedByEmployeeId: options.employees.some(
+        (employee) => String(employee.id) === current.closedByEmployeeId,
+      )
+        ? current.closedByEmployeeId
+        : options.employees.length === 1
+          ? String(options.employees[0].id)
+          : "",
+      authorizingSupervisorId: "",
+      isPartial: false,
+      partialReason: "",
+    }));
+  }
+
   function reloadOptions() {
     if (!line) {
       return;
@@ -94,7 +121,7 @@ export function PalletClosePage({ line }: Props = {}) {
     const request = new AbortController();
     setOptionsState({ status: "loading" });
     getPalletCloseOptions(line.id, request.signal)
-      .then((options) => setOptionsState({ status: "ready", options }))
+      .then(acceptOptions)
       .catch((error: unknown) =>
         setOptionsState({
           status: "error",
@@ -133,18 +160,37 @@ export function PalletClosePage({ line }: Props = {}) {
       setViewState({
         status: "error",
         code: "PALLET_CLOSE_INPUT_INVALID",
-        message: "Revisa la reserva, la cantidad y los identificadores de empleado.",
+        message: line
+          ? "Revisa la cantidad y el operario que cierra el palet."
+          : "Revisa la reserva, la cantidad y los identificadores de empleado.",
         retryable: false,
       });
       return;
     }
 
+    const selected = optionsState.status === "ready"
+      ? optionsState.options.reservations.find(
+          (reservation) => reservation.id === reservationId,
+        )
+      : null;
+    const isPartial = line && selected
+      ? goodQuantity !== selected.reservedQuantity
+      : form.isPartial;
+    if (isPartial && !form.partialReason) {
+      setViewState({
+        status: "error",
+        code: "PALLET_PARTIAL_REASON_REQUIRED",
+        message: "Selecciona el motivo de la cantidad distinta.",
+        retryable: false,
+      });
+      return;
+    }
     const requestWithoutCorrelation = {
       goodQuantity,
       closedByEmployeeId,
       authorizingSupervisorId: supervisor,
-      isPartial: form.isPartial,
-      partialReason: form.isPartial ? form.partialReason : null,
+      isPartial,
+      partialReason: isPartial ? form.partialReason as PartialReason : null,
     };
     const fingerprint = JSON.stringify({
       reservationId,
@@ -176,6 +222,7 @@ export function PalletClosePage({ line }: Props = {}) {
       }
 
       setViewState({ status: "closed", pallet });
+      onPalletClosed?.(goodQuantity);
     } catch (error) {
       if (request.signal.aborted || activeRequest.current !== request) {
         return;
@@ -213,6 +260,7 @@ export function PalletClosePage({ line }: Props = {}) {
     attempt.current = null;
     setForm(initialForm);
     setViewState({ status: "idle" });
+    reloadOptions();
   }
 
   const selectedReservation = optionsState.status === "ready"
@@ -226,14 +274,11 @@ export function PalletClosePage({ line }: Props = {}) {
 
   return (
     <div className="pallet-close-page">
-      <section className="pallet-close-header">
+      {!line && <section className="pallet-close-header">
         <div>
           <p className="eyebrow">Paletización · operación manual</p>
           <h1>Cierra un palé con reintento seguro</h1>
           <p className="welcome-description">
-            {line
-              ? `Línea ${line.code} · ${line.name}. `
-              : ""}
             Selecciona la reserva y los datos del cierre. Si la respuesta se
             pierde, vuelve a enviar sin cambiar los campos.
           </p>
@@ -242,7 +287,7 @@ export function PalletClosePage({ line }: Props = {}) {
           <strong>Correlación protegida</strong>
           El terminal conserva la misma clave mientras la solicitud no cambie.
         </div>
-      </section>
+      </section>}
 
       <section className="pallet-close-layout">
         <form
@@ -261,13 +306,13 @@ export function PalletClosePage({ line }: Props = {}) {
           <div className="pallet-close-fields">
             {optionsState.status === "loading" && (
               <div className="pallet-options-status full" role="status">
-                Cargando reservas y empleados…
+                Preparando el palet y los operarios…
               </div>
             )}
             {optionsState.status === "error" && (
               <div className="pallet-options-status error full" role="alert">
                 <span>
-                  No se pueden cargar las opciones de cierre.{" "}
+                  No se puede preparar el cierre del palet.{" "}
                   <code>{optionsState.code}</code>
                 </span>
                 <button type="button" onClick={reloadOptions}>
@@ -275,7 +320,17 @@ export function PalletClosePage({ line }: Props = {}) {
                 </button>
               </div>
             )}
-            <div className="pallet-field">
+            {line ? (
+              <div className="pallet-field pallet-current-summary">
+                <span>Formato y cantidad propuesta</span>
+                {selectedReservation ? (
+                  <strong>{palletFormatCode} · {selectedReservation.reservedQuantity} unidades</strong>
+                ) : (
+                  <strong>Sin palet pendiente</strong>
+                )}
+                <small>MES prepara automáticamente el siguiente palet.</small>
+              </div>
+            ) : <div className="pallet-field">
               <label htmlFor="reservation-id">Reserva de palé</label>
               {optionsState.status === "ready" ? (
                 <select
@@ -317,7 +372,7 @@ export function PalletClosePage({ line }: Props = {}) {
                 />
               )}
               <small>Identificador de la reserva activa.</small>
-            </div>
+            </div>}
 
             <div className="pallet-field">
               <label htmlFor="good-quantity">Cantidad buena</label>
@@ -367,9 +422,44 @@ export function PalletClosePage({ line }: Props = {}) {
                   disabled={Boolean(line)}
                 />
               )}
-              <small>Identificador MES del operario o supervisor.</small>
+              <small>Cualquier operario activo de la mesa puede cerrarlo.</small>
             </div>
 
+            {line ? <details
+              className="pallet-advanced full"
+              open={Boolean(selectedReservation && previewQuantity !== selectedReservation.reservedQuantity)}
+            >
+              <summary>Último palet o cantidad distinta</summary>
+              <div className="pallet-field">
+                <label htmlFor="supervisor-id">Supervisor autorizador</label>
+                <select
+                  id="supervisor-id"
+                  value={form.authorizingSupervisorId}
+                  onChange={(event) => updateForm({ authorizingSupervisorId: event.target.value })}
+                >
+                  <option value="">Sin supervisor</option>
+                  {optionsState.status === "ready" && optionsState.options.supervisors.map((employee) => (
+                    <option key={employee.id} value={employee.id}>{employee.name} · {employee.code}</option>
+                  ))}
+                </select>
+                <small>Solo es obligatorio cuando el servidor detecta el último palet.</small>
+              </div>
+              {selectedReservation && previewQuantity !== selectedReservation.reservedQuantity && (
+                <div className="pallet-field">
+                  <label htmlFor="partial-reason">Motivo de la cantidad distinta</label>
+                  <select
+                    id="partial-reason"
+                    value={form.partialReason}
+                    onChange={(event) => updateForm({ partialReason: event.target.value as PartialReason })}
+                  >
+                    <option value="">Selecciona un motivo</option>
+                    <option value="FIN_TURNO">Fin de turno</option>
+                    <option value="FALTA_MATERIAL">Falta de material</option>
+                    <option value="ULTIMO_PALET">Último palet</option>
+                  </select>
+                </div>
+              )}
+            </details> : <>
             <div className="pallet-field">
               <label htmlFor="supervisor-id">Supervisor autorizador</label>
               {optionsState.status === "ready" ? (
@@ -434,12 +524,14 @@ export function PalletClosePage({ line }: Props = {}) {
                     })
                   }
                 >
+                  <option value="">Selecciona un motivo</option>
                   <option value="FIN_TURNO">Fin de turno</option>
                   <option value="FALTA_MATERIAL">Falta de material</option>
                   <option value="ULTIMO_PALET">Último palé</option>
                 </select>
               </div>
             )}
+            </>}
           </div>
 
           <button
@@ -457,11 +549,11 @@ export function PalletClosePage({ line }: Props = {}) {
                 ? "Reintentar cierre"
                 : viewState.status === "error"
                   ? "Revisa los datos para continuar"
-                : "Confirmar cierre"}
+                : line ? "Cerrar palet" : "Confirmar cierre"}
             <span aria-hidden="true">→</span>
           </button>
 
-          <p className="pallet-correlation">
+          {!line && <p className="pallet-correlation">
             {viewState.status === "idle"
               ? "La correlación se generará al confirmar."
               : "Correlación del intento: "}
@@ -472,7 +564,7 @@ export function PalletClosePage({ line }: Props = {}) {
                   : viewState.correlationId}
               </code>
             )}
-          </p>
+          </p>}
         </form>
 
         <aside className="pallet-close-result" aria-live="polite">
@@ -480,7 +572,7 @@ export function PalletClosePage({ line }: Props = {}) {
             <span className="step-number muted">02</span>
             <div>
               <h2>Resultado</h2>
-              <p>Confirmación del contrato MES</p>
+              <p>Confirmación y estado de fondo</p>
             </div>
           </div>
 
@@ -521,8 +613,8 @@ export function PalletClosePage({ line }: Props = {}) {
               <span aria-hidden="true">✓</span>
               <strong>Palé {viewState.pallet.id} cerrado</strong>
               <p>
-                El MES ha confirmado el cierre. La interfaz no contacta NAV ni
-                periféricos.
+                El MES ha confirmado el cierre. NAV queda pendiente en segundo
+                plano y no se ha enviado ninguna impresión.
               </p>
               <code>{viewState.pallet.correlationId}</code>
               <button
@@ -530,14 +622,14 @@ export function PalletClosePage({ line }: Props = {}) {
                 type="button"
                 onClick={prepareAnotherClose}
               >
-                Preparar otro cierre
+                Cerrar siguiente palet
               </button>
             </div>
           )}
         </aside>
       </section>
 
-      <section className="pallet-safeguards" aria-label="Garantías del cierre">
+      {!line && <section className="pallet-safeguards" aria-label="Garantías del cierre">
         <div>
           <strong>Reintento seguro</strong>
           Misma solicitud, misma correlación.
@@ -550,7 +642,7 @@ export function PalletClosePage({ line }: Props = {}) {
           <strong>Errores controlados</strong>
           Se muestran mensajes funcionales sin detalles SQL.
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

@@ -15,12 +15,15 @@
 .flow-heading h1 { margin-bottom: 7px; font-size: clamp(34px, 4vw, 52px); }
 .flow-heading > div > p:last-child { margin-bottom: 0; color: var(--muted); font-size: 16px; }
 .flow-reset { min-height: 46px; padding: 0 18px; color: var(--forest); background: transparent; border: 1px solid var(--global-palette7); border-radius: 7px; cursor: pointer; font-weight: 700; }
+.flow-heading-actions { display: flex; gap: 10px; }
+.flow-new-order { min-height: 46px; padding: 0 20px; color: white; background: var(--forest); border: 1px solid var(--forest); border-radius: 7px; cursor: pointer; font-weight: 800; }
+.flow-new-order:hover { background: var(--forest-deep); }
 
 .flow-progress {
   margin: 0 0 22px;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   list-style: none;
   overflow: hidden;
   background: rgba(251, 252, 248, 0.92);
@@ -128,18 +131,39 @@
 .blocked-notice strong, .blocked-notice small { display: block; }
 .blocked-notice small { margin-top: 3px; font-size: 11px; }
 
+.work-pallet-panel { margin-top: 28px; padding-top: 26px; border-top: 2px solid var(--border); }
+.work-section-heading { margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.work-section-heading h3 { margin: 3px 0 0; color: var(--forest-deep); font-size: 24px; }
+.work-section-heading > span { padding: 8px 11px; color: var(--forest); background: var(--global-palette8); border: 1px solid var(--global-palette7); border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.work-pallet-empty { padding: 20px; color: var(--muted); background: white; border: 1px dashed var(--global-palette7); border-radius: 8px; text-align: center; }
+.work-pallet-panel .pallet-close-page { width: 100%; padding: 0; }
+.work-pallet-panel .pallet-close-layout { grid-template-columns: minmax(0, 1fr) minmax(280px, 0.78fr); gap: 14px; }
+.work-pallet-panel .pallet-close-form,
+.work-pallet-panel .pallet-close-result { padding: 22px; box-shadow: none; }
+.work-pallet-panel .pallet-close-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.pallet-current-summary { padding: 13px 14px; background: var(--global-palette8); border: 1px solid var(--global-palette7); border-radius: 7px; }
+.pallet-current-summary > span,
+.pallet-current-summary > strong { display: block; }
+.pallet-current-summary > span { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+.pallet-current-summary > strong { margin-top: 5px; color: var(--forest-deep); font-size: 18px; }
+.pallet-advanced { padding: 12px 14px; background: #fff9e8; border: 1px solid #ecd38e; border-radius: 7px; }
+.pallet-advanced summary { color: var(--forest-deep); cursor: pointer; font-size: 12px; font-weight: 800; }
+.pallet-advanced .pallet-field { margin-top: 13px; }
+
 @media (max-width: 950px) {
   .flow-layout { grid-template-columns: 1fr; }
   .flow-summary { position: static; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
   .summary-title, .summary-order { grid-column: 1 / -1; }
   .production-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .work-pallet-panel .pallet-close-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
   .production-flow { width: min(100% - 26px, 1280px); padding-top: 24px; }
   .flow-heading { display: block; }
-  .flow-reset { width: 100%; margin-top: 18px; }
-  .flow-progress { grid-template-columns: repeat(6, minmax(70px, 1fr)); overflow-x: auto; }
+  .flow-heading-actions { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; }
+  .flow-reset, .flow-new-order { width: 100%; }
+  .flow-progress { grid-template-columns: repeat(3, minmax(70px, 1fr)); overflow-x: auto; }
   .flow-progress li { min-height: 64px; display: grid; align-content: center; justify-items: center; gap: 4px; }
   .flow-card, .pallet-stage { min-height: 0; padding: 27px 19px 26px 24px; }
   .scan-control { grid-template-columns: auto minmax(0, 1fr); }
@@ -149,4 +173,7 @@
   .summary-title, .summary-order { grid-column: auto; }
   .stage-intro { display: block; }
   .stage-intro > div:last-child { margin-top: 24px; }
+  .work-section-heading { display: block; }
+  .work-section-heading > span { margin-top: 10px; display: inline-block; }
+  .work-pallet-panel .pallet-close-fields { grid-template-columns: 1fr; }
 }
