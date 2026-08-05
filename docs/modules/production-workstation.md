@@ -138,6 +138,12 @@ sesion existentes, conserva la correlacion durante un reintento y vuelve a leer
 la mesa despues de cada mutacion. El resultado visual siempre procede de esa
 lectura posterior del servidor.
 
+El tiempo individual es el acumulado de todos los fichajes del empleado dentro
+de la misma sesion de linea. Una salida cierra el intervalo actual y una nueva
+identificacion abre otro, pero no reinicia el contador visible. De cada fichaje
+se descuenta la duracion de sus paros. Solo se muestran personas con un fichaje
+abierto, aunque su acumulado incluya intervalos anteriores ya cerrados.
+
 ## Formato de palet desde NAV
 
 El formato se obtiene exclusivamente en lectura mediante ODataV4:

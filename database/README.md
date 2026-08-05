@@ -121,6 +121,16 @@ instalo en `EBIR_MES_TEST` el 05/08/2026 despues de un ensayo con rollback y un
 backup `COPY_ONLY` verificado. `DBCC CHECKDB` termino sin errores. El codigo que
 consume el paquete todavia no forma parte de la release activa.
 
+## Paquete 024 instalado y validado
+
+`024A_tiempo_operario_acumulado.sql` corrige la lectura de mesa para acumular
+todos los intervalos productivos del mismo empleado dentro de una sesion y
+descontar los paros de cada fichaje. Evita que una salida y reincorporacion
+reinicie el contador individual. Se instalo en `EBIR_MES_TEST` el 05/08/2026
+despues de una validacion transaccional con rollback y un backup `COPY_ONLY`
+verificado. La prueba real acumulo dos fichajes del mismo empleado, desconto sus
+paros y `DBCC CHECKDB` termino sin errores.
+
 ## Paquete 019 preparado, no instalado
 
 El paquete 019 carga de forma parametrizada los maestros mínimos del piloto
