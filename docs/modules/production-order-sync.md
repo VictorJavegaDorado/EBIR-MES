@@ -147,6 +147,11 @@ al terminar.
   y consume el nuevo snapshot; requiere candidate y autorizacion de activacion
   independientes.
 
+- `025B_adopcion_grupo_contable_snapshot.sql` esta preparado y validado con
+  rollback. Permite adoptar el nuevo campo en ordenes previamente promovidas
+  solo cuando el JSON anterior coincide exactamente al retirar
+  `productPostingGroup`; no relaja la revision ante otros cambios NAV.
+
 - El paquete `022A_formato_palet_pok.sql` esta instalado y validado en
   `EBIR_MES_TEST`. La release activa aun no contiene el lector POK; su despliegue
   requiere una candidate y autorizacion de activacion independientes.
