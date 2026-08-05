@@ -45,7 +45,8 @@ El grupo contable tampoco se deduce en MES. Debe existir una unica fila para
 el producto, la clave devuelta debe coincidir exactamente y el codigo debe ser
 no vacio y tener como maximo 50 caracteres. Forma parte del hash del snapshot,
 se persiste en la bandeja y se fija en `prod.ordenes` durante la promocion. El
-paquete 025A que incorpora esa persistencia esta preparado, pero no instalado.
+paquete 025A que incorpora esa persistencia esta instalado en
+`EBIR_MES_TEST` desde el 05/08/2026.
 
 ## Bandeja de entrada idempotente
 
@@ -141,9 +142,10 @@ al terminar.
 
 ## Estado y limites pendientes de autorizacion
 
-- `025A_grupo_contable_y_cierre_palet.sql` esta preparado para validacion
-  transaccional con rollback. No esta instalado y no debe usarse para un cierre
-  real sin una autorizacion posterior.
+- `025A_grupo_contable_y_cierre_palet.sql` esta instalado y validado en
+  `EBIR_MES_TEST`. La release activa todavia no contiene el codigo que genera
+  y consume el nuevo snapshot; requiere candidate y autorizacion de activacion
+  independientes.
 
 - El paquete `022A_formato_palet_pok.sql` esta instalado y validado en
   `EBIR_MES_TEST`. La release activa aun no contiene el lector POK; su despliegue

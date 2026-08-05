@@ -86,9 +86,10 @@ no el navegador, determina si se trata del ultimo palet. El ultimo cierre exige
 un supervisor activo y queda auditado.
 
 El paquete 025A implementa esta regla en el contrato SQL y agrega el grupo
-contable al JSON persistido de `imp.etiquetas`. Esta preparado pero no
-instalado; hasta autorizar su instalacion siguen vigentes las validaciones de
-la base activa y no debe realizarse un cierre real.
+contable al JSON persistido de `imp.etiquetas`. Esta instalado y validado en
+`EBIR_MES_TEST` desde el 05/08/2026. La release activa todavia no expone la
+previsualizacion ni sincroniza el nuevo campo; no debe realizarse un cierre
+real hasta desplegar y validar conjuntamente el codigo correspondiente.
 
 Para la orden de ensayo `FL26-00003`, objetivo 100 y formato POK de 20
 unidades, los palets 1 a 4 son cierres ordinarios realizables por cualquier
