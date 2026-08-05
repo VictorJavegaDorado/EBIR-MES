@@ -15,10 +15,13 @@ import {
   RfidIdentificationApiError,
 } from "../api/identifyEmployeeByRfid";
 import {
+  finishOperatorStop,
   getProductionTableState,
   type ProductionTableState,
   ProductionTableApiError,
+  registerProductiveExit,
   startOrJoinProductionTable,
+  startOperatorStop,
 } from "../api/productionTable";
 
 const steps = [
@@ -43,17 +46,54 @@ export function ProductionFlowPage() {
   const [table, setTable] = useState<ProductionTableState | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
+  const [operatorAction, setOperatorAction] = useState<string | null>(null);
   const [error, setError] = useState<FlowError>(null);
   const [notice, setNotice] = useState("");
   const request = useRef<AbortController | null>(null);
+  const refreshRequest = useRef<AbortController | null>(null);
   const pendingCorrelations = useRef(new Map<string, string>());
 
-  useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => () => {
+    request.current?.abort();
+    refreshRequest.current?.abort();
+  }, []);
   useEffect(() => {
     if (!table || table.state !== "PRODUCIENDO" || table.activeResources === 0) return;
     const interval = window.setInterval(() => setClock(Date.now()), 1_000);
     return () => window.clearInterval(interval);
   }, [table]);
+
+  useEffect(() => {
+    if (!table || !order || !line) return;
+
+    const refresh = async () => {
+      refreshRequest.current?.abort();
+      const controller = new AbortController();
+      refreshRequest.current = controller;
+      try {
+        const currentTable = await getProductionTableState(
+          order.productionOrderId,
+          line.id,
+          controller.signal,
+        );
+        if (currentTable) {
+          setTable(currentTable);
+          setClock(Date.now());
+        }
+      } catch {
+        // Keep the last confirmed snapshot visible. The next refresh retries safely.
+      } finally {
+        if (refreshRequest.current === controller) refreshRequest.current = null;
+      }
+    };
+
+    const interval = window.setInterval(refresh, 10_000);
+    return () => {
+      window.clearInterval(interval);
+      refreshRequest.current?.abort();
+      refreshRequest.current = null;
+    };
+  }, [table?.lineSessionId, order?.productionOrderId, line?.id]);
 
   const elapsedSinceSnapshot = table
     ? Math.max(0, Math.floor((clock - Date.parse(table.serverTimeUtc)) / 1_000))
@@ -62,6 +102,7 @@ export function ProductionFlowPage() {
     ? table.productiveSeconds
       + (table.state === "PRODUCIENDO" && table.activeResources > 0 ? elapsedSinceSnapshot : 0)
     : 0;
+  const isProducing = table?.state === "PRODUCIENDO" && table.activeResources > 0;
 
   async function submitLine(event: FormEvent) {
     event.preventDefault();
@@ -170,6 +211,8 @@ export function ProductionFlowPage() {
     setError(null);
     setNotice("");
     request.current?.abort();
+    refreshRequest.current?.abort();
+    refreshRequest.current = null;
     const controller = new AbortController();
     request.current = controller;
     try {
@@ -216,8 +259,75 @@ export function ProductionFlowPage() {
     }
   }
 
+  async function runOperatorAction(
+    employeeId: number,
+    action: "EXIT" | "STOP_WC" | "STOP_HEAT" | "RESUME",
+  ) {
+    if (!table || !order || !line) {
+      setError({ message: "No hay una mesa activa para esta acción.", code: "PRODUCTION_CONTEXT_REQUIRED" });
+      return;
+    }
+
+    const operationKey = `${table.lineSessionId}:${employeeId}:${action}`;
+    const correlationId = pendingCorrelations.current.get(operationKey) ?? createCorrelationId();
+    pendingCorrelations.current.set(operationKey, correlationId);
+    request.current?.abort();
+    refreshRequest.current?.abort();
+    refreshRequest.current = null;
+    const controller = new AbortController();
+    request.current = controller;
+    setOperatorAction(operationKey);
+    setBusy(true);
+    setError(null);
+    setNotice("");
+    try {
+      if (action === "EXIT") {
+        await registerProductiveExit(
+          table.lineSessionId, employeeId, correlationId, controller.signal,
+        );
+      } else if (action === "RESUME") {
+        await finishOperatorStop(
+          table.lineSessionId, employeeId, correlationId, controller.signal,
+        );
+      } else {
+        await startOperatorStop(
+          table.lineSessionId,
+          employeeId,
+          action === "STOP_WC" ? "WC" : "PAUSA_CALOR",
+          correlationId,
+          controller.signal,
+        );
+      }
+
+      const currentTable = await getProductionTableState(
+        order.productionOrderId, line.id, controller.signal,
+      );
+      if (!currentTable) throw new ProductionTableApiError("PRODUCTION_TABLE_NOT_ACTIVE");
+      setTable(currentTable);
+      setClock(Date.now());
+      pendingCorrelations.current.delete(operationKey);
+      setNotice(operatorActionNotice(action));
+    } catch (caught) {
+      if (controller.signal.aborted) return;
+      setError({
+        message: caught instanceof ProductionTableApiError
+          ? caught.message
+          : "No se ha podido actualizar el estado del operario.",
+        code: caught instanceof ProductionTableApiError
+          ? caught.code
+          : "OPERATOR_ACTION_UNAVAILABLE",
+      });
+    } finally {
+      if (request.current === controller) request.current = null;
+      setOperatorAction(null);
+      setBusy(false);
+    }
+  }
+
   function resetFlow() {
     request.current?.abort();
+    refreshRequest.current?.abort();
+    refreshRequest.current = null;
     setActiveStep(1);
     setLineCode("");
     setLine(null);
@@ -226,6 +336,7 @@ export function ProductionFlowPage() {
     setOrder(null);
     setRfidCredential("");
     setTable(null);
+    setOperatorAction(null);
     pendingCorrelations.current.clear();
     setError(null);
     setNotice("");
@@ -319,27 +430,80 @@ export function ProductionFlowPage() {
               </form>
 
               <div
-                className={`production-status${table ? " active" : ""}`}
+                className={`production-status${isProducing ? " active" : table ? " initialized" : ""}`}
                 role="status"
                 aria-live="polite"
               >
                 <div className="production-state">
                   <span className="production-pulse" aria-hidden="true" />
-                  <div><small>Estado de mesa</small><strong>{table ? "PRODUCIENDO" : "ESPERANDO PRIMER OPERARIO"}</strong></div>
+                  <div><small>Estado de mesa</small><strong>{table ? formatTableState(table.state) : "ESPERANDO PRIMER OPERARIO"}</strong></div>
                 </div>
                 <div className="production-metric"><small>Tiempo productivo total</small><strong>{formatDuration(productiveSeconds)}</strong></div>
                 <div className="production-metric"><small>Capacidad actual</small><strong>{table ? `${table.activeResources} pers. · ${formatCapacity(table.currentTheoreticalCapacityPerHour)} u/h` : "0 pers."}</strong></div>
                 <div className="production-metric"><small>Paletizado</small><strong>{table ? `${table.palletFormatCode} · ${table.unitsPerPallet} uds.` : "Pendiente"}</strong></div>
               </div>
 
+              {table && (
+                <p className="production-sync">
+                  Inicio {formatTimestamp(table.startedAtUtc)} · Última confirmación del servidor {formatTimestamp(table.serverTimeUtc)} · Actualización automática cada 10 s
+                </p>
+              )}
+
               <div className="employee-list" aria-live="polite">
                 {!table || table.operators.length === 0 ? (
                   <div className="empty-team">Todavía no hay personas identificadas.</div>
                 ) : (
                   table.operators.map((employee) => (
-                    <div className="employee-chip" key={employee.employeeId}>
-                      <span aria-hidden="true">✓</span>
-                      <div><strong>{employee.fullName}</strong><small>{employee.navEmployeeCode} · {employee.status === "EN_PAUSA" ? "En pausa" : formatDuration(employee.productiveSeconds + elapsedSinceSnapshot)}</small></div>
+                    <div className={`employee-chip ${employee.status === "EN_PAUSA" ? "paused" : "producing"}`} key={employee.employeeId}>
+                      <span className="employee-state-icon" aria-hidden="true">{employee.status === "EN_PAUSA" ? "Ⅱ" : "✓"}</span>
+                      <div className="employee-identity">
+                        <strong>{employee.fullName}</strong>
+                        <small>
+                          {employee.navEmployeeCode} · {employee.status === "EN_PAUSA" ? "En pausa" : "Produciendo"} · {formatDuration(
+                            employee.productiveSeconds
+                            + (employee.status === "PRODUCIENDO" && isProducing ? elapsedSinceSnapshot : 0),
+                          )}
+                        </small>
+                      </div>
+                      <div className="employee-actions">
+                        {employee.status === "EN_PAUSA" ? (
+                          <button
+                            type="button"
+                            disabled={operatorAction !== null}
+                            aria-label={`Reanudar a ${employee.fullName}`}
+                            onClick={() => runOperatorAction(employee.employeeId, "RESUME")}
+                          >
+                            Reanudar
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              disabled={operatorAction !== null}
+                              aria-label={`Pausa WC de ${employee.fullName}`}
+                              onClick={() => runOperatorAction(employee.employeeId, "STOP_WC")}
+                            >
+                              WC
+                            </button>
+                            <button
+                              type="button"
+                              disabled={operatorAction !== null}
+                              aria-label={`Pausa calor de ${employee.fullName}`}
+                              onClick={() => runOperatorAction(employee.employeeId, "STOP_HEAT")}
+                            >
+                              Calor
+                            </button>
+                            <button
+                              type="button"
+                              disabled={operatorAction !== null}
+                              aria-label={`Registrar salida de ${employee.fullName}`}
+                              onClick={() => runOperatorAction(employee.employeeId, "EXIT")}
+                            >
+                              Salir
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ))
                 )}
@@ -452,6 +616,27 @@ function formatDuration(totalSeconds: number): string {
 
 function formatCapacity(value: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(value);
+}
+
+function formatTableState(state: string): string {
+  return state.replaceAll("_", " ");
+}
+
+function formatTimestamp(value: string | null): string {
+  if (!value) return "pendiente";
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "no disponible";
+  return new Intl.DateTimeFormat("es-ES", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(timestamp);
+}
+
+function operatorActionNotice(action: "EXIT" | "STOP_WC" | "STOP_HEAT" | "RESUME"): string {
+  if (action === "EXIT") return "Salida registrada. Capacidad actualizada por el servidor.";
+  if (action === "RESUME") return "Operario reincorporado. El tiempo individual vuelve a avanzar.";
+  return "Pausa registrada. El acumulado individual queda detenido.";
 }
 
 function createCorrelationId(): string {

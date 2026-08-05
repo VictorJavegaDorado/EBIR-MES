@@ -29,6 +29,16 @@ public sealed class SqlPalletCloseOptionsReader(string? connectionString)
             e.codigo_nav,
             e.nombre_completo
         FROM seg.empleados AS e
+        INNER JOIN prod.fichajes AS f
+            ON f.empleado_id = e.empleado_id
+           AND f.salida_utc IS NULL
+        INNER JOIN prod.sesiones_linea AS s
+            ON s.sesion_linea_id = f.sesion_linea_id
+           AND s.linea_id = @linea_id
+           AND s.finalizada_utc IS NULL
+        INNER JOIN prod.estados_linea AS el
+            ON el.linea_id = s.linea_id
+           AND el.sesion_linea_id = s.sesion_linea_id
         INNER JOIN seg.empleados_roles AS er
             ON er.empleado_id = e.empleado_id
         INNER JOIN seg.roles AS rol
@@ -39,6 +49,13 @@ public sealed class SqlPalletCloseOptionsReader(string? connectionString)
           AND rol.codigo IN (N'OPERARIO', N'SUPERVISOR')
           AND er.desde_utc <= SYSUTCDATETIME()
           AND (er.hasta_utc IS NULL OR er.hasta_utc >= SYSUTCDATETIME())
+          AND NOT EXISTS
+          (
+              SELECT 1
+              FROM prod.paros_operario AS po
+              WHERE po.fichaje_id = f.fichaje_id
+                AND po.fin_utc IS NULL
+          )
         ORDER BY e.nombre_completo, e.empleado_id;
 
         SELECT DISTINCT

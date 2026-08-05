@@ -67,6 +67,60 @@ export async function getProductionTableState(
   throw await toError(response);
 }
 
+export async function registerProductiveExit(
+  lineSessionId: number,
+  employeeId: number,
+  correlationId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await postOperatorAction(
+    `/api/line-sessions/${lineSessionId}/exits`,
+    { employeeId, correlationId },
+    signal,
+  );
+}
+
+export async function startOperatorStop(
+  lineSessionId: number,
+  employeeId: number,
+  reason: "WC" | "PAUSA_CALOR",
+  correlationId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await postOperatorAction(
+    `/api/line-sessions/${lineSessionId}/operator-stops`,
+    { employeeId, reason, correlationId },
+    signal,
+  );
+}
+
+export async function finishOperatorStop(
+  lineSessionId: number,
+  employeeId: number,
+  correlationId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  await postOperatorAction(
+    `/api/line-sessions/${lineSessionId}/operator-stops/finish`,
+    { employeeId, correlationId },
+    signal,
+  );
+}
+
+async function postOperatorAction(
+  url: string,
+  body: object,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) throw await toError(response);
+}
+
 async function toError(response: Response): Promise<ProductionTableApiError> {
   let problem: ApiProblem = {};
   try {

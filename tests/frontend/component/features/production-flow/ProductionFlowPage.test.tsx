@@ -142,6 +142,61 @@ describe("ProductionFlowPage", () => {
     expect(await screen.findByText(/recuperada desde el servidor/i)).toBeInTheDocument();
     expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
     expect(screen.getByText("Operario piloto")).toBeInTheDocument();
+    expect(screen.getByText(/Actualización automática cada 10 s/i)).toBeInTheDocument();
+  });
+
+  it("shows the effective server state and freezes a paused operator timer", async () => {
+    const pausedTable = {
+      ...tableState,
+      state: "SIN_OPERARIOS",
+      activeResources: 0,
+      operators: [{
+        ...tableState.operators[0],
+        status: "EN_PAUSA",
+      }],
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(pausedTable), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+
+    expect(await screen.findByText("SIN OPERARIOS")).toBeInTheDocument();
+    expect(screen.getByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
+    expect(screen.queryByText("PRODUCIENDO")).not.toBeInTheDocument();
+  });
+
+  it("starts an operator pause and refreshes the table from the server", async () => {
+    const pausedTable = {
+      ...tableState,
+      state: "SIN_OPERARIOS",
+      activeResources: 0,
+      operators: [{ ...tableState.operators[0], status: "EN_PAUSA" }],
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 91, activeResources: 0 }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(pausedTable), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+    await screen.findByText("Operario piloto");
+    await userEvent.click(screen.getByRole("button", { name: /Pausa WC de Operario piloto/i }));
+
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/operator-stops");
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual(
+      expect.objectContaining({ employeeId: 7, reason: "WC" }),
+    );
+    expect(await screen.findByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
+    expect(screen.getByText(/Pausa registrada/i)).toBeInTheDocument();
   });
 
   it("keeps NAV confirmation visibly blocked instead of simulating success", async () => {

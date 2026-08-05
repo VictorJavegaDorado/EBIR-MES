@@ -124,6 +124,20 @@ capacidad teorica, POK y operarios activos. Los cronometros avanzan localmente
 desde esa instantanea UTC; no generan escrituras periodicas. La respuesta no
 incluye credenciales RFID.
 
+La pantalla refresca esa instantanea cada 10 segundos para recoger cambios
+realizados desde otro terminal. Un fallo puntual conserva el ultimo estado
+confirmado y se reintenta en el siguiente ciclo. Solo avanzan localmente el
+tiempo total cuando el servidor confirma `PRODUCIENDO` con recursos activos y
+el tiempo individual de las personas cuyo estado es `PRODUCIENDO`; una persona
+`EN_PAUSA` mantiene su acumulado congelado. El estado visible nunca se sustituye
+por un `PRODUCIENDO` calculado o fijo en el navegador.
+
+Cada persona visible dispone de acciones tactiles de salida, pausa `WC`, pausa
+`PAUSA_CALOR` y reanudacion segun su estado. La pantalla usa los contratos de
+sesion existentes, conserva la correlacion durante un reintento y vuelve a leer
+la mesa despues de cada mutacion. El resultado visual siempre procede de esa
+lectura posterior del servidor.
+
 ## Formato de palet desde NAV
 
 El formato se obtiene exclusivamente en lectura mediante ODataV4:

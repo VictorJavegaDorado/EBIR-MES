@@ -70,15 +70,26 @@
 .production-status.active .production-pulse { background: #2f9e44; box-shadow: 0 0 0 1px #2f9e44, 0 0 0 6px rgba(47, 158, 68, 0.14); animation: production-pulse 1.8s ease-in-out infinite; }
 .production-status.active .production-state { color: white; background: var(--forest); }
 .production-status.active .production-state small { color: var(--lime); }
+.production-status.initialized .production-state { background: #fff6db; }
+.production-status.initialized .production-pulse { background: #f59f00; box-shadow: 0 0 0 1px #f59f00; }
 @keyframes production-pulse { 50% { box-shadow: 0 0 0 1px #2f9e44, 0 0 0 10px rgba(47, 158, 68, 0); } }
+.production-sync { margin: 9px 2px 0; color: var(--muted); font-size: 10px; text-align: right; }
 
 .employee-list { margin-top: 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .empty-team { grid-column: 1 / -1; padding: 18px; color: var(--muted); background: var(--global-palette8); border: 1px dashed var(--global-palette7); border-radius: 7px; text-align: center; }
-.employee-chip { display: flex; align-items: center; gap: 12px; padding: 13px 15px; background: var(--global-palette8); border: 1px solid var(--global-palette7); border-radius: 7px; }
-.employee-chip > span { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; color: white; background: var(--global-palette1); border-radius: 50%; font-weight: 800; }
+.employee-chip { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 13px 15px; background: var(--global-palette8); border: 1px solid var(--global-palette7); border-radius: 7px; }
+.employee-state-icon { width: 30px; height: 30px; display: grid; place-items: center; flex: 0 0 auto; color: white; background: var(--global-palette1); border-radius: 50%; font-weight: 800; }
+.employee-chip.paused { background: #fff9e8; border-color: #f5c451; }
+.employee-chip.paused .employee-state-icon { color: var(--forest-deep); background: #f5c451; }
 .employee-chip strong, .employee-chip small { display: block; }
 .employee-chip strong { color: var(--forest-deep); font-size: 13px; }
 .employee-chip small { margin-top: 2px; color: var(--muted); font-size: 11px; }
+.employee-actions { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.employee-actions button { min-height: 40px; padding: 8px 10px; color: var(--forest); background: white; border: 1px solid var(--global-palette7); border-radius: 6px; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.employee-actions button:last-child { color: #8f1d1d; border-color: #e7b5b5; }
+.employee-actions button:disabled { opacity: 0.5; cursor: wait; }
+.employee-chip.paused .employee-actions { grid-template-columns: 1fr; }
+.employee-chip.paused .employee-actions button { color: white; background: var(--forest); border-color: var(--forest); }
 .continue-action { width: 100%; margin-top: 24px; display: flex; align-items: center; justify-content: space-between; }
 .continue-action span { color: var(--lime); font-size: 24px; }
 .continue-action.secondary { color: var(--forest); background: var(--global-palette7); border: 1px solid var(--global-palette7); }
