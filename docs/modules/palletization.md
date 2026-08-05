@@ -84,6 +84,10 @@ La cantidad mostrada es la cantidad que el operario va a cerrar. Preparar o
 mostrar esa previsualizacion no crea `imp.etiquetas`, no habilita el Worker ni
 contacta la impresora fisica.
 
+La proporcion se conserva tambien dentro de la mesa de produccion. Tipografias
+y filas escalan respecto al ancho disponible para que codigo, articulo, orden,
+cantidad y linea permanezcan visibles sin recorte en el terminal del piloto.
+
 ## Regla funcional de la mesa de produccion
 
 La regla confirmada para el siguiente corte es que cualquier operario

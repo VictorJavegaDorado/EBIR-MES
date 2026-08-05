@@ -835,6 +835,9 @@ h1 {
 .pallet-label-sheet {
   aspect-ratio: 3 / 2;
   padding: 5%;
+  display: grid;
+  grid-template-rows: 24% minmax(0, 1fr);
+  container-type: inline-size;
   overflow: hidden;
   color: #101010;
   background: white;
@@ -843,7 +846,6 @@ h1 {
 }
 
 .pallet-label-sheet header {
-  min-height: 24%;
   display: grid;
   grid-template-columns: 1fr 1.2fr;
   align-items: center;
@@ -851,41 +853,47 @@ h1 {
 }
 
 .pallet-label-logo {
-  font-size: clamp(28px, 5vw, 48px);
+  font-size: clamp(24px, 10cqi, 48px);
   font-style: italic;
   letter-spacing: -0.08em;
 }
 
 .pallet-label-group {
   padding-left: 8%;
-  font-size: clamp(12px, 1.7vw, 20px);
+  font-size: clamp(10px, 4.2cqi, 20px);
   text-align: right;
   word-break: break-word;
 }
 
 .pallet-label-sheet dl {
+  min-height: 0;
   margin: 3% 0 0;
+  display: grid;
+  grid-template-rows: repeat(5, minmax(0, 1fr));
 }
 
 .pallet-label-sheet dl > div {
   display: grid;
   grid-template-columns: 29% minmax(0, 1fr);
-  align-items: baseline;
-  padding: 1.4% 0;
+  align-items: center;
+  min-height: 0;
+  padding: 0.4% 0;
   border-bottom: 1px solid #777;
 }
 
 .pallet-label-sheet dt {
-  font-size: clamp(9px, 1.15vw, 13px);
+  font-size: clamp(8px, 3cqi, 13px);
   font-weight: 800;
+  line-height: 1.05;
   text-transform: uppercase;
 }
 
 .pallet-label-sheet dd {
   margin: 0;
   overflow-wrap: anywhere;
-  font-size: clamp(11px, 1.45vw, 17px);
+  font-size: clamp(9px, 3.6cqi, 17px);
   font-weight: 800;
+  line-height: 1.08;
 }
 
 .pallet-label-preview > small {
