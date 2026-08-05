@@ -143,14 +143,13 @@ al terminar.
 ## Estado y limites pendientes de autorizacion
 
 - `025A_grupo_contable_y_cierre_palet.sql` esta instalado y validado en
-  `EBIR_MES_TEST`. La release activa todavia no contiene el codigo que genera
-  y consume el nuevo snapshot; requiere candidate y autorizacion de activacion
-  independientes.
+  `EBIR_MES_TEST`. La release activa `20260805.3-3e02370-combined` contiene el
+  codigo que genera y consume el nuevo snapshot.
 
-- `025B_adopcion_grupo_contable_snapshot.sql` esta preparado y validado con
-  rollback. Permite adoptar el nuevo campo en ordenes previamente promovidas
-  solo cuando el JSON anterior coincide exactamente al retirar
-  `productPostingGroup`; no relaja la revision ante otros cambios NAV.
+- `025B_adopcion_grupo_contable_snapshot.sql` esta instalado y validado en
+  `EBIR_MES_TEST`. Permitio adoptar el nuevo campo en `FL26-00003` porque el
+  JSON anterior coincidia exactamente al retirar `productPostingGroup`; no
+  relaja la revision ante otros cambios NAV.
 
 - El paquete `022A_formato_palet_pok.sql` esta instalado y validado en
   `EBIR_MES_TEST`. La release activa aun no contiene el lector POK; su despliegue

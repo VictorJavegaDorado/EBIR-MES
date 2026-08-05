@@ -143,7 +143,7 @@ en `EBIR_MES_TEST` el 05/08/2026 despues de un backup `COPY_ONLY` verificado;
 la validacion posterior de objetos y permisos fue correcta y `DBCC CHECKDB`
 termino sin errores. No activo Worker, impresora ni escrituras NAV.
 
-## Paquete 025B preparado y validado con rollback
+## Paquete 025B instalado y validado
 
 `025B_adopcion_grupo_contable_snapshot.sql` permite que una orden ya promovida
 adopte el primer snapshot que solo agrega `productPostingGroup`. Compara el
@@ -152,6 +152,10 @@ lote, operacion y tiempo antes de aceptar `SIN_CAMBIOS`; cualquier diferencia
 real mantiene el resultado `REVISION`. El ensayo sobre `FL26-00003` acepto la
 adicion, comprobo la repeticion idempotente y rechazo una diferencia controlada,
 todo dentro de una transaccion exterior finalmente revertida.
+Se instalo en `EBIR_MES_TEST` el 05/08/2026 tras un backup `COPY_ONLY`
+verificado. La promocion real de `FL26-00003` devolvio `SIN_CAMBIOS`, repitio
+de forma idempotente y adopto `P_MATPRIMA` sin cambiar el estado operativo.
+`DBCC CHECKDB` termino sin errores.
 
 ## Paquete 019 preparado, no instalado
 
