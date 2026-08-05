@@ -84,6 +84,35 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
             lotCommand.Parameters.Add("@snapshot_hash", SqlDbType.VarBinary, 32).Value = hash;
             lotCommand.Parameters.Add("@lote", SqlDbType.NVarChar, 50).Value = snapshot.LotNumber;
             await lotCommand.ExecuteNonQueryAsync(cancellationToken);
+
+            await using var palletFormatCommand = new SqlCommand(
+                "nav.registrar_formato_palet_snapshot_orden",
+                connection,
+                transaction)
+            {
+                CommandType = CommandType.StoredProcedure,
+                CommandTimeout = 30
+            };
+            palletFormatCommand.Parameters.Add(
+                "@orden_entrada_id",
+                SqlDbType.BigInt).Value = Convert.ToInt64(inboundOrderId.Value);
+            palletFormatCommand.Parameters.Add(
+                "@snapshot_hash",
+                SqlDbType.VarBinary,
+                32).Value = hash;
+            palletFormatCommand.Parameters.Add(
+                "@producto_codigo",
+                SqlDbType.NVarChar,
+                50).Value = snapshot.PalletFormat.ProductNumber;
+            palletFormatCommand.Parameters.Add(
+                "@codigo_formato",
+                SqlDbType.NVarChar,
+                50).Value = snapshot.PalletFormat.Code;
+            palletFormatCommand.Parameters.Add(
+                "@unidades_por_palet",
+                SqlDbType.Int).Value = decimal.ToInt32(
+                    snapshot.PalletFormat.QuantityPerUnitMeasure);
+            await palletFormatCommand.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
             return new ProductionOrderSynchronizationResult(
@@ -158,6 +187,16 @@ public sealed class SqlProductionOrderSnapshotStore(string? connectionString)
                 "El lote de salida NAV no es válido.", false),
             55702 => ("NAV_SNAPSHOT_LOT_MISMATCH",
                 "El lote no corresponde al snapshot NAV persistido.", false),
+            55800 => ("NAV_INBOUND_ORDER_INVALID",
+                "La orden de entrada no es vÃ¡lida.", false),
+            55801 => ("NAV_PALLET_FORMAT_PRODUCT_INVALID",
+                "El producto del formato POK no es vÃ¡lido.", false),
+            55802 => ("NAV_PALLET_FORMAT_CODE_INVALID",
+                "El formato de palet NAV debe ser POK.", false),
+            55803 => ("NAV_PALLET_FORMAT_QUANTITY_INVALID",
+                "La cantidad por palet POK debe ser un entero positivo.", false),
+            55804 => ("NAV_SNAPSHOT_PALLET_FORMAT_MISMATCH",
+                "El formato POK no corresponde al snapshot NAV persistido.", false),
             _ => default
         };
         return rejection != default;

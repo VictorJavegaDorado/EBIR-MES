@@ -28,6 +28,9 @@ public sealed class NavisionProductionOrderSource(
     private readonly NavisionODataRoutingReader routingReader = new(
         httpClient,
         options);
+    private readonly NavisionODataV4PalletFormatReader palletFormatReader = new(
+        httpClient,
+        options);
 
     public async Task<IReadOnlyList<ProductionOrderRecord>> ReadAsync(
         ProductionOrderStatus status,
@@ -136,6 +139,29 @@ public sealed class NavisionProductionOrderSource(
             maximumRecords,
             cancellationToken);
         return MapRecords(document, ComponentsPage, MapComponent);
+    }
+
+    public async Task<IReadOnlyList<ProductionOrderPalletFormatRecord>>
+        ReadPalletFormatsAsync(
+            string productNumber,
+            string formatCode,
+            int maximumRecords,
+            CancellationToken cancellationToken)
+    {
+        ValidatePageSize(maximumRecords);
+        var normalizedProductNumber = NormalizeExactFilter(
+            productNumber,
+            50,
+            nameof(productNumber));
+        var normalizedFormatCode = NormalizeExactFilter(
+            formatCode,
+            50,
+            nameof(formatCode));
+        return await palletFormatReader.ReadAsync(
+            normalizedProductNumber,
+            normalizedFormatCode,
+            maximumRecords,
+            cancellationToken);
     }
 
     private static IReadOnlyList<T> MapRecords<T>(
@@ -255,6 +281,33 @@ public sealed class NavisionProductionOrderSource(
             throw new ArgumentException(
                 "The NAV order number contains filter control characters.",
                 nameof(orderNumber));
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeExactFilter(
+        string value,
+        int maximumLength,
+        string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var normalized = value.Trim().ToUpperInvariant();
+        if (normalized.Length == 0 || normalized.Length > maximumLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"The NAV filter must contain between 1 and {maximumLength} characters.");
+        }
+
+        if (normalized.Contains("..", StringComparison.Ordinal) ||
+            normalized.Any(character =>
+                !char.IsLetterOrDigit(character) &&
+                character is not '-' and not '/' and not '_' and not '.'))
+        {
+            throw new ArgumentException(
+                "The NAV filter contains control characters.",
+                parameterName);
         }
 
         return normalized;

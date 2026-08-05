@@ -32,4 +32,10 @@ public interface IProductionOrderSource
         string orderNumber,
         int maximumRecords,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ProductionOrderPalletFormatRecord>> ReadPalletFormatsAsync(
+        string productNumber,
+        string formatCode,
+        int maximumRecords,
+        CancellationToken cancellationToken);
 }

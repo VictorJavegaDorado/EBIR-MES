@@ -153,8 +153,10 @@ una consulta tardia al abrir la linea. El corte propuesto es:
 4. crear o revisar `prod.formatos_palet_orden` durante la promocion;
 5. exponer el formato activo en la lectura de orden/mesa.
 
-Esto requiere un paquete SQL versionado nuevo y autorizacion independiente
-antes de instalarlo o escribir una nueva fase TEST.
+Los puntos 1 a 4 estan implementados en codigo y en el paquete versionado 022.
+El paquete sigue sin instalar y requiere autorizacion independiente antes de
+escribir una nueva fase TEST. La lectura completa de mesa del punto 5 sigue
+pendiente.
 
 ## Paletizado y autorizacion
 
@@ -173,11 +175,11 @@ impresion ni Worker como consecuencia de este diseño.
 
 ## Cortes de implementacion recomendados
 
-1. lector ODataV4 POK, pruebas de contrato y resiliencia;
-2. paquete SQL y snapshot/promocion del formato;
-3. lectura backend del estado completo de mesa;
-4. inicio atomico de mesa con el primer RFID productivo;
-5. entradas, salidas y paros desde la misma pantalla;
+1. instalar y validar el paquete SQL 022 bajo autorizacion expresa;
+2. lectura backend del estado completo de mesa;
+3. inicio atomico de mesa con el primer RFID productivo;
+4. entradas, salidas y paros desde la misma pantalla;
+5. integrar palets, autorizacion de ultimo palet y recuperacion tras recarga.
 6. cronometros e indicadores derivados del estado servidor;
 7. paletizado ordinario y regla de ultimo palet con supervisor;
 8. pruebas de recarga, reintento, concurrencia y cambio de capacidad;

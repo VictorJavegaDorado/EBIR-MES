@@ -112,6 +112,14 @@ eliminados.
   fichajes, scrap y reaprovisionamiento.
 - Copia de seguridad antes de introducir datos productivos o ejecutar nuevas migraciones.
 
+## Paquete 022 preparado, no instalado
+
+`022A_formato_palet_pok.sql` persiste el formato `POK` del producto dentro del
+snapshot NAV y lo incorpora atomicamente a `prod.formatos_palet_orden` durante
+la promocion. Exige una unica coincidencia y unidades enteras positivas. Su
+instalacion en `EBIR_MES_TEST` requiere una autorizacion SQL nueva; no forma
+parte de la release activa.
+
 ## Paquete 019 preparado, no instalado
 
 El paquete 019 carga de forma parametrizada los maestros mínimos del piloto

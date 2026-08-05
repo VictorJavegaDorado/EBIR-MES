@@ -34,6 +34,8 @@ public sealed class SynchronizeProductionOrderTests
         Assert.Equal("FL2600042", store.Snapshot.LotNumber);
         Assert.Equal(["010", "020"], store.Snapshot.Routing.Select(step => step.OperationNumber));
         Assert.Equal([10000, 20000], store.Snapshot.Components.Select(component => component.LineNumber));
+        Assert.Equal("POK", store.Snapshot.PalletFormat.Code);
+        Assert.Equal(20m, store.Snapshot.PalletFormat.QuantityPerUnitMeasure);
         Assert.Equal(synchronizationId, store.SynchronizationId);
     }
 
@@ -170,6 +172,33 @@ public sealed class SynchronizeProductionOrderTests
             new StubStore(new(1, ProductionOrderSynchronizationOutcome.Unchanged)))
         .ExecuteAsync(Command(), CancellationToken.None);
 
+    [Fact]
+    public async Task ExecuteAsync_rejects_missing_or_duplicated_pok_format()
+    {
+        var source = ValidSource();
+        source.PalletFormats = [];
+        var missing = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+        Assert.Equal("NAV_PALLET_FORMAT_NOT_UNIQUE", missing.Code);
+
+        source.PalletFormats = [PalletFormat(), PalletFormat()];
+        var duplicated = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+        Assert.Equal("NAV_PALLET_FORMAT_NOT_UNIQUE", duplicated.Code);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_rejects_non_integer_pok_quantity()
+    {
+        var source = ValidSource();
+        source.PalletFormats = [PalletFormat() with { QuantityPerUnitMeasure = 20.5m }];
+
+        var exception = await Assert.ThrowsAsync<ProductionOrderSynchronizationRejectedException>(
+            () => ExecuteAsync(source));
+
+        Assert.Equal("NAV_PALLET_FORMAT_QUANTITY_INVALID", exception.Code);
+    }
+
     private static StubSource ValidSource() => new()
     {
         Order = Order(),
@@ -207,6 +236,9 @@ public sealed class SynchronizeProductionOrderTests
         ProductionComponentFlushingMethod.Manual, "", "010", "FABRICA", "", 0m,
         false);
 
+    private static ProductionOrderPalletFormatRecord PalletFormat() =>
+        new("ITEM-01", "POK", 20m);
+
     private sealed class StubSource : IProductionOrderSource
     {
         public ProductionOrderRecord? Order { get; set; }
@@ -214,6 +246,8 @@ public sealed class SynchronizeProductionOrderTests
         public IReadOnlyList<ProductionOrderLineRecord> Lines { get; set; } = [];
         public IReadOnlyList<ProductionOrderRoutingStepRecord> Routing { get; set; } = [];
         public IReadOnlyList<ProductionOrderComponentRecord> Components { get; set; } = [];
+        public IReadOnlyList<ProductionOrderPalletFormatRecord> PalletFormats { get; set; } =
+            [PalletFormat()];
 
         public Task<IReadOnlyList<ProductionOrderRecord>> ReadAsync(
             ProductionOrderStatus status, int maximumRecords, CancellationToken cancellationToken) =>
@@ -238,6 +272,10 @@ public sealed class SynchronizeProductionOrderTests
         public Task<IReadOnlyList<ProductionOrderComponentRecord>> ReadComponentsAsync(
             ProductionOrderStatus status, string orderNumber, int maximumRecords,
             CancellationToken cancellationToken) => Task.FromResult(Components);
+
+        public Task<IReadOnlyList<ProductionOrderPalletFormatRecord>> ReadPalletFormatsAsync(
+            string productNumber, string formatCode, int maximumRecords,
+            CancellationToken cancellationToken) => Task.FromResult(PalletFormats);
     }
 
     private sealed class StubStore(ProductionOrderSynchronizationResult result)

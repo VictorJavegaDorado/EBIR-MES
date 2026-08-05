@@ -10,6 +10,7 @@ public sealed class SynchronizeProductionOrder(
     public const int MaximumOrderNumberLength = 20;
     public const int MaximumLotNumberLength = 50;
     public const string PaternaCapacityNumber = "1";
+    public const string PalletFormatCode = "POK";
 
     public async Task<ProductionOrderSynchronizationResult> ExecuteAsync(
         ProductionOrderSynchronizationCommand command,
@@ -65,13 +66,31 @@ public sealed class SynchronizeProductionOrder(
             orderNumber,
             MaximumDetailRecords,
             cancellationToken);
-        await Task.WhenAll(lotTask, linesTask, routingTask, componentsTask);
+        var palletFormatsTask = source.ReadPalletFormatsAsync(
+            order.ProductNumber,
+            PalletFormatCode,
+            2,
+            cancellationToken);
+        await Task.WhenAll(
+            lotTask,
+            linesTask,
+            routingTask,
+            componentsTask,
+            palletFormatsTask);
 
         var lot = await lotTask;
         var lines = await linesTask;
         var routing = await routingTask;
         var components = await componentsTask;
-        ValidateSnapshot(orderNumber, order, lot, lines, routing, components);
+        var palletFormats = await palletFormatsTask;
+        ValidateSnapshot(
+            orderNumber,
+            order,
+            lot,
+            lines,
+            routing,
+            components,
+            palletFormats);
 
         var snapshot = new ProductionOrderSnapshot(
             environmentCode,
@@ -87,7 +106,8 @@ public sealed class SynchronizeProductionOrder(
             components
                 .OrderBy(component => component.ProductionOrderLineNumber)
                 .ThenBy(component => component.LineNumber)
-                .ToArray());
+                .ToArray(),
+            palletFormats[0]);
 
         return await store.SaveAsync(
             snapshot,
@@ -101,7 +121,8 @@ public sealed class SynchronizeProductionOrder(
         ProductionOrderLotRecord? lot,
         IReadOnlyList<ProductionOrderLineRecord> lines,
         IReadOnlyList<ProductionOrderRoutingStepRecord> routing,
-        IReadOnlyList<ProductionOrderComponentRecord> components)
+        IReadOnlyList<ProductionOrderComponentRecord> components,
+        IReadOnlyList<ProductionOrderPalletFormatRecord> palletFormats)
     {
         if (!string.Equals(order.OrderNumber, orderNumber, StringComparison.Ordinal))
         {
@@ -202,6 +223,38 @@ public sealed class SynchronizeProductionOrder(
             throw Rejected(
                 "NAV_ORDER_COMPONENT_MISMATCH",
                 "Los componentes NAV no corresponden a una única línea de la orden.");
+        }
+
+        if (palletFormats.Count != 1)
+        {
+            throw Rejected(
+                "NAV_PALLET_FORMAT_NOT_UNIQUE",
+                "El producto debe tener exactamente un formato POK en NAV.");
+        }
+
+        var palletFormat = palletFormats[0];
+        if (!string.Equals(
+                palletFormat.ProductNumber,
+                order.ProductNumber,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                palletFormat.Code,
+                PalletFormatCode,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw Rejected(
+                "NAV_PALLET_FORMAT_MISMATCH",
+                "El formato POK no corresponde al producto solicitado.");
+        }
+
+        if (palletFormat.QuantityPerUnitMeasure <= 0m ||
+            palletFormat.QuantityPerUnitMeasure > int.MaxValue ||
+            decimal.Truncate(palletFormat.QuantityPerUnitMeasure) !=
+                palletFormat.QuantityPerUnitMeasure)
+        {
+            throw Rejected(
+                "NAV_PALLET_FORMAT_QUANTITY_INVALID",
+                "La cantidad por palet POK debe ser un entero positivo.");
         }
     }
 

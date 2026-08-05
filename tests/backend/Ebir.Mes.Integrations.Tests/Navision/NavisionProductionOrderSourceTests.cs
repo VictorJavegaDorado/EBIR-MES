@@ -294,6 +294,110 @@ public sealed class NavisionProductionOrderSourceTests
     }
 
     [Fact]
+    public async Task ReadPalletFormatsAsync_maps_exact_pok_odatav4_response()
+    {
+        Uri? requestUri = null;
+        var handler = new StubHandler(request =>
+        {
+            requestUri = request.RequestUri;
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Null(request.Content);
+            return Task.FromResult(JsonResponse(PalletFormatResponse));
+        });
+
+        var result = await CreateSource(handler).ReadPalletFormatsAsync(
+            "ITEM-POK-01",
+            "POK",
+            2,
+            CancellationToken.None);
+
+        var format = Assert.Single(result);
+        Assert.Equal("ITEM-POK-01", format.ProductNumber);
+        Assert.Equal("POK", format.Code);
+        Assert.Equal(20m, format.QuantityPerUnitMeasure);
+        Assert.Equal(
+            "/instance/ODataV4/Company('EBIR')/WS_CPP_UndMedProd",
+            Uri.UnescapeDataString(requestUri!.AbsolutePath));
+        Assert.Equal(
+            "$filter=Item_No eq 'ITEM-POK-01' and Code eq 'POK'&$top=2",
+            Uri.UnescapeDataString(requestUri.Query).TrimStart('?'));
+    }
+
+    [Fact]
+    public async Task ReadPalletFormatsAsync_rejects_malformed_json_without_retry()
+    {
+        var handler = new StubHandler(_ =>
+            Task.FromResult(JsonResponse("{not-json")));
+
+        var exception =
+            await Assert.ThrowsAsync<ProductionOrderSourceUnavailableException>(
+                () => CreateSource(handler).ReadPalletFormatsAsync(
+                    "ITEM-POK-01", "POK", 2, CancellationToken.None));
+
+        Assert.Equal(
+            "NAV returned an invalid pallet format response.",
+            exception.Message);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task ReadPalletFormatsAsync_retries_transient_http_status(
+        HttpStatusCode transientStatus)
+    {
+        var responseNumber = 0;
+        var handler = new StubHandler(_ =>
+        {
+            responseNumber++;
+            return Task.FromResult(responseNumber == 1
+                ? new HttpResponseMessage(transientStatus)
+                : JsonResponse(EmptyJsonResponse));
+        });
+
+        var result = await CreateSource(handler).ReadPalletFormatsAsync(
+            "ITEM-POK-01", "POK", 2, CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task ReadPalletFormatsAsync_retries_timeout()
+    {
+        var responseNumber = 0;
+        var handler = new StubHandler(_ =>
+        {
+            responseNumber++;
+            return responseNumber == 1
+                ? Task.FromException<HttpResponseMessage>(new TaskCanceledException())
+                : Task.FromResult(JsonResponse(EmptyJsonResponse));
+        });
+
+        var result = await CreateSource(handler).ReadPalletFormatsAsync(
+            "ITEM-POK-01", "POK", 2, CancellationToken.None);
+
+        Assert.Empty(result);
+        Assert.Equal(2, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task ReadPalletFormatsAsync_does_not_retry_non_transient_status()
+    {
+        var handler = new StubHandler(_ => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.BadRequest)));
+
+        var exception =
+            await Assert.ThrowsAsync<ProductionOrderSourceUnavailableException>(
+                () => CreateSource(handler).ReadPalletFormatsAsync(
+                    "ITEM-POK-01", "POK", 2, CancellationToken.None));
+
+        Assert.Contains("HTTP 400", exception.Message);
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
     public async Task ReadComponentsAsync_maps_component_linkage_and_quantities()
     {
         string? requestBody = null;
@@ -456,6 +560,12 @@ public sealed class NavisionProductionOrderSourceTests
             Content = new StringContent(body, Encoding.UTF8, "application/atom+xml")
         };
 
+    private static HttpResponseMessage JsonResponse(string body) =>
+        new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        };
+
     private sealed class StubHandler(
         Func<HttpRequestMessage, Task<HttpResponseMessage>> responseFactory)
         : HttpMessageHandler
@@ -610,6 +720,21 @@ public sealed class NavisionProductionOrderSourceTests
               xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices"
               xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" />
         """;
+
+    private const string PalletFormatResponse = """
+        {
+          "@odata.context": "synthetic",
+          "value": [
+            {
+              "Item_No": "ITEM-POK-01",
+              "Code": "POK",
+              "Qty_per_Unit_of_Measure": 20.0
+            }
+          ]
+        }
+        """;
+
+    private const string EmptyJsonResponse = """{"value":[]}""";
 
     private const string ProductionOrderComponentsResponse = """
         <?xml version="1.0" encoding="utf-8"?>

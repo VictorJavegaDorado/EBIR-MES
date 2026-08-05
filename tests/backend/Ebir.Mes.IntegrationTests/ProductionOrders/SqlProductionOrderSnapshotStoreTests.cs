@@ -19,6 +19,8 @@ public sealed class SqlProductionOrderSnapshotStoreTests
         Assert.Contains("\"lotNumber\":\"FL2600042\"", first);
         Assert.Contains("\"status\":\"Released\"", first);
         Assert.Contains("\"type\":\"WorkCenter\"", first);
+        Assert.Contains("\"palletFormat\":", first);
+        Assert.Contains("\"quantityPerUnitMeasure\":20", first);
     }
 
     [Fact]
@@ -45,6 +47,11 @@ public sealed class SqlProductionOrderSnapshotStoreTests
     [InlineData(55700, false)]
     [InlineData(55701, false)]
     [InlineData(55702, false)]
+    [InlineData(55800, false)]
+    [InlineData(55801, false)]
+    [InlineData(55802, false)]
+    [InlineData(55803, false)]
+    [InlineData(55804, false)]
     public void TryTranslate_maps_known_errors(int number, bool unavailable)
     {
         Assert.True(SqlProductionOrderSnapshotStore.TryTranslate(number, out var rejection));
@@ -68,5 +75,6 @@ public sealed class SqlProductionOrderSnapshotStoreTests
             ProductionRoutingStepType.WorkCenter, "CT-01", "OPERACION", null, null,
             0m, 1m, 0m, 0m, 0m, "", 0m, ProductionRoutingStatus.Planned,
             "FABRICA", false)],
-        []);
+        [],
+        new("ITEM-01", "POK", 20m));
 }

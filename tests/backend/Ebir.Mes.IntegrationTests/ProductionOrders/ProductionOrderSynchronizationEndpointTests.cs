@@ -257,6 +257,14 @@ public sealed class ProductionOrderSynchronizationEndpointTests
             int maximumRecords,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ProductionOrderComponentRecord>>([]);
+
+        public Task<IReadOnlyList<ProductionOrderPalletFormatRecord>> ReadPalletFormatsAsync(
+            string productNumber,
+            string formatCode,
+            int maximumRecords,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ProductionOrderPalletFormatRecord>>(
+                [new("ITEM-01", "POK", 20m)]);
     }
 
     private sealed class UnavailableSource : StubSource

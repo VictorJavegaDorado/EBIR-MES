@@ -13,8 +13,8 @@ entrada. NAV permanece exclusivamente en lectura.
 - Ruta y operaciones OData Atom mediante `GET`:
   `WS_CPP_RutaOrdenProduccion`.
 - Componentes SOAP `ReadMultiple`: `WS_CPP_Componentes`.
-- Formato de palet ODataV4 `WS_CPP_UndMedProd`, filtrado por producto y codigo
-  exacto `POK` (pendiente de implementacion y paquete SQL).
+- Formato de palet ODataV4 mediante `GET` a `WS_CPP_UndMedProd`, filtrado por
+  producto y codigo exacto `POK`, con `$top=2` para detectar duplicados.
 - Lote de salida del producto terminado: `Cód_Lote_Salida` de
   `WS_CPP_OPLanzadas`, mediante SOAP `ReadMultiple`.
 - Estado inicial de trabajo: ordenes lanzadas (`Released`).
@@ -32,10 +32,11 @@ La relacion de componentes conserva los numeros de linea de NAV. La pagina de
 lineas publicada no expone su numero de linea, por lo que durante el piloto se
 exige exactamente una linea por orden.
 
-El contrato objetivo del formato POK, sus validaciones y su uso por la mesa de
-produccion estan documentados en `production-workstation.md`. La lectura real
-TEST confirmo los campos `Item_No`, `Code` y `Qty_per_Unit_of_Measure`; el
-lector y la persistencia todavia no estan implementados.
+El contrato del formato POK, sus validaciones y su uso por la mesa de
+produccion estan documentados en `production-workstation.md`. La lectura usa
+los campos `Item_No`, `Code` y `Qty_per_Unit_of_Measure`. El lector y el modelo
+de snapshot estan implementados; la persistencia queda preparada en el paquete
+022, todavia no instalado.
 
 ## Bandeja de entrada idempotente
 
@@ -77,7 +78,8 @@ contrato productivo. `Setup_Time`, `Wait_Time` y `Move_Time` conservan el valor
 numerico publicado; no participan en la promocion. La operacion Paterna debe
 tener un tiempo de ejecucion convertido positivo.
 
-La primera promocion crea atomicamente `prod.ordenes` y sus componentes. Una
+La primera promocion crea atomicamente `prod.ordenes`, sus componentes y, con
+el paquete 022, el formato POK en `prod.formatos_palet_orden`. Una
 nueva correlacion con el mismo snapshot y decisiones devuelve `SIN_CAMBIOS`.
 Un cambio de snapshot, lote NAV u operacion no sobrescribe los datos productivos:
 devuelve `REVISION` y bloquea la orden en ese estado. Repetir una correlacion
@@ -90,8 +92,8 @@ deshabilitado por defecto y no consulta ni escribe en NAV.
 
 Las lecturas SOAP y OData pueden repetirse porque no cambian estado. Se
 reintentan como maximo tres veces ante timeouts, errores de transporte, `408`,
-`429` o respuestas `5xx`. Los errores funcionales y las respuestas XML no
-validas no se reintentan.
+`429` o respuestas `5xx`. Los errores funcionales y las respuestas XML o JSON
+no validas no se reintentan.
 
 ## Seleccion operativa
 
@@ -112,10 +114,11 @@ limites de resiliencia proceden de configuracion del servidor, nunca del
 navegador.
 
 La raiz configurada termina en `/WS/`. El adaptador SOAP agrega despues la
-empresa y la pagina NAV. El lector de rutas deriva exclusivamente de esa misma
-URI la raiz `/OData/`, conservando esquema, host y puerto, y agrega la empresa y
-la entidad de ruta. No acepta una autoridad externa ni una raiz que no termine
-en `/WS/`. Por ejemplo, la raiz de `EBIRTEST` no incluye de nuevo `EBIR`.
+empresa y la pagina NAV. Los lectores OData derivan exclusivamente de esa misma
+URI las raices `/OData/` y `/ODataV4/`, conservando esquema, host y puerto, y
+agregan empresa y entidad. No aceptan una autoridad externa ni una raiz que no
+termine en `/WS/`. Por ejemplo, la raiz de `EBIRTEST` no incluye de nuevo
+`EBIR`.
 
 La respuesta publica `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`. Las validaciones
 funcionales se traducen a `400`, `404` o `409`; los fallos de NAV, SQL o de
@@ -127,6 +130,10 @@ manual debe habilitarse solo para la ventana de prueba y volver a deshabilitarse
 al terminar.
 
 ## Estado y limites pendientes de autorizacion
+
+- El paquete `022A_formato_palet_pok.sql` esta preparado pero no instalado; no
+  se debe sincronizar con este binario hasta instalarlo en una fase SQL
+  expresamente autorizada.
 
 - El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta instalado y validado en
   `EBIR_MES_TEST`.

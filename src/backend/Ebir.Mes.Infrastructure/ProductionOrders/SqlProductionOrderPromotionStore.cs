@@ -75,6 +75,9 @@ public sealed class SqlProductionOrderPromotionStore(string? connectionString)
             55611 => ("NAV_PROMOTION_LOCK_UNAVAILABLE", "La promoción no está disponible.", true),
             55612 => ("NAV_PROMOTION_ID_PARAMETER_MISMATCH", "La correlación ya se utilizó con otros parámetros.", false),
             55613 => ("NAV_PROMOTION_COMPONENTS_NOT_UNIQUE", "La orden contiene componentes repetidos no promocionables.", false),
+            55614 => ("NAV_PROMOTION_PALLET_FORMAT_NOT_UNIQUE", "La orden debe contener exactamente un formato POK.", false),
+            55615 => ("NAV_PROMOTION_PALLET_FORMAT_INVALID", "El formato POK no corresponde al producto o cantidad de la orden.", false),
+            55616 => ("NAV_PROMOTION_PALLET_FORMAT_CONFLICT", "La orden productiva ya contiene otro formato POK.", false),
             _ => default
         };
         return rejection != default;
