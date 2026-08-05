@@ -2,6 +2,7 @@ using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
 using Ebir.Mes.Api.Endpoints.Pallets;
 using Ebir.Mes.Api.Endpoints.ProductionOrders;
+using Ebir.Mes.Api.Endpoints.ProductionWorkstations;
 using Ebir.Mes.Api.Endpoints.Replenishment;
 using Ebir.Mes.Api.Endpoints.Rfid;
 using Ebir.Mes.Api.Endpoints.Scrap;
@@ -10,6 +11,7 @@ using Ebir.Mes.Application.LineSessions;
 using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Pallets.ClosePalletOptions;
 using Ebir.Mes.Application.ProductionOrders;
+using Ebir.Mes.Application.ProductionWorkstations;
 using Ebir.Mes.Application.Replenishment;
 using Ebir.Mes.Application.Rfid;
 using Ebir.Mes.Application.Scrap;
@@ -17,6 +19,7 @@ using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
 using Ebir.Mes.Infrastructure.Pallets;
 using Ebir.Mes.Infrastructure.ProductionOrders;
+using Ebir.Mes.Infrastructure.ProductionWorkstations;
 using Ebir.Mes.Infrastructure.Replenishment;
 using Ebir.Mes.Infrastructure.Rfid;
 using Ebir.Mes.Infrastructure.Scrap;
@@ -46,6 +49,8 @@ builder.Services.AddScoped<SynchronizeProductionOrder>();
 builder.Services.AddScoped<PromoteProductionOrder>();
 builder.Services.AddScoped<ListSelectableProductionOrders>();
 builder.Services.AddScoped<IdentifyEmployeeByRfid>();
+builder.Services.AddScoped<StartOrJoinProductionTable>();
+builder.Services.AddScoped<GetProductionTableState>();
 builder.Services.AddSingleton<IRfidCredentialFingerprinter>(_ =>
     new HmacSha256RfidCredentialFingerprinter(
         builder.Configuration["Rfid:LookupKey"]));
@@ -82,6 +87,12 @@ builder.Services.AddScoped<IProductionOrderSelectionReader>(services =>
             .GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionTableStarter>(_ =>
+    new SqlProductionTableStarter(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionTableStateReader>(_ =>
+    new SqlProductionTableStateReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineSessionOpener>(_ =>
     new SqlLineSessionOpener(
@@ -166,6 +177,7 @@ app.MapProductionOrderSynchronizationEndpoints();
 app.MapProductionOrderPromotionEndpoints();
 app.MapProductionOrderSelectionEndpoints();
 app.MapRfidIdentificationEndpoints();
+app.MapProductionWorkstationEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
 {
     if (context.Request.Path.StartsWithSegments(

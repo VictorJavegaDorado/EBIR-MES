@@ -94,10 +94,17 @@ clasificados se ocultan tras `503`.
 ## Integracion con la mesa de produccion
 
 La experiencia integrada y las reglas funcionales confirmadas se documentan
-en `production-workstation.md`. El contrato objetivo requiere que el primer
-RFID productivo inicie el tiempo. El contrato actual de apertura exige siempre
-supervisor y debe revisarse antes de conectar la interfaz; esta documentacion
-no cambia todavia el comportamiento instalado.
+en `production-workstation.md`. El contrato administrativo
+`POST /api/line-sessions` conserva la exigencia de supervisor. El corte de mesa
+añade `POST /api/production-workstations/start-or-join`, que permite a un
+operario productivo ordinario iniciar dentro de 06:00-22:00 y crea
+conjuntamente sesion y primer fichaje. La misma operacion incorpora recursos
+posteriores y es idempotente por correlacion. El paquete 023A que materializa
+este contrato esta preparado, no instalado.
+
+`GET /api/production-workstations/state` recibe `orderId` y `lineId` y expone
+solo el estado operativo persistido: sesion, tiempos UTC derivados, capacidad,
+formato POK y personas activas. No devuelve ni registra credenciales RFID.
 
 ## Inicio de sustitución de capacidad
 

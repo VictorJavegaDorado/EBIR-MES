@@ -27,6 +27,28 @@ const order = {
   importedAtUtc: "2026-08-01T11:20:53Z",
 };
 
+const tableState = {
+  lineSessionId: 12,
+  orderId: 28,
+  lineId: 40,
+  state: "PRODUCIENDO",
+  startedAtUtc: "2026-08-05T10:00:00Z",
+  serverTimeUtc: new Date().toISOString(),
+  productiveSeconds: 65,
+  activeResources: 1,
+  currentTheoreticalCapacityPerHour: 6,
+  palletFormatCode: "POK",
+  unitsPerPallet: 20,
+  operators: [{
+    employeeId: 7,
+    navEmployeeCode: "EMP-7",
+    fullName: "Operario piloto",
+    entryAtUtc: "2026-08-05T10:00:00Z",
+    productiveSeconds: 65,
+    status: "PRODUCIENDO",
+  }],
+};
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -46,7 +68,8 @@ describe("ProductionFlowPage", () => {
   it("advances from line to an exact scanned order", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
 
     render(<ProductionFlowPage />);
     await userEvent.type(screen.getByRole("textbox", { name: /código de línea/i }), "linea-test-01{enter}");
@@ -72,11 +95,19 @@ describe("ProductionFlowPage", () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         employeeId: 7,
         navEmployeeCode: "EMP-7",
         fullName: "Operario piloto",
-      }), { status: 200 }));
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        lineSessionId: 12,
+        timeEntryId: 31,
+        palletReservationId: 47,
+        sessionCreated: true,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }));
 
     render(<ProductionFlowPage />);
     await userEvent.type(screen.getByRole("textbox", { name: /código de línea/i }), "LINEA-TEST-01{enter}");
@@ -89,19 +120,47 @@ describe("ProductionFlowPage", () => {
     expect(await screen.findByText("Operario piloto")).toBeInTheDocument();
     expect(rfid).toHaveValue("");
     expect(screen.queryByText("SYNTHETIC-CARD")).not.toBeInTheDocument();
-    const [, request] = fetchMock.mock.calls[2];
+    const [, request] = fetchMock.mock.calls[3];
     expect(JSON.parse(String(request?.body))).toEqual({ credential: "SYNTHETIC-CARD" });
+    expect(fetchMock.mock.calls[4][0]).toBe("/api/production-workstations/start-or-join");
+    expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
+    expect(screen.getByText("Tiempo productivo total").nextElementSibling?.textContent)
+      .toMatch(/^00:01:0[5-9]$/);
+  });
+
+  it("recovers an active production table after rescanning line and order", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+
+    expect(await screen.findByText(/recuperada desde el servidor/i)).toBeInTheDocument();
+    expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
+    expect(screen.getByText("Operario piloto")).toBeInTheDocument();
   });
 
   it("keeps NAV confirmation visibly blocked instead of simulating success", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         employeeId: 7,
         navEmployeeCode: "EMP-7",
         fullName: "Operario piloto",
       }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        lineSessionId: 12,
+        timeEntryId: 31,
+        palletReservationId: 47,
+        sessionCreated: true,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         reservations: [], employees: [], supervisors: [],
       }), { status: 200 }));

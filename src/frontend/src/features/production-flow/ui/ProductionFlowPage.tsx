@@ -12,9 +12,14 @@ import {
 import type { ProductionOrder } from "../../production-order-selection/model/productionOrder";
 import {
   identifyEmployeeByRfid,
-  type IdentifiedEmployee,
   RfidIdentificationApiError,
 } from "../api/identifyEmployeeByRfid";
+import {
+  getProductionTableState,
+  type ProductionTableState,
+  ProductionTableApiError,
+  startOrJoinProductionTable,
+} from "../api/productionTable";
 
 const steps = [
   { number: 1, short: "Línea", title: "Escanea la línea" },
@@ -35,13 +40,28 @@ export function ProductionFlowPage() {
   const [orderCode, setOrderCode] = useState("");
   const [order, setOrder] = useState<ProductionOrder | null>(null);
   const [rfidCredential, setRfidCredential] = useState("");
-  const [employees, setEmployees] = useState<IdentifiedEmployee[]>([]);
+  const [table, setTable] = useState<ProductionTableState | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<FlowError>(null);
   const [notice, setNotice] = useState("");
   const request = useRef<AbortController | null>(null);
+  const pendingCorrelations = useRef(new Map<string, string>());
 
   useEffect(() => () => request.current?.abort(), []);
+  useEffect(() => {
+    if (!table || table.state !== "PRODUCIENDO" || table.activeResources === 0) return;
+    const interval = window.setInterval(() => setClock(Date.now()), 1_000);
+    return () => window.clearInterval(interval);
+  }, [table]);
+
+  const elapsedSinceSnapshot = table
+    ? Math.max(0, Math.floor((clock - Date.parse(table.serverTimeUtc)) / 1_000))
+    : 0;
+  const productiveSeconds = table
+    ? table.productiveSeconds
+      + (table.state === "PRODUCIENDO" && table.activeResources > 0 ? elapsedSinceSnapshot : 0)
+    : 0;
 
   async function submitLine(event: FormEvent) {
     event.preventDefault();
@@ -86,7 +106,7 @@ export function ProductionFlowPage() {
     }
   }
 
-  function submitOrder(event: FormEvent) {
+  async function submitOrder(event: FormEvent) {
     event.preventDefault();
     const normalized = orderCode.trim().toUpperCase();
     const match = orders.find(
@@ -101,10 +121,40 @@ export function ProductionFlowPage() {
     }
 
     setOrder(match);
+    setTable(null);
     setOrderCode(match.orderNumber);
     setError(null);
     setNotice(`Orden ${match.orderNumber} seleccionada. Identifica el equipo.`);
     setActiveStep(3);
+
+    setBusy(true);
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    try {
+      if (!line) throw new ProductionTableApiError("PRODUCTION_CONTEXT_REQUIRED");
+      const currentTable = await getProductionTableState(
+        match.productionOrderId,
+        line.id,
+        controller.signal,
+      );
+      if (currentTable) {
+        setTable(currentTable);
+        setClock(Date.now());
+        setNotice(`Mesa de ${match.orderNumber} recuperada desde el servidor.`);
+      }
+    } catch (caught) {
+      if (controller.signal.aborted) return;
+      setError({
+        message: "No se puede recuperar el estado de la mesa en este momento.",
+        code: caught instanceof ProductionTableApiError
+          ? caught.code
+          : "PRODUCTION_TABLE_UNAVAILABLE",
+      });
+    } finally {
+      if (request.current === controller) request.current = null;
+      setBusy(false);
+    }
   }
 
   async function submitRfid(event: FormEvent) {
@@ -123,18 +173,40 @@ export function ProductionFlowPage() {
     const controller = new AbortController();
     request.current = controller;
     try {
+      if (!line || !order) throw new ProductionTableApiError("PRODUCTION_CONTEXT_REQUIRED");
       const employee = await identifyEmployeeByRfid(credential, controller.signal);
-      setEmployees((current) => {
-        if (current.some((item) => item.employeeId === employee.employeeId)) return current;
-        return [...current, employee];
-      });
-      setNotice(`${employee.fullName} identificado correctamente.`);
+      const operationKey = `${order.productionOrderId}:${line.id}:${employee.employeeId}`;
+      const correlationId = pendingCorrelations.current.get(operationKey) ?? createCorrelationId();
+      pendingCorrelations.current.set(operationKey, correlationId);
+      await startOrJoinProductionTable(
+        order.productionOrderId,
+        line.id,
+        employee.employeeId,
+        correlationId,
+        controller.signal,
+      );
+      const currentTable = await getProductionTableState(
+        order.productionOrderId,
+        line.id,
+        controller.signal,
+      );
+      if (!currentTable) throw new ProductionTableApiError("PRODUCTION_TABLE_NOT_ACTIVE");
+      setTable(currentTable);
+      pendingCorrelations.current.delete(operationKey);
+      setClock(Date.now());
+      setNotice(
+        currentTable.operators.length === 1
+          ? `${employee.fullName} ha iniciado la producción.`
+          : `${employee.fullName} se ha incorporado a la producción.`,
+      );
     } catch (caught) {
       if (controller.signal.aborted) return;
       setError({
-        message: "Tarjeta no identificada. Prueba de nuevo o avisa al supervisor.",
+        message: caught instanceof ProductionTableApiError
+          ? caught.message
+          : "Tarjeta no identificada. Prueba de nuevo o avisa al supervisor.",
         code:
-          caught instanceof RfidIdentificationApiError
+          caught instanceof RfidIdentificationApiError || caught instanceof ProductionTableApiError
             ? caught.code
             : "RFID_IDENTIFICATION_UNAVAILABLE",
       });
@@ -153,7 +225,8 @@ export function ProductionFlowPage() {
     setOrderCode("");
     setOrder(null);
     setRfidCredential("");
-    setEmployees([]);
+    setTable(null);
+    pendingCorrelations.current.clear();
     setError(null);
     setNotice("");
   }
@@ -245,14 +318,28 @@ export function ProductionFlowPage() {
                 <small id="rfid-privacy">El valor de la tarjeta no aparece en pantalla ni se conserva.</small>
               </form>
 
+              <div
+                className={`production-status${table ? " active" : ""}`}
+                role="status"
+                aria-live="polite"
+              >
+                <div className="production-state">
+                  <span className="production-pulse" aria-hidden="true" />
+                  <div><small>Estado de mesa</small><strong>{table ? "PRODUCIENDO" : "ESPERANDO PRIMER OPERARIO"}</strong></div>
+                </div>
+                <div className="production-metric"><small>Tiempo productivo total</small><strong>{formatDuration(productiveSeconds)}</strong></div>
+                <div className="production-metric"><small>Capacidad actual</small><strong>{table ? `${table.activeResources} pers. · ${formatCapacity(table.currentTheoreticalCapacityPerHour)} u/h` : "0 pers."}</strong></div>
+                <div className="production-metric"><small>Paletizado</small><strong>{table ? `${table.palletFormatCode} · ${table.unitsPerPallet} uds.` : "Pendiente"}</strong></div>
+              </div>
+
               <div className="employee-list" aria-live="polite">
-                {employees.length === 0 ? (
+                {!table || table.operators.length === 0 ? (
                   <div className="empty-team">Todavía no hay personas identificadas.</div>
                 ) : (
-                  employees.map((employee) => (
+                  table.operators.map((employee) => (
                     <div className="employee-chip" key={employee.employeeId}>
                       <span aria-hidden="true">✓</span>
-                      <div><strong>{employee.fullName}</strong><small>{employee.navEmployeeCode}</small></div>
+                      <div><strong>{employee.fullName}</strong><small>{employee.navEmployeeCode} · {employee.status === "EN_PAUSA" ? "En pausa" : formatDuration(employee.productiveSeconds + elapsedSinceSnapshot)}</small></div>
                     </div>
                   ))
                 )}
@@ -261,7 +348,7 @@ export function ProductionFlowPage() {
               <button
                 className="continue-action"
                 type="button"
-                disabled={employees.length === 0}
+                disabled={!table || table.activeResources === 0}
                 onClick={() => { setActiveStep(4); setError(null); setNotice("Equipo validado. Revisa los palés activos."); }}
               >
                 Continuar a palés <span aria-hidden="true">→</span>
@@ -301,7 +388,7 @@ export function ProductionFlowPage() {
           <div className="summary-title"><span className="environment-dot" /><div><strong>Operación actual</strong><small>Actualización en tiempo real</small></div></div>
           <SummaryRow label="Línea" value={line?.code ?? "Pendiente"} complete={Boolean(line)} />
           <SummaryRow label="Orden" value={order?.orderNumber ?? "Pendiente"} complete={Boolean(order)} />
-          <SummaryRow label="Operarios" value={employees.length ? `${employees.length} identificados` : "Pendiente"} complete={employees.length > 0} />
+          <SummaryRow label="Producción" value={table ? `${formatDuration(productiveSeconds)} · ${table.activeResources} pers.` : "Pendiente"} complete={Boolean(table)} />
           <SummaryRow label="Palés" value={activeStep > 4 ? "Revisados" : "Pendiente"} complete={activeStep > 4} />
           <SummaryRow label="NAV / salida" value="Pendiente" complete={false} />
           <div className="summary-order">
@@ -353,6 +440,30 @@ function ScanStage(props: ScanStageProps) {
       </form>
     </section>
   );
+}
+
+function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const remainder = seconds % 60;
+  return [hours, minutes, remainder].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function formatCapacity(value: number): string {
+  return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(value);
+}
+
+function createCorrelationId(): string {
+  if (typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return [hex.slice(0, 8), hex.slice(8, 12), hex.slice(12, 16), hex.slice(16, 20), hex.slice(20)].join("-");
 }
 
 function SummaryRow({ label, value, complete }: { label: string; value: string; complete: boolean }) {

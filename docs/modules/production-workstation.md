@@ -20,12 +20,24 @@ El contrato confirmado es:
 9. cualquier operario activo puede cerrar un palet ordinario;
 10. el ultimo palet requiere autorizacion de supervisor.
 
-## Estado actual comprobado el 04/08/2026
+## Estado de implementacion preparado el 05/08/2026
 
-La interfaz identifica linea, orden y empleados, pero conserva linea, orden y
-equipo solo en el estado React del navegador. La identificacion RFID llama a
-`POST /api/operator-identification/rfid`; no abre una sesion ni registra una
-entrada productiva.
+La release activa identifica linea, orden y empleados, pero todavia conserva
+el equipo solo en el estado React del navegador. El corte preparado en el
+repositorio añade `POST /api/production-workstations/start-or-join`: despues
+de resolver el RFID, el navegador envia solo los identificadores internos de
+orden, linea y empleado con una correlacion nueva.
+
+El procedimiento versionado `prod.iniciar_o_incorporar_mesa` crea la sesion y
+el primer fichaje dentro de la misma transaccion, o incorpora el operario a la
+sesion activa de la misma orden y linea. Reutiliza
+`prod.registrar_entrada_productiva`, por lo que el primer recurso inicia el
+tramo de capacidad, cambia el estado a `PRODUCIENDO` y reserva el primer pale.
+El paquete 023A esta preparado, pero no se considera instalado ni activo hasta
+completar la fase SQL y la activacion expresamente autorizadas.
+El mismo paquete inicializa de forma idempotente el estado `LIBRE` de cualquier
+linea activa que aun no tenga fila en `prod.estados_linea`; no altera estados
+ya persistidos.
 
 Para la orden TEST `FL26-00002` se comprobo en lectura:
 
@@ -47,14 +59,14 @@ sesion y el primer fichaje quedan creados conjuntamente o que una repeticion
 con la misma correlacion completa de forma segura el estado pendiente. No se
 debe mostrar `PRODUCIENDO` hasta recibir confirmacion del servidor.
 
-El contrato actual `POST /api/line-sessions` exige siempre `supervisorId`, y
-`prod.abrir_sesion_linea` exige rol `SUPERVISOR`. Esto no coincide con la regla
-confirmada de inicio por el primer operario. El siguiente corte debe revisar
-ese contrato. La regla objetivo es:
+El contrato administrativo `POST /api/line-sessions` conserva la apertura por
+supervisor. La mesa usa un contrato distinto y limitado a operarios
+productivos ordinarios. La regla aplicada es:
 
 - dentro del horario permitido, el primer empleado productivo activo puede
   abrir e iniciar la mesa;
-- fuera de horario se mantiene una confirmacion explicita de supervisor;
+- fuera de 06:00-22:00 el inicio desde la mesa queda bloqueado; la excepcion
+  operativa sigue perteneciendo al flujo de supervisor existente;
 - el iniciador queda auditado con su rol efectivo;
 - el mismo RFID no puede crear dos fichajes ni dos sesiones por reintento.
 
@@ -106,9 +118,11 @@ operacion esta pendiente se bloquea el boton o lector correspondiente. Un
 error debe conservar linea, orden y mesa, mostrar un codigo funcional seguro y
 permitir reintentar sin duplicar datos.
 
-Se necesita un contrato de lectura de estado de mesa, porque las respuestas
-actuales de apertura y entrada solo devuelven identificadores. Esa lectura
-debe incluir tiempos derivados del servidor y no credenciales RFID.
+`GET /api/production-workstations/state?orderId=...&lineId=...` devuelve la
+sesion activa, reloj del servidor, segundos productivos, recursos efectivos,
+capacidad teorica, POK y operarios activos. Los cronometros avanzan localmente
+desde esa instantanea UTC; no generan escrituras periodicas. La respuesta no
+incluye credenciales RFID.
 
 ## Formato de palet desde NAV
 
@@ -153,10 +167,11 @@ una consulta tardia al abrir la linea. El corte propuesto es:
 4. crear o revisar `prod.formatos_palet_orden` durante la promocion;
 5. exponer el formato activo en la lectura de orden/mesa.
 
-Los puntos 1 a 4 estan implementados en codigo. El paquete versionado 022 esta
-instalado y validado en `EBIR_MES_TEST` desde el 05/08/2026, pero la release
-activa aun no contiene el lector. La lectura completa de mesa del punto 5 sigue
-pendiente.
+Los puntos 1 a 4 estan implementados. El paquete versionado 022 esta instalado
+y validado en `EBIR_MES_TEST`, y la release activa
+`20260805.0-cbfc35d-combined` contiene el lector y la promocion POK. El punto 5
+queda implementado por el corte de mesa y pendiente de instalar/activar junto
+con el paquete 023A.
 
 ## Paletizado y autorizacion
 
@@ -175,12 +190,11 @@ impresion ni Worker como consecuencia de este diseño.
 
 ## Cortes de implementacion recomendados
 
-1. preparar y validar una candidate con el lector POK, sin activarla;
-2. lectura backend del estado completo de mesa;
-3. inicio atomico de mesa con el primer RFID productivo;
-4. entradas, salidas y paros desde la misma pantalla;
-5. integrar palets, autorizacion de ultimo palet y recuperacion tras recarga.
-6. cronometros e indicadores derivados del estado servidor;
-7. paletizado ordinario y regla de ultimo palet con supervisor;
-8. pruebas de recarga, reintento, concurrencia y cambio de capacidad;
-9. candidate controlada, ensayo TEST y activacion con autorizaciones nuevas.
+1. validar e instalar 023A en `EBIR_MES_TEST` con autorizacion SQL nueva;
+2. probar inicio, repeticion idempotente e incorporacion con rollback;
+3. crear candidate y ensayar la API bajo `NetworkService` sin activar IIS;
+4. activar solo con autorizacion nueva y probar el primer RFID en TEST;
+5. incorporar salidas y paros a la misma pantalla;
+6. integrar palets y autorizacion de ultimo palet;
+7. completar recuperacion de contexto tras recargar el navegador;
+8. probar concurrencia y todos los cambios de capacidad.
