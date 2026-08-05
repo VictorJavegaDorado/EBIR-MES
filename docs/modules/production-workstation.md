@@ -153,9 +153,9 @@ una consulta tardia al abrir la linea. El corte propuesto es:
 4. crear o revisar `prod.formatos_palet_orden` durante la promocion;
 5. exponer el formato activo en la lectura de orden/mesa.
 
-Los puntos 1 a 4 estan implementados en codigo y en el paquete versionado 022.
-El paquete sigue sin instalar y requiere autorizacion independiente antes de
-escribir una nueva fase TEST. La lectura completa de mesa del punto 5 sigue
+Los puntos 1 a 4 estan implementados en codigo. El paquete versionado 022 esta
+instalado y validado en `EBIR_MES_TEST` desde el 05/08/2026, pero la release
+activa aun no contiene el lector. La lectura completa de mesa del punto 5 sigue
 pendiente.
 
 ## Paletizado y autorizacion
@@ -175,7 +175,7 @@ impresion ni Worker como consecuencia de este diseño.
 
 ## Cortes de implementacion recomendados
 
-1. instalar y validar el paquete SQL 022 bajo autorizacion expresa;
+1. preparar y validar una candidate con el lector POK, sin activarla;
 2. lectura backend del estado completo de mesa;
 3. inicio atomico de mesa con el primer RFID productivo;
 4. entradas, salidas y paros desde la misma pantalla;

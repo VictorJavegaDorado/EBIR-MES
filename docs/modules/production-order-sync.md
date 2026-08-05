@@ -35,8 +35,8 @@ exige exactamente una linea por orden.
 El contrato del formato POK, sus validaciones y su uso por la mesa de
 produccion estan documentados en `production-workstation.md`. La lectura usa
 los campos `Item_No`, `Code` y `Qty_per_Unit_of_Measure`. El lector y el modelo
-de snapshot estan implementados; la persistencia queda preparada en el paquete
-022, todavia no instalado.
+de snapshot estan implementados y la persistencia del paquete 022 esta
+instalada en `EBIR_MES_TEST` desde el 05/08/2026.
 
 ## Bandeja de entrada idempotente
 
@@ -131,9 +131,9 @@ al terminar.
 
 ## Estado y limites pendientes de autorizacion
 
-- El paquete `022A_formato_palet_pok.sql` esta preparado pero no instalado; no
-  se debe sincronizar con este binario hasta instalarlo en una fase SQL
-  expresamente autorizada.
+- El paquete `022A_formato_palet_pok.sql` esta instalado y validado en
+  `EBIR_MES_TEST`. La release activa aun no contiene el lector POK; su despliegue
+  requiere una candidate y autorizacion de activacion independientes.
 
 - El paquete `015A_bandeja_entrada_ordenes_nav.sql` esta instalado y validado en
   `EBIR_MES_TEST`.

@@ -12,7 +12,21 @@ la orden productiva.
 - El script solo puede ejecutarse en `EBIR_MES_TEST` y requiere autorizacion
   expresa de escritura SQL.
 
-Validacion sin instalar:
+## Estado de instalacion
+
+Instalado y validado el 05/08/2026 exclusivamente en `EBIR_MES_TEST`:
+
+- ensayo completo dentro de una transaccion exterior y rollback verificado;
+- backup `COPY_ONLY` con checksum y `RESTORE VERIFYONLY` correcto:
+  `D:\BBDD\EBIR_MES_TEST_pre022_20260805_104355_360e0ac3.bak`;
+- instalacion definitiva con tabla, procedimientos y permisos comprobados;
+- bandeja POK inicial vacia;
+- `DBCC CHECKDB` sin errores.
+
+La instalacion no activa ninguna release. La API que consume el nuevo
+procedimiento debe desplegarse en una fase posterior autorizada.
+
+Validacion estatica sin ejecutar SQL:
 
 ```powershell
 pwsh tests/database/production_order_pallet_format/verify-022-static.ps1
