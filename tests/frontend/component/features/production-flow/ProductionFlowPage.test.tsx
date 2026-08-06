@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProductionFlowPage } from "../../../../../src/frontend/src/features/production-flow/ui/ProductionFlowPage";
@@ -145,6 +145,33 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
     expect(screen.getByText("Operario piloto")).toBeInTheDocument();
     expect(screen.getByText(/Actualización automática cada 10 s/i)).toBeInTheDocument();
+  });
+
+  it("advances visible times every second when the server clock is ahead", async () => {
+    let monotonicTime = 1_000;
+    vi.spyOn(performance, "now").mockImplementation(() => monotonicTime);
+    const futureServerTable = {
+      ...tableState,
+      serverTimeUtc: new Date(Date.now() + 60_000).toISOString(),
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(futureServerTable), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+
+    expect(await screen.findByText("00:01:05")).toBeInTheDocument();
+    monotonicTime += 1_100;
+    await new Promise((resolve) => window.setTimeout(resolve, 1_100));
+
+    await waitFor(() => {
+      expect(screen.getByText("00:01:06")).toBeInTheDocument();
+      expect(screen.getByText(/EMP-7.*00:01:06/)).toBeInTheDocument();
+    });
   });
 
   it("starts a new order without asking for the line again", async () => {

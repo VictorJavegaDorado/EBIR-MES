@@ -41,7 +41,8 @@ export function ProductionFlowPage() {
   const [order, setOrder] = useState<ProductionOrder | null>(null);
   const [rfidCredential, setRfidCredential] = useState("");
   const [table, setTable] = useState<ProductionTableState | null>(null);
-  const [clock, setClock] = useState(() => Date.now());
+  const [snapshotReceivedAt, setSnapshotReceivedAt] = useState(() => performance.now());
+  const [clock, setClock] = useState(() => performance.now());
   const [busy, setBusy] = useState(false);
   const [operatorAction, setOperatorAction] = useState<string | null>(null);
   const [palletOperator, setPalletOperator] = useState<
@@ -56,13 +57,20 @@ export function ProductionFlowPage() {
   const refreshRequest = useRef<AbortController | null>(null);
   const pendingCorrelations = useRef(new Map<string, string>());
 
+  function acceptTableSnapshot(snapshot: ProductionTableState) {
+    const receivedAt = performance.now();
+    setTable(snapshot);
+    setSnapshotReceivedAt(receivedAt);
+    setClock(receivedAt);
+  }
+
   useEffect(() => () => {
     request.current?.abort();
     refreshRequest.current?.abort();
   }, []);
   useEffect(() => {
     if (!table || table.state !== "PRODUCIENDO" || table.activeResources === 0) return;
-    const interval = window.setInterval(() => setClock(Date.now()), 1_000);
+    const interval = window.setInterval(() => setClock(performance.now()), 1_000);
     return () => window.clearInterval(interval);
   }, [table]);
 
@@ -80,8 +88,7 @@ export function ProductionFlowPage() {
           controller.signal,
         );
         if (currentTable) {
-          setTable(currentTable);
-          setClock(Date.now());
+          acceptTableSnapshot(currentTable);
         }
       } catch {
         // Keep the last confirmed snapshot visible. The next refresh retries safely.
@@ -158,7 +165,7 @@ export function ProductionFlowPage() {
   }, [palletOperator]);
 
   const elapsedSinceSnapshot = table
-    ? Math.max(0, Math.floor((clock - Date.parse(table.serverTimeUtc)) / 1_000))
+    ? Math.max(0, Math.floor((clock - snapshotReceivedAt) / 1_000))
     : 0;
   const productiveSeconds = table
     ? table.productiveSeconds
@@ -242,8 +249,7 @@ export function ProductionFlowPage() {
         controller.signal,
       );
       if (currentTable) {
-        setTable(currentTable);
-        setClock(Date.now());
+        acceptTableSnapshot(currentTable);
         setNotice(`Mesa de ${match.orderNumber} recuperada desde el servidor.`);
       }
     } catch (caught) {
@@ -296,9 +302,8 @@ export function ProductionFlowPage() {
         controller.signal,
       );
       if (!currentTable) throw new ProductionTableApiError("PRODUCTION_TABLE_NOT_ACTIVE");
-      setTable(currentTable);
+      acceptTableSnapshot(currentTable);
       pendingCorrelations.current.delete(operationKey);
-      setClock(Date.now());
       setNotice(
         currentTable.operators.length === 1
           ? `${employee.fullName} ha iniciado la producción.`
@@ -365,8 +370,7 @@ export function ProductionFlowPage() {
         order.productionOrderId, line.id, controller.signal,
       );
       if (!currentTable) throw new ProductionTableApiError("PRODUCTION_TABLE_NOT_ACTIVE");
-      setTable(currentTable);
-      setClock(Date.now());
+      acceptTableSnapshot(currentTable);
       pendingCorrelations.current.delete(operationKey);
       setNotice(operatorActionNotice(action));
     } catch (caught) {

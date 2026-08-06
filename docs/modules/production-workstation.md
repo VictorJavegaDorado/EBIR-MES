@@ -145,11 +145,19 @@ incluye credenciales RFID.
 
 La pantalla refresca esa instantanea cada 10 segundos para recoger cambios
 realizados desde otro terminal. Un fallo puntual conserva el ultimo estado
-confirmado y se reintenta en el siguiente ciclo. Solo avanzan localmente el
-tiempo total cuando el servidor confirma `PRODUCIENDO` con recursos activos y
-el tiempo individual de las personas cuyo estado es `PRODUCIENDO`; una persona
-`EN_PAUSA` mantiene su acumulado congelado. El estado visible nunca se sustituye
-por un `PRODUCIENDO` calculado o fijo en el navegador.
+confirmado y se reintenta en el siguiente ciclo. Entre instantaneas, la
+proyeccion visual avanza cada segundo desde un ancla monotona tomada por el
+navegador al recibir la respuesta. No resta la hora del terminal a la hora UTC
+del servidor, por lo que un desfase entre ambos relojes no produce saltos de 10
+segundos. La siguiente lectura reconcilia siempre el valor con el acumulado
+autoritativo del servidor.
+
+Solo avanza localmente el tiempo total cuando el servidor confirma
+`PRODUCIENDO` con recursos activos y el tiempo individual de las personas cuyo
+estado es `PRODUCIENDO`; una persona `EN_PAUSA` mantiene su acumulado congelado.
+El estado visible nunca se sustituye por un `PRODUCIENDO` calculado o fijo en
+el navegador. `serverTimeUtc` se conserva para mostrar la ultima confirmacion,
+pero no es la base del cronometro animado.
 
 Cada persona visible dispone de acciones tactiles de salida, pausa `WC`, pausa
 `PAUSA_CALOR` y reanudacion segun su estado. La pantalla usa los contratos de
