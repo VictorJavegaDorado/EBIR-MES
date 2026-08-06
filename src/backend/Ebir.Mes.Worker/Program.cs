@@ -1,5 +1,8 @@
 using Ebir.Mes.Application.Printing;
+using Ebir.Mes.Application.NavisionOutput;
+using Ebir.Mes.Infrastructure.NavisionOutput;
 using Ebir.Mes.Infrastructure.Printing;
+using Ebir.Mes.Integrations.NavisionOutput;
 using Ebir.Mes.Integrations.Printing;
 using Ebir.Mes.Worker;
 using Microsoft.Extensions.Configuration;
@@ -7,6 +10,40 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+var navisionOutputEnabled =
+    builder.Configuration.GetValue<bool>("NavisionOutput:Enabled");
+if (navisionOutputEnabled)
+{
+    var endpointValue = builder.Configuration["NavisionOutput:ServiceEndpoint"];
+    if (!Uri.TryCreate(endpointValue, UriKind.Absolute, out var endpoint))
+        throw new InvalidOperationException(
+            "NavisionOutput:ServiceEndpoint is required when NAV output is enabled.");
+
+    var requestTimeout = TimeSpan.FromSeconds(
+        Math.Clamp(
+            builder.Configuration.GetValue("NavisionOutput:RequestTimeoutSeconds", 10),
+            1,
+            30));
+    var options = new NavisionPalletOutputOptions(endpoint, requestTimeout);
+    const string clientName = "NavisionPalletOutput";
+    builder.Services.AddHttpClient(clientName)
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            UseDefaultCredentials = true,
+            PreAuthenticate = true,
+            AllowAutoRedirect = false
+        });
+    builder.Services.AddSingleton<INavisionPalletOutputQueue>(_ =>
+        new SqlNavisionPalletOutputQueue(
+            builder.Configuration.GetConnectionString("MesDatabase")));
+    builder.Services.AddSingleton<INavisionPalletOutputSender>(services =>
+        new NavisionODataV4PalletOutputSender(
+            services.GetRequiredService<IHttpClientFactory>().CreateClient(clientName),
+            options));
+    builder.Services.AddSingleton<ProcessNextNavisionPalletOutput>();
+    builder.Services.AddHostedService<NavisionPalletOutputWorker>();
+}
 
 var printingEnabled = builder.Configuration.GetValue<bool>("Printing:Enabled");
 if (printingEnabled)

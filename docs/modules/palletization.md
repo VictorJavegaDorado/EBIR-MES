@@ -113,6 +113,11 @@ El resultado visible confirma el pale y muestra NAV como pendiente de segundo
 plano. No existe un paso NAV manual y la interfaz no declara una confirmacion
 externa que el backend no haya recibido.
 
+La entrega asíncrona de esa intención se define en `nav-pallet-output.md`. El
+paquete 026A, el Worker y el adaptador ODataV4 están preparados, pero el paquete
+no está instalado y el Worker permanece desactivado. El cierre local no
+equivale todavía a una salida confirmada.
+
 Para la orden de ensayo `FL26-00003`, objetivo 100 y formato POK de 20
 unidades, los palets 1 a 4 son cierres ordinarios realizables por cualquier
 operario activo en la mesa. El quinto completa el objetivo y exige un
