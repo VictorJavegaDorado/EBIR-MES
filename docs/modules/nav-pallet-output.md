@@ -20,10 +20,10 @@ líneas es explícita: en el piloto `LINEA-TEST-01` se mapea a `L01`. Los nombre
 futuros de producción se configurarán de forma expresa; no se deducen por
 formato ni por similitud.
 
-Una confirmación exige un identificador externo. Solo entonces el procedimiento
-existente `nav.confirmar_salida_palet` marca la operación como confirmada,
-habilita la etiqueta y crea su trabajo de impresión. Un timeout posterior al
-envío nunca repite el codeunit a ciegas.
+Una confirmación exige un identificador externo y el bulto NAV cerrado. Solo
+entonces el procedimiento existente `nav.confirmar_salida_palet` marca la
+operación como confirmada, habilita la etiqueta y crea su trabajo de impresión.
+Un timeout posterior al envío nunca repite el codeunit a ciegas.
 
 ## Contrato externo de escritura
 
@@ -31,12 +31,25 @@ La escritura correcta de TEST es el codeunit:
 
 `http://Navision.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta`
 
-Se realiza un único `POST` SOAP 1.1 a `RegistrarSalidaFabricacion`, con su
-`SOAPAction` exacto y ocho parámetros en el orden del WSDL: orden, producto,
-lote, cantidad, `Bin_Code`, unidad de medida base, código NAV del operario y
-línea de montaje NAV. Todos proceden de MES o de lecturas NAV exactas; el
-navegador no los aporta. Si NAV no informa `Bin_Code`, se envía vacío. Nunca se
-sustituye por `Location_Code`, porque representan conceptos distintos.
+El cierre completo usa tres operaciones SOAP 1.1 del mismo codeunit:
+
+- `IsOpenPallet`, de solo lectura, consulta el bulto exacto por orden y línea;
+- `OpenClosePallet` cambia una sola vez entre abierto y cerrado, con orden,
+  operario, producto, cantidad parcial cero y línea de montaje;
+- `RegistrarSalidaFabricacion` registra la salida con los ocho parámetros del
+  WSDL: orden, producto, lote, cantidad, `Bin_Code`, unidad de medida base,
+  código NAV del operario y línea de montaje NAV.
+
+Todos los valores proceden de MES o de lecturas NAV exactas; el navegador no
+los aporta. Si NAV no informa `Bin_Code`, se envía vacío. Nunca se sustituye
+por `Location_Code`, porque representan conceptos distintos.
+
+Antes de registrar, MES exige observar el bulto abierto. Si estaba cerrado,
+ejecuta un solo `OpenClosePallet` y vuelve a consultar `IsOpenPallet`; no repite
+el cambio ante una respuesta incierta. Después del intento de salida comprueba
+y cierra el bulto con la misma regla. Una salida observada conserva su
+identificador aunque el cierre del bulto quede incierto, para que una ejecución
+posterior reconcilie y cierre sin repetir `RegistrarSalidaFabricacion`.
 
 Antes de escribir, el adaptador consulta ODataV4 en lectura:
 
@@ -50,11 +63,12 @@ transitorias pueden reintentarse antes de escribir. El codeunit no se repite
 después de una respuesta incierta.
 
 La confirmación local exige que la llamada devuelva `true` o que, ante una
-incertidumbre de transporte, la reconciliación lo demuestre, y que OData
-publique exactamente una fila nueva `Registrado`, posterior al mayor `Id`
-observado, con orden, producto y cantidad exactos. Cero filas, más de una fila,
-truncamiento o fallo de lectura producen `RESULTADO_DESCONOCIDO` y mantienen
-bloqueadas etiqueta e impresión. Un `false` del codeunit es error definitivo.
+incertidumbre de transporte, la reconciliación lo demuestre, que OData publique
+exactamente una fila nueva `Registrado`, posterior al mayor `Id` observado,
+con orden, producto y cantidad exactos, y que `IsOpenPallet` confirme el bulto
+cerrado. Cero filas, más de una fila, bulto con estado incierto, truncamiento o
+fallo de lectura producen `RESULTADO_DESCONOCIDO` y mantienen bloqueadas
+etiqueta e impresión. Un `false` del codeunit es error definitivo.
 
 No se registran cuerpos completos, credenciales, identificadores RFID ni datos
 personales. La configuración debe restringir el host a NAV TEST y permanecer
@@ -124,3 +138,19 @@ confirmación externa.
 
 Para una orden de 100 unidades con POK 20, el resultado esperado son cinco
 palets MES y cinco filas NAV independientes en estado final `Registrado`.
+
+## Segundo palet y recuperación supervisada
+
+El primer intento de la operación 32, palet 22 de `FL26-00003`, envió
+`RegistrarSalidaFabricacion` sin gestionar antes el bulto NAV. `EbirTest`
+respondió HTTP 500 con el error funcional de que no existía ningún bulto
+abierto. Tres lecturas OData posteriores demostraron que no se creó una nueva
+salida: la orden conservó solo la fila registrada del primer palet. MES dejó
+la operación en `RESULTADO_DESCONOCIDO`, intento 1, sin identificador externo;
+la mesa continuó `PRODUCIENDO` y la etiqueta siguió `PENDIENTE_NAV`.
+
+El paquete 029A prepara una única reencolación supervisada de esa operación.
+Comprueba operación 32, palet 22, cantidad 20, ausencia de identificador y
+reserva, HTTP 500, adaptador, resultado, motivo y mayor identificador previo.
+Conserva el intento original y registra auditoría. El paquete no contacta NAV
+ni autoriza el siguiente envío; instalación y ensayo real son fases separadas.

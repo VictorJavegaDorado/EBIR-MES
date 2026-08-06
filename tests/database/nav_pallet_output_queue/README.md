@@ -1,4 +1,4 @@
-# Validación de los paquetes 026, 027A y 028A
+# Validación de los paquetes 026, 027A, 028A y 029A
 
 `verify-026-static.ps1` comprueba sin conectarse a SQL que el paquete está
 restringido a `EBIR_MES_TEST`, es transaccional, procesa solo `SALIDA_PALET`,
@@ -20,3 +20,8 @@ operaciones, no crea fixtures y no contacta NAV.
 externo, el reintento de lectura sin nuevo envío, la continuidad de los palets
 no finales y la barrera contra un segundo cierre mientras la salida anterior
 no esté confirmada.
+
+`verify-029-static.ps1` limita la recuperación a la operación 32 y exige la
+evidencia exacta del HTTP 500 sin identificador externo, el palé 22 de 20
+unidades, transacción, conservación del intento y auditoría. El paquete no
+contacta NAV ni autoriza por sí mismo el siguiente envío.

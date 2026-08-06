@@ -359,7 +359,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
-    public async Task SendAsync_reconciles_existing_identifier_without_post_or_line_mapping()
+    public async Task SendAsync_reconciles_existing_identifier_without_output_post()
     {
         var requests = new List<CapturedRequest>();
         var handler = new StubHandler(async (request, cancellationToken) =>
@@ -369,9 +369,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
         });
         var job = Job with { ExternalIdentifier = "321" };
 
-        var result = await CreateSender(
-                handler,
-                new Dictionary<string, string>())
+        var result = await CreateSender(handler)
             .SendAsync(job, CancellationToken.None);
 
         Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
@@ -399,6 +397,211 @@ public sealed class NavisionSoapPalletOutputSenderTests
         Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
         Assert.Equal("321", result.ExternalIdentifier);
         Assert.Contains("OutputStillPending", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_opens_registers_and_closes_nav_pallet_in_order()
+    {
+        var actions = new List<string>();
+        var captured = new List<CapturedRequest>();
+        var isOpen = false;
+        var outputReads = 0;
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                    return Json(Order());
+                if (IsEntity(request, "WS_CPP_Producto"))
+                    return Json(Product());
+                outputReads++;
+                return outputReads == 1 ? Json() : Json(Output(321, 20));
+            }
+
+            var call = await CaptureAsync(request, cancellationToken);
+            captured.Add(call);
+            var action = SoapOperation(request);
+            actions.Add(action);
+            if (action == "IsOpenPallet")
+                return SoapBooleanResult("IsOpenPallet", isOpen);
+            if (action == "OpenClosePallet")
+            {
+                isOpen = !isOpen;
+                return SoapVoidResult("OpenClosePallet");
+            }
+            return SoapResult(true);
+        });
+
+        var result = await CreateSender(
+                handler,
+                emulatePalletLifecycle: false)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.False(isOpen);
+        Assert.Equal(
+            new[]
+            {
+                "IsOpenPallet", "OpenClosePallet", "IsOpenPallet",
+                "RegistrarSalidaFabricacion",
+                "IsOpenPallet", "OpenClosePallet", "IsOpenPallet"
+            },
+            actions);
+
+        XNamespace codeunit = CodeunitNamespace;
+        var toggle = XDocument.Parse(
+                captured.First(request =>
+                    request.SoapAction!.EndsWith(":OpenClosePallet", StringComparison.Ordinal))
+                    .Body!)
+            .Descendants(codeunit + "OpenClosePallet")
+            .Single();
+        Assert.Equal("FL-TEST", toggle.Element(codeunit + "productionOrderNo")!.Value);
+        Assert.Equal("EMP-TEST", toggle.Element(codeunit + "userBC")!.Value);
+        Assert.Equal("ITEM-TEST", toggle.Element(codeunit + "itemNo")!.Value);
+        Assert.Equal("0", toggle.Element(codeunit + "partialQuantity")!.Value);
+        Assert.Equal("L01", toggle.Element(codeunit + "assemblyLine")!.Value);
+    }
+
+    [Fact]
+    public async Task SendAsync_does_not_repeat_uncertain_open_toggle_when_state_is_observed()
+    {
+        var isOpen = false;
+        var toggles = 0;
+        var registrarPosts = 0;
+        var outputReads = 0;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                    return Task.FromResult(Json(Order()));
+                if (IsEntity(request, "WS_CPP_Producto"))
+                    return Task.FromResult(Json(Product()));
+                outputReads++;
+                return Task.FromResult(
+                    outputReads == 1 ? Json() : Json(Output(321, 20)));
+            }
+
+            return SoapOperation(request) switch
+            {
+                "IsOpenPallet" => Task.FromResult(
+                    SoapBooleanResult("IsOpenPallet", isOpen)),
+                "OpenClosePallet" => Toggle(),
+                _ => Register()
+            };
+
+            Task<HttpResponseMessage> Toggle()
+            {
+                toggles++;
+                isOpen = !isOpen;
+                return Task.FromResult(toggles == 1
+                    ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
+                    : SoapVoidResult("OpenClosePallet"));
+            }
+
+            Task<HttpResponseMessage> Register()
+            {
+                registrarPosts++;
+                return Task.FromResult(SoapResult(true));
+            }
+        });
+
+        var result = await CreateSender(
+                handler,
+                emulatePalletLifecycle: false)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal(2, toggles);
+        Assert.Equal(1, registrarPosts);
+        Assert.False(isOpen);
+    }
+
+    [Fact]
+    public async Task SendAsync_blocks_output_when_open_state_is_not_observed()
+    {
+        var toggles = 0;
+        var registrarPosts = 0;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                    return Task.FromResult(Json(Order()));
+                if (IsEntity(request, "WS_CPP_Producto"))
+                    return Task.FromResult(Json(Product()));
+                return Task.FromResult(Json());
+            }
+
+            if (SoapOperation(request) == "IsOpenPallet")
+                return Task.FromResult(SoapBooleanResult("IsOpenPallet", false));
+            if (SoapOperation(request) == "OpenClosePallet")
+            {
+                toggles++;
+                return Task.FromResult(SoapVoidResult("OpenClosePallet"));
+            }
+            registrarPosts++;
+            return Task.FromResult(SoapResult(true));
+        });
+
+        var result = await CreateSender(
+                handler,
+                emulatePalletLifecycle: false)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Contains("PalletOpenNotObserved", result.TechnicalDataJson);
+        Assert.Equal(1, toggles);
+        Assert.Equal(0, registrarPosts);
+    }
+
+    [Fact]
+    public async Task SendAsync_preserves_output_id_when_close_state_is_not_observed()
+    {
+        var isOpen = false;
+        var toggles = 0;
+        var registrarPosts = 0;
+        var outputReads = 0;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Get)
+            {
+                if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                    return Task.FromResult(Json(Order()));
+                if (IsEntity(request, "WS_CPP_Producto"))
+                    return Task.FromResult(Json(Product()));
+                outputReads++;
+                return Task.FromResult(
+                    outputReads == 1 ? Json() : Json(Output(321, 20)));
+            }
+
+            var operation = SoapOperation(request);
+            if (operation == "IsOpenPallet")
+                return Task.FromResult(SoapBooleanResult("IsOpenPallet", isOpen));
+            if (operation == "OpenClosePallet")
+            {
+                toggles++;
+                if (toggles == 1)
+                    isOpen = true;
+                return Task.FromResult(SoapVoidResult("OpenClosePallet"));
+            }
+
+            registrarPosts++;
+            return Task.FromResult(SoapResult(true));
+        });
+
+        var result = await CreateSender(
+                handler,
+                emulatePalletLifecycle: false)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Contains("PalletCloseNotObserved", result.TechnicalDataJson);
+        Assert.Equal(2, toggles);
+        Assert.Equal(1, registrarPosts);
+        Assert.True(isOpen);
     }
 
     [Fact]
@@ -444,9 +647,13 @@ public sealed class NavisionSoapPalletOutputSenderTests
 
     private static NavisionSoapPalletOutputSender CreateSender(
         HttpMessageHandler handler,
-        IReadOnlyDictionary<string, string>? mappings = null) =>
+        IReadOnlyDictionary<string, string>? mappings = null,
+        bool emulatePalletLifecycle = true) =>
         new(
-            new HttpClient(handler),
+            new HttpClient(
+                emulatePalletLifecycle
+                    ? new PalletLifecycleHandler(handler)
+                    : handler),
             new NavisionPalletOutputOptions(
                 Endpoint,
                 TimeSpan.FromSeconds(10),
@@ -512,21 +719,47 @@ public sealed class NavisionSoapPalletOutputSenderTests
     };
 
     private static HttpResponseMessage SoapResult(bool value) =>
+        SoapBooleanResult("RegistrarSalidaFabricacion", value);
+
+    private static HttpResponseMessage SoapBooleanResult(
+        string operation,
+        bool value) =>
         new(HttpStatusCode.OK)
         {
             Content = new StringContent(
                 $$"""
                 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
                   <s:Body>
-                    <RegistrarSalidaFabricacion_Result xmlns="{{CodeunitNamespace}}">
+                    <{{operation}}_Result xmlns="{{CodeunitNamespace}}">
                       <return_value>{{value.ToString().ToLowerInvariant()}}</return_value>
-                    </RegistrarSalidaFabricacion_Result>
+                    </{{operation}}_Result>
                   </s:Body>
                 </s:Envelope>
                 """,
                 Encoding.UTF8,
                 "text/xml")
         };
+
+    private static HttpResponseMessage SoapVoidResult(string operation) =>
+        new(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                $$"""
+                <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
+                  <s:Body>
+                    <{{operation}}_Result xmlns="{{CodeunitNamespace}}" />
+                  </s:Body>
+                </s:Envelope>
+                """,
+                Encoding.UTF8,
+                "text/xml")
+        };
+
+    private static string SoapOperation(HttpRequestMessage request) =>
+        request.Headers.GetValues("SOAPAction")
+            .Single()
+            .Split(':')
+            .Last();
 
     private static readonly IReadOnlyDictionary<string, string> LineMappings =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -564,5 +797,34 @@ public sealed class NavisionSoapPalletOutputSenderTests
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
+
+    private sealed class PalletLifecycleHandler(HttpMessageHandler innerHandler)
+        : DelegatingHandler(innerHandler)
+    {
+        private bool isOpen;
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            if (request.Method == HttpMethod.Post
+                && request.Headers.Contains("SOAPAction"))
+            {
+                var operation = SoapOperation(request);
+                if (operation == "IsOpenPallet")
+                {
+                    return Task.FromResult(
+                        SoapBooleanResult("IsOpenPallet", isOpen));
+                }
+                if (operation == "OpenClosePallet")
+                {
+                    isOpen = !isOpen;
+                    return Task.FromResult(SoapVoidResult("OpenClosePallet"));
+                }
+            }
+
+            return base.SendAsync(request, cancellationToken);
+        }
     }
 }

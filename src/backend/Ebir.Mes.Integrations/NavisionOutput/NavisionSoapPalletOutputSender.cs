@@ -25,12 +25,15 @@ public sealed class NavisionSoapPalletOutputSender(
         CancellationToken cancellationToken)
     {
         var reconciliationOnly = !string.IsNullOrWhiteSpace(job.ExternalIdentifier);
-        var validation = ValidateJob(job, !reconciliationOnly, out var assemblyLine);
+        var validation = ValidateJob(job, true, out var assemblyLine);
         if (validation is not null)
             return validation;
 
         if (reconciliationOnly)
-            return await ReconcileExistingAsync(job, cancellationToken);
+            return await ReconcileExistingAsync(
+                job,
+                assemblyLine!,
+                cancellationToken);
 
         OrderRecord order;
         ProductRecord product;
@@ -70,6 +73,20 @@ public sealed class NavisionSoapPalletOutputSender(
         }
 
         var baselineMaximumId = baseline.Count == 0 ? 0 : baseline.Max(row => row.Id);
+        var openPallet = await EnsurePalletStateAsync(
+            job,
+            assemblyLine!,
+            expectedOpen: true,
+            cancellationToken);
+        if (!openPallet.Succeeded)
+        {
+            return Receipt(
+                openPallet.Outcome,
+                openPallet.HttpStatusCode,
+                openPallet.Reason,
+                baselineMaximumId: baselineMaximumId);
+        }
+
         var attempt = await SendCodeunitAsync(
             job,
             order.BinCode,
@@ -79,17 +96,28 @@ public sealed class NavisionSoapPalletOutputSender(
 
         if (attempt.IsDefinitiveRejection)
         {
-            return Receipt(
-                NavisionPalletOutputDeliveryOutcome.PermanentFailure,
-                attempt.HttpStatusCode,
-                attempt.Reason,
-                baselineMaximumId: baselineMaximumId);
+            return await ClosePalletAsync(
+                job,
+                assemblyLine!,
+                Receipt(
+                    NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                    attempt.HttpStatusCode,
+                    attempt.Reason,
+                    baselineMaximumId: baselineMaximumId),
+                baselineMaximumId,
+                cancellationToken);
         }
 
-        return await ReconcileAsync(
+        var outputReceipt = await ReconcileAsync(
             job,
             baselineMaximumId,
             attempt,
+            cancellationToken);
+        return await ClosePalletAsync(
+            job,
+            assemblyLine!,
+            outputReceipt,
+            baselineMaximumId,
             cancellationToken);
     }
 
@@ -195,6 +223,7 @@ public sealed class NavisionSoapPalletOutputSender(
 
     private async Task<NavisionPalletOutputReceipt> ReconcileExistingAsync(
         NavisionPalletOutputJob job,
+        string assemblyLine,
         CancellationToken cancellationToken)
     {
         if (!int.TryParse(
@@ -253,7 +282,10 @@ public sealed class NavisionSoapPalletOutputSender(
                     job.ExternalIdentifier);
             }
 
-            return string.Equals(output.State, "Registrado", StringComparison.Ordinal)
+            var outputReceipt = string.Equals(
+                    output.State,
+                    "Registrado",
+                    StringComparison.Ordinal)
                 ? Receipt(
                     NavisionPalletOutputDeliveryOutcome.Confirmed,
                     null,
@@ -266,6 +298,12 @@ public sealed class NavisionSoapPalletOutputSender(
                         ? "OutputStillPending"
                         : "OutputStateNotRegistered",
                     job.ExternalIdentifier);
+            return await ClosePalletAsync(
+                job,
+                assemblyLine,
+                outputReceipt,
+                baselineMaximumId: null,
+                cancellationToken);
         }
         catch (NavisionReadException exception)
         {
@@ -274,6 +312,216 @@ public sealed class NavisionSoapPalletOutputSender(
                 exception.HttpStatusCode,
                 exception.Reason,
                 job.ExternalIdentifier);
+        }
+    }
+
+    private async Task<NavisionPalletOutputReceipt> ClosePalletAsync(
+        NavisionPalletOutputJob job,
+        string assemblyLine,
+        NavisionPalletOutputReceipt outputReceipt,
+        int? baselineMaximumId,
+        CancellationToken cancellationToken)
+    {
+        var closePallet = await EnsurePalletStateAsync(
+            job,
+            assemblyLine,
+            expectedOpen: false,
+            cancellationToken);
+        if (closePallet.Succeeded)
+            return outputReceipt;
+
+        return Receipt(
+            NavisionPalletOutputDeliveryOutcome.UnknownResult,
+            closePallet.HttpStatusCode ?? outputReceipt.HttpStatusCode,
+            closePallet.Reason,
+            outputReceipt.ExternalIdentifier,
+            baselineMaximumId);
+    }
+
+    private async Task<PalletStateTransition> EnsurePalletStateAsync(
+        NavisionPalletOutputJob job,
+        string assemblyLine,
+        bool expectedOpen,
+        CancellationToken cancellationToken)
+    {
+        bool isOpen;
+        try
+        {
+            isOpen = await ReadPalletOpenAsync(
+                job.OrderNumber,
+                assemblyLine,
+                cancellationToken);
+        }
+        catch (NavisionReadException exception)
+        {
+            return new(
+                false,
+                exception.IsTransient
+                    ? NavisionPalletOutputDeliveryOutcome.RetryableFailure
+                    : NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                exception.HttpStatusCode,
+                exception.Reason);
+        }
+
+        if (isOpen == expectedOpen)
+            return PalletStateTransition.Success;
+
+        var toggle = await SendPalletToggleAsync(
+            job,
+            assemblyLine,
+            cancellationToken);
+        try
+        {
+            isOpen = await ReadPalletOpenAsync(
+                job.OrderNumber,
+                assemblyLine,
+                cancellationToken);
+        }
+        catch (NavisionReadException exception)
+        {
+            return new(
+                false,
+                toggle.IsDefinitiveRejection
+                    ? NavisionPalletOutputDeliveryOutcome.PermanentFailure
+                    : NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                toggle.HttpStatusCode ?? exception.HttpStatusCode,
+                expectedOpen
+                    ? "PalletOpenStateUnavailable"
+                    : "PalletCloseStateUnavailable");
+        }
+
+        if (isOpen == expectedOpen)
+            return PalletStateTransition.Success;
+
+        return new(
+            false,
+            toggle.IsDefinitiveRejection
+                ? NavisionPalletOutputDeliveryOutcome.PermanentFailure
+                : NavisionPalletOutputDeliveryOutcome.UnknownResult,
+            toggle.HttpStatusCode,
+            expectedOpen ? "PalletOpenNotObserved" : "PalletCloseNotObserved");
+    }
+
+    private async Task<bool> ReadPalletOpenAsync(
+        string orderNumber,
+        string assemblyLine,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= MaximumReadAttempts; attempt++)
+        {
+            using var request = CreateIsOpenPalletRequest(orderNumber, assemblyLine);
+            using var timeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(options.RequestTimeout);
+            try
+            {
+                using var response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    timeout.Token);
+                var status = (int)response.StatusCode;
+                if (!response.IsSuccessStatusCode)
+                {
+                    var transient = response.StatusCode is HttpStatusCode.RequestTimeout
+                        or HttpStatusCode.TooManyRequests
+                        || status >= 500;
+                    if (transient && attempt < MaximumReadAttempts)
+                        continue;
+                    throw new NavisionReadException(
+                        transient,
+                        status,
+                        "IsOpenPalletHttpFailure");
+                }
+
+                var result = await ReadBooleanCodeunitResultAsync(
+                    response,
+                    "IsOpenPallet_Result",
+                    timeout.Token);
+                if (result is not null)
+                    return result.Value;
+                throw new NavisionReadException(
+                    false,
+                    status,
+                    "InvalidIsOpenPalletResponse");
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException exception)
+            {
+                if (attempt == MaximumReadAttempts)
+                    throw new NavisionReadException(
+                        true,
+                        null,
+                        exception.GetType().Name);
+            }
+            catch (HttpRequestException exception)
+            {
+                if (attempt == MaximumReadAttempts)
+                {
+                    throw new NavisionReadException(
+                        true,
+                        exception.StatusCode is null
+                            ? null
+                            : (int)exception.StatusCode.Value,
+                        exception.GetType().Name);
+                }
+            }
+        }
+
+        throw new NavisionReadException(true, null, "IsOpenPalletUnavailable");
+    }
+
+    private async Task<SoapAttempt> SendPalletToggleAsync(
+        NavisionPalletOutputJob job,
+        string assemblyLine,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateOpenClosePalletRequest(job, assemblyLine);
+        using var timeout =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(options.RequestTimeout);
+        try
+        {
+            using var response = await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token);
+            var status = (int)response.StatusCode;
+            if (response.StatusCode is not HttpStatusCode.OK)
+            {
+                var uncertain = response.StatusCode is HttpStatusCode.RequestTimeout
+                    or HttpStatusCode.TooManyRequests
+                    || status >= 500;
+                return new SoapAttempt(
+                    status,
+                    uncertain ? "OpenClosePalletHttpUncertain" : "OpenClosePalletHttpRejected",
+                    !uncertain);
+            }
+
+            var valid = await ReadVoidCodeunitResultAsync(
+                response,
+                "OpenClosePallet_Result",
+                timeout.Token);
+            return valid
+                ? new SoapAttempt(status, null, false)
+                : new SoapAttempt(status, "InvalidOpenClosePalletResponse", false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            return new SoapAttempt(null, exception.GetType().Name, false);
+        }
+        catch (HttpRequestException exception)
+        {
+            return new SoapAttempt(
+                exception.StatusCode is null ? null : (int)exception.StatusCode.Value,
+                exception.GetType().Name,
+                false);
         }
     }
 
@@ -462,8 +710,71 @@ public sealed class NavisionSoapPalletOutputSender(
         return request;
     }
 
+    private HttpRequestMessage CreateIsOpenPalletRequest(
+        string orderNumber,
+        string assemblyLine)
+    {
+        XNamespace soap = SoapEnvelopeNamespace;
+        XNamespace codeunit = CodeunitNamespace;
+        var document = new XDocument(
+            new XElement(
+                soap + "Envelope",
+                new XElement(
+                    soap + "Body",
+                    new XElement(
+                        codeunit + "IsOpenPallet",
+                        new XElement(codeunit + "prodOrderNo", orderNumber),
+                        new XElement(codeunit + "assemblyLine", assemblyLine)))));
+        return CreateSoapRequest(document, "IsOpenPallet");
+    }
+
+    private HttpRequestMessage CreateOpenClosePalletRequest(
+        NavisionPalletOutputJob job,
+        string assemblyLine)
+    {
+        XNamespace soap = SoapEnvelopeNamespace;
+        XNamespace codeunit = CodeunitNamespace;
+        var document = new XDocument(
+            new XElement(
+                soap + "Envelope",
+                new XElement(
+                    soap + "Body",
+                    new XElement(
+                        codeunit + "OpenClosePallet",
+                        new XElement(codeunit + "productionOrderNo", job.OrderNumber),
+                        new XElement(codeunit + "userBC", job.EmployeeNumber),
+                        new XElement(codeunit + "itemNo", job.ProductNumber),
+                        new XElement(codeunit + "partialQuantity", "0"),
+                        new XElement(codeunit + "assemblyLine", assemblyLine)))));
+        return CreateSoapRequest(document, "OpenClosePallet");
+    }
+
+    private HttpRequestMessage CreateSoapRequest(XDocument document, string operation)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, options.ServiceEndpoint)
+        {
+            Content = new StringContent(
+                document.ToString(SaveOptions.DisableFormatting),
+                Encoding.UTF8,
+                "text/xml")
+        };
+        request.Headers.TryAddWithoutValidation(
+            "SOAPAction",
+            CodeunitNamespace + ":" + operation);
+        return request;
+    }
+
     private static async Task<bool?> ReadCodeunitResultAsync(
         HttpResponseMessage response,
+        CancellationToken cancellationToken) =>
+        await ReadBooleanCodeunitResultAsync(
+            response,
+            "RegistrarSalidaFabricacion_Result",
+            cancellationToken);
+
+    private static async Task<bool?> ReadBooleanCodeunitResultAsync(
+        HttpResponseMessage response,
+        string resultElement,
         CancellationToken cancellationToken)
     {
         if (response.Content.Headers.ContentLength > MaximumResponseBytes)
@@ -487,7 +798,7 @@ public sealed class NavisionSoapPalletOutputSender(
             if (document.Descendants(soap + "Fault").Any())
                 return null;
             var value = document
-                .Descendants(codeunit + "RegistrarSalidaFabricacion_Result")
+                .Descendants(codeunit + resultElement)
                 .Elements(codeunit + "return_value")
                 .SingleOrDefault()?.Value;
             return bool.TryParse(value, out var result) ? result : null;
@@ -496,6 +807,39 @@ public sealed class NavisionSoapPalletOutputSender(
             when (exception is XmlException or InvalidOperationException)
         {
             return null;
+        }
+    }
+
+    private static async Task<bool> ReadVoidCodeunitResultAsync(
+        HttpResponseMessage response,
+        string resultElement,
+        CancellationToken cancellationToken)
+    {
+        if (response.Content.Headers.ContentLength > MaximumResponseBytes)
+            return false;
+        try
+        {
+            var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+            if (body.Length == 0 || body.Length > MaximumResponseBytes)
+                return false;
+            using var stream = new MemoryStream(body, writable: false);
+            using var reader = XmlReader.Create(
+                stream,
+                new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Prohibit,
+                    XmlResolver = null
+                });
+            var document = XDocument.Load(reader);
+            XNamespace soap = SoapEnvelopeNamespace;
+            XNamespace codeunit = CodeunitNamespace;
+            return !document.Descendants(soap + "Fault").Any()
+                && document.Descendants(codeunit + resultElement).Count() == 1;
+        }
+        catch (Exception exception)
+            when (exception is XmlException or InvalidOperationException)
+        {
+            return false;
         }
     }
 
@@ -681,6 +1025,19 @@ public sealed class NavisionSoapPalletOutputSender(
         int? HttpStatusCode,
         string? Reason,
         bool IsDefinitiveRejection);
+
+    private sealed record PalletStateTransition(
+        bool Succeeded,
+        NavisionPalletOutputDeliveryOutcome Outcome,
+        int? HttpStatusCode,
+        string? Reason)
+    {
+        public static readonly PalletStateTransition Success = new(
+            true,
+            NavisionPalletOutputDeliveryOutcome.Confirmed,
+            null,
+            null);
+    }
 
     private sealed class NavisionReadException(
         bool isTransient,
