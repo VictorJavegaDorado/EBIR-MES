@@ -62,6 +62,14 @@ debe conservar un fichaje abierto en la sesion de la reserva y no puede tener
 un paro individual abierto. Una lista de opciones desactualizada no permite
 cerrar un palet.
 
+En la mesa, el cierre se inicia desde la tarjeta de una persona productiva. El
+formulario se abre como dialogo, fija esa persona como autor y mantiene la
+cantidad `POK` propuesta editable. No muestra un selector de empleado: antes de
+habilitar el envio comprueba que el autor siga presente en las opciones activas
+devueltas por el servidor. La confirmacion permanece visible en el dialogo y
+ofrece una vuelta explicita a la mesa. Los avatares usan iniciales; este corte
+no integra fotografias ni amplia los datos personales del contrato.
+
 ## Plantilla de etiqueta de palet
 
 La plantilla confirmada mide 150 x 100 mm, se prepara para Vretti a 201 dpi y

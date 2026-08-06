@@ -7,6 +7,7 @@ import {
 import type {
   ClosePalletCommand,
   PalletCloseOptions,
+  PalletEmployeeOption,
   PalletCloseViewState,
   PartialReason,
 } from "../model/palletClose";
@@ -44,10 +45,20 @@ type OptionsState =
 type Props = {
   line?: IdentifiedLine;
   palletFormatCode?: string;
+  selectedEmployee?: PalletEmployeeOption;
+  onCancel?: () => void;
+  onBusyChange?: (isBusy: boolean) => void;
   onPalletClosed?: (quantity: number) => void;
 };
 
-export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed }: Props = {}) {
+export function PalletClosePage({
+  line,
+  palletFormatCode = "POK",
+  selectedEmployee,
+  onCancel,
+  onBusyChange,
+  onPalletClosed,
+}: Props = {}) {
   const [form, setForm] = useState<FormValues>(initialForm);
   const [viewState, setViewState] = useState<PalletCloseViewState>({
     status: "idle",
@@ -57,9 +68,17 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
   });
   const activeRequest = useRef<AbortController | null>(null);
   const attempt = useRef<Attempt | null>(null);
+  const onBusyChangeRef = useRef(onBusyChange);
 
   useEffect(() => {
-    return () => activeRequest.current?.abort();
+    onBusyChangeRef.current = onBusyChange;
+  }, [onBusyChange]);
+
+  useEffect(() => {
+    return () => {
+      activeRequest.current?.abort();
+      onBusyChangeRef.current?.(false);
+    };
   }, []);
 
   useEffect(() => {
@@ -87,11 +106,23 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
         });
       });
     return () => request.abort();
-  }, [line]);
+  }, [line, selectedEmployee?.id]);
 
   function acceptOptions(options: PalletCloseOptions) {
     if (line && options.reservations.length > 1) {
       setOptionsState({ status: "error", code: "PALLET_CLOSE_OPTIONS_AMBIGUOUS" });
+      return;
+    }
+
+    if (
+      selectedEmployee
+      && !options.employees.some((employee) => employee.id === selectedEmployee.id)
+    ) {
+      setOptionsState({
+        status: "error",
+        code: "PALLET_CLOSE_EMPLOYEE_NOT_AVAILABLE",
+      });
+      setForm((current) => ({ ...current, closedByEmployeeId: "" }));
       return;
     }
 
@@ -101,13 +132,15 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
       ...current,
       reservationId: reservation ? String(reservation.id) : "",
       goodQuantity: reservation ? String(reservation.reservedQuantity) : "",
-      closedByEmployeeId: options.employees.some(
-        (employee) => String(employee.id) === current.closedByEmployeeId,
-      )
-        ? current.closedByEmployeeId
-        : options.employees.length === 1
-          ? String(options.employees[0].id)
-          : "",
+      closedByEmployeeId: selectedEmployee
+        ? String(selectedEmployee.id)
+        : options.employees.some(
+            (employee) => String(employee.id) === current.closedByEmployeeId,
+          )
+          ? current.closedByEmployeeId
+          : options.employees.length === 1
+            ? String(options.employees[0].id)
+            : "",
       authorizingSupervisorId: "",
       isPartial: false,
       partialReason: "",
@@ -213,6 +246,7 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
     activeRequest.current?.abort();
     const request = new AbortController();
     activeRequest.current = request;
+    onBusyChangeRef.current?.(true);
     setViewState({ status: "loading", correlationId });
 
     try {
@@ -248,6 +282,7 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
         correlationId,
       });
     } finally {
+      onBusyChangeRef.current?.(false);
       if (activeRequest.current === request) {
         activeRequest.current = null;
       }
@@ -378,6 +413,7 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
               <label htmlFor="good-quantity">Cantidad buena</label>
               <input
                 id="good-quantity"
+                autoFocus={Boolean(selectedEmployee)}
                 inputMode="numeric"
                 min="1"
                 step="1"
@@ -390,9 +426,37 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
               <small>Unidades verificadas por el operario.</small>
             </div>
 
-            <div className="pallet-field">
-              <label htmlFor="closed-by-employee-id">Empleado que cierra</label>
-              {optionsState.status === "ready" ? (
+            <div
+              className="pallet-field"
+              role={selectedEmployee ? "group" : undefined}
+              aria-labelledby={selectedEmployee ? "closed-by-employee-label" : undefined}
+            >
+              {selectedEmployee ? (
+                <span className="pallet-field-label" id="closed-by-employee-label">
+                  Empleado que cierra
+                </span>
+              ) : (
+                <label htmlFor="closed-by-employee-id">Empleado que cierra</label>
+              )}
+              {selectedEmployee ? (
+                <div
+                  className="pallet-selected-employee"
+                  aria-describedby="closed-by-employee-help"
+                >
+                  <span aria-hidden="true">
+                    {selectedEmployee.name
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase())
+                      .join("") || "OP"}
+                  </span>
+                  <div>
+                    <strong>{selectedEmployee.name}</strong>
+                    <small>{selectedEmployee.code}</small>
+                  </div>
+                </div>
+              ) : optionsState.status === "ready" ? (
                 <select
                   id="closed-by-employee-id"
                   value={form.closedByEmployeeId}
@@ -422,7 +486,11 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
                   disabled={Boolean(line)}
                 />
               )}
-              <small>Cualquier operario activo de la mesa puede cerrarlo.</small>
+              <small id={selectedEmployee ? "closed-by-employee-help" : undefined}>
+                {selectedEmployee
+                  ? "El cierre quedará asociado a este operario."
+                  : "Cualquier operario activo de la mesa puede cerrarlo."}
+              </small>
             </div>
 
             {line ? <details
@@ -534,24 +602,36 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
             </>}
           </div>
 
-          <button
-            className="primary-action pallet-submit"
-            type="submit"
-            disabled={
-              viewState.status === "loading" ||
-              (Boolean(line) && optionsState.status !== "ready") ||
-              (viewState.status === "error" && !viewState.retryable)
-            }
-          >
-            {viewState.status === "loading"
-              ? "Cerrando palé…"
-              : viewState.status === "error" && viewState.retryable
-                ? "Reintentar cierre"
-                : viewState.status === "error"
-                  ? "Revisa los datos para continuar"
-                : line ? "Cerrar palet" : "Confirmar cierre"}
-            <span aria-hidden="true">→</span>
-          </button>
+          <div className="pallet-form-actions">
+            {onCancel && (
+              <button
+                type="button"
+                className="pallet-cancel-action"
+                onClick={onCancel}
+                disabled={viewState.status === "loading"}
+              >
+                Cancelar
+              </button>
+            )}
+            <button
+              className="primary-action pallet-submit"
+              type="submit"
+              disabled={
+                viewState.status === "loading" ||
+                (Boolean(line) && optionsState.status !== "ready") ||
+                (viewState.status === "error" && !viewState.retryable)
+              }
+            >
+              {viewState.status === "loading"
+                ? "Cerrando palé…"
+                : viewState.status === "error" && viewState.retryable
+                  ? "Reintentar cierre"
+                  : viewState.status === "error"
+                    ? "Revisa los datos para continuar"
+                  : line ? "Cerrar palet" : "Confirmar cierre"}
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
 
           {!line && <p className="pallet-correlation">
             {viewState.status === "idle"
@@ -617,13 +697,24 @@ export function PalletClosePage({ line, palletFormatCode = "POK", onPalletClosed
                 plano y no se ha enviado ninguna impresión.
               </p>
               <code>{viewState.pallet.correlationId}</code>
-              <button
-                className="secondary-action"
-                type="button"
-                onClick={prepareAnotherClose}
-              >
-                Cerrar siguiente palet
-              </button>
+              <div className="pallet-result-actions">
+                {onCancel && (
+                  <button
+                    className="secondary-action"
+                    type="button"
+                    onClick={onCancel}
+                  >
+                    Volver a la mesa
+                  </button>
+                )}
+                <button
+                  className="secondary-action"
+                  type="button"
+                  onClick={prepareAnotherClose}
+                >
+                  Cerrar siguiente palet
+                </button>
+              </div>
             </div>
           )}
         </aside>

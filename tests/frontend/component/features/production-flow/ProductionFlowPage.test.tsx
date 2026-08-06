@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProductionFlowPage } from "../../../../../src/frontend/src/features/production-flow/ui/ProductionFlowPage";
@@ -189,6 +189,8 @@ describe("ProductionFlowPage", () => {
     expect(await screen.findByText("SIN OPERARIOS")).toBeInTheDocument();
     expect(screen.getByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
     expect(screen.queryByText("PRODUCIENDO")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /cerrar palet como/i }))
+      .not.toBeInTheDocument();
   });
 
   it("starts an operator pause and refreshes the table from the server", async () => {
@@ -202,9 +204,6 @@ describe("ProductionFlowPage", () => {
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        reservations: [], employees: [], supervisors: [],
-      }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ id: 91, activeResources: 0 }), { status: 201 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(pausedTable), { status: 200 }));
 
@@ -215,8 +214,8 @@ describe("ProductionFlowPage", () => {
     await screen.findByText("Operario piloto");
     await userEvent.click(screen.getByRole("button", { name: /Pausa WC de Operario piloto/i }));
 
-    expect(fetchMock.mock.calls[4][0]).toBe("/api/line-sessions/12/operator-stops");
-    expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).toEqual(
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/operator-stops");
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual(
       expect.objectContaining({ employeeId: 7, reason: "WC" }),
     );
     expect(await screen.findByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
@@ -241,7 +240,17 @@ describe("ProductionFlowPage", () => {
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
-        reservations: [], employees: [], supervisors: [],
+        reservations: [{
+          id: 47,
+          reservedQuantity: 20,
+          orderNumber: order.orderNumber,
+          productNumber: order.productNumber,
+          productDescription: order.productDescription,
+          productPostingGroup: "P_ACABADO",
+          lineName: line.name,
+        }],
+        employees: [{ id: 7, code: "EMP-7", name: "Operario piloto" }],
+        supervisors: [],
       }), { status: 200 }));
 
     render(<ProductionFlowPage />);
@@ -250,9 +259,25 @@ describe("ProductionFlowPage", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /orden de fabricación/i }), "FL20-02277{enter}");
     await userEvent.type(screen.getByRole("textbox", { name: /lector RFID/i }), "SYNTHETIC-CARD{enter}");
     await screen.findByText("Operario piloto");
-    expect(await screen.findByRole("heading", { name: /cierra el palet desde la mesa/i })).toBeInTheDocument();
-    expect(screen.getAllByText(/NAV se procesa en segundo plano/i).length).toBeGreaterThan(0);
+    const palletButton = screen.getByRole("button", {
+      name: /cerrar palet como Operario piloto/i,
+    });
+    await userEvent.click(palletButton);
+
+    const dialog = await screen.findByRole("dialog", { name: /cerrar palet/i });
+    expect(within(dialog).getByRole("textbox", { name: /cantidad buena/i }))
+      .toHaveValue("20");
+    expect(within(dialog).getByRole("group", { name: /empleado que cierra/i }))
+      .toHaveTextContent("Operario piloto");
+    expect(within(dialog).queryByRole("combobox", { name: /empleado que cierra/i }))
+      .not.toBeInTheDocument();
+    expect(within(dialog).getByText(/NAV se procesa en segundo plano/i))
+      .toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /continuar a palés/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /confirmar NAV/i })).not.toBeInTheDocument();
+
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: /cerrar palet/i })).not.toBeInTheDocument();
+    expect(palletButton).toHaveFocus();
   });
 });

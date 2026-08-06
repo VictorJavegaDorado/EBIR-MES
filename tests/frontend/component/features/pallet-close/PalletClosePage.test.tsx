@@ -124,6 +124,104 @@ describe("PalletClosePage", () => {
     expect(screen.getByText(/NAV queda pendiente en segundo plano/i)).toBeInTheDocument();
   });
 
+  it("locks the close to the selected active operator and returns to the table", async () => {
+    const onCancel = vi.fn();
+    const onBusyChange = vi.fn();
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        reservations: [{
+          id: 44,
+          reservedQuantity: 20,
+          orderNumber: "OT-100",
+          productNumber: "27920LG",
+          productDescription: "Producto piloto",
+          productPostingGroup: "P_ACABADO",
+          lineName: "Línea uno",
+        }],
+        employees: [{ id: 7, code: "EMP-7", name: "Operario siete" }],
+        supervisors: [],
+      }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { correlationId: string };
+        return new Response(
+          JSON.stringify({ id: 126, correlationId: body.correlationId }),
+          { status: 200 },
+        );
+      });
+
+    render(
+      <PalletClosePage
+        line={{
+          id: 12,
+          code: "L-01",
+          name: "Línea uno",
+          workCenterCode: "CT-01",
+          workCenterName: "Centro uno",
+          operationalStatus: "PRODUCIENDO",
+        }}
+        selectedEmployee={{ id: 7, code: "EMP-7", name: "Operario siete" }}
+        onCancel={onCancel}
+        onBusyChange={onBusyChange}
+      />,
+    );
+
+    const employee = await screen.findByRole("group", {
+      name: /empleado que cierra/i,
+    });
+    expect(employee).toHaveTextContent("Operario siete");
+    expect(screen.queryByRole("combobox", { name: /empleado que cierra/i }))
+      .not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /cantidad buena/i })).toHaveFocus();
+
+    await userEvent.click(screen.getByRole("button", { name: /^cerrar palet$/i }));
+
+    const submitted = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as {
+      closedByEmployeeId: number;
+    };
+    expect(submitted.closedByEmployeeId).toBe(7);
+    expect(onBusyChange).toHaveBeenCalledWith(true);
+    expect(onBusyChange).toHaveBeenLastCalledWith(false);
+    await userEvent.click(await screen.findByRole("button", { name: /volver a la mesa/i }));
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a preselected operator missing from the active options", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        reservations: [{
+          id: 44,
+          reservedQuantity: 20,
+          orderNumber: "OT-100",
+          productNumber: "27920LG",
+          productDescription: "Producto piloto",
+          productPostingGroup: "P_ACABADO",
+          lineName: "Línea uno",
+        }],
+        employees: [],
+        supervisors: [],
+      }), { status: 200 }),
+    );
+
+    render(
+      <PalletClosePage
+        line={{
+          id: 12,
+          code: "L-01",
+          name: "Línea uno",
+          workCenterCode: "CT-01",
+          workCenterName: "Centro uno",
+          operationalStatus: "PRODUCIENDO",
+        }}
+        selectedEmployee={{ id: 7, code: "EMP-7", name: "Operario siete" }}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "PALLET_CLOSE_EMPLOYEE_NOT_AVAILABLE",
+    );
+    expect(screen.getByRole("button", { name: /^cerrar palet$/i })).toBeDisabled();
+  });
+
   it("shows a recoverable error when line options cannot be loaded", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

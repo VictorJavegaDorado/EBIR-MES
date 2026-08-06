@@ -157,6 +157,22 @@ sesion existentes, conserva la correlacion durante un reintento y vuelve a leer
 la mesa despues de cada mutacion. El resultado visual siempre procede de esa
 lectura posterior del servidor.
 
+La tarjeta representa a la persona mediante un avatar circular con sus
+iniciales; este corte no consulta ni persiste fotografias. Cuando la persona
+esta productiva, la misma tarjeta ofrece `Cerrar palet`. La accion abre un
+dialogo dentro de Trabajo, conserva visible el estado de NAV en segundo plano,
+preselecciona al autor material y dirige el foco a la cantidad propuesta. El
+autor no se elige de nuevo en el formulario y se vuelve a validar contra las
+opciones activas devueltas por el servidor. Una persona en pausa conserva su
+tarjeta y su accion de reanudacion, pero no puede iniciar un cierre mientras el
+paro permanezca abierto.
+
+El dialogo bloquea el cierre accidental durante el envio, contiene la
+navegacion de foco, admite cancelacion y devuelve el foco a la tarjeta que lo
+abrio. Tras una confirmacion muestra el resultado antes de volver a la mesa.
+Cambiar de linea u orden, o dejar de recibir al autor en el estado del servidor,
+descarta el dialogo para evitar operar con un contexto obsoleto.
+
 El tiempo individual es el acumulado de todos los fichajes del empleado dentro
 de la misma sesion de linea. Una salida cierra el intervalo actual y una nueva
 identificacion abre otro, pero no reinicia el contador visible. De cada fichaje

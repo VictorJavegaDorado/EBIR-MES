@@ -44,6 +44,12 @@ export function ProductionFlowPage() {
   const [clock, setClock] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [operatorAction, setOperatorAction] = useState<string | null>(null);
+  const [palletOperator, setPalletOperator] = useState<
+    ProductionTableState["operators"][number] | null
+  >(null);
+  const palletModalRef = useRef<HTMLElement | null>(null);
+  const palletTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const palletBusyRef = useRef(false);
   const [error, setError] = useState<FlowError>(null);
   const [notice, setNotice] = useState("");
   const request = useRef<AbortController | null>(null);
@@ -91,6 +97,65 @@ export function ProductionFlowPage() {
       refreshRequest.current = null;
     };
   }, [table?.lineSessionId, order?.productionOrderId, line?.id]);
+
+  useEffect(() => {
+    if (!palletOperator) return;
+
+    const currentOperator = table?.operators.find(
+      (operator) => operator.employeeId === palletOperator.employeeId,
+    );
+    if (!currentOperator) {
+      palletBusyRef.current = false;
+      setPalletOperator(null);
+      window.setTimeout(() => palletTriggerRef.current?.focus(), 0);
+    }
+  }, [table, palletOperator]);
+
+  useEffect(() => {
+    if (!palletOperator) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => {
+      const quantity = palletModalRef.current?.querySelector<HTMLInputElement>(
+        "#good-quantity",
+      );
+      quantity?.focus();
+      quantity?.select();
+    }, 0);
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !palletBusyRef.current) {
+        event.preventDefault();
+        closePalletModal();
+        return;
+      }
+      if (event.key !== "Tab" || !palletModalRef.current) return;
+
+      const focusable = Array.from(
+        palletModalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+        ),
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [palletOperator]);
 
   const elapsedSinceSnapshot = table
     ? Math.max(0, Math.floor((clock - Date.parse(table.serverTimeUtc)) / 1_000))
@@ -334,6 +399,8 @@ export function ProductionFlowPage() {
     setRfidCredential("");
     setTable(null);
     setOperatorAction(null);
+    palletBusyRef.current = false;
+    setPalletOperator(null);
     pendingCorrelations.current.clear();
     setError(null);
     setNotice("");
@@ -358,9 +425,27 @@ export function ProductionFlowPage() {
     setRfidCredential("");
     setTable(null);
     setOperatorAction(null);
+    palletBusyRef.current = false;
+    setPalletOperator(null);
     pendingCorrelations.current.clear();
     setError(null);
     setNotice(`Línea ${line.code} conservada. Escanea la nueva orden.`);
+  }
+
+  function openPalletModal(
+    employee: ProductionTableState["operators"][number],
+    trigger: HTMLButtonElement,
+  ) {
+    palletTriggerRef.current = trigger;
+    palletBusyRef.current = false;
+    setPalletOperator(employee);
+  }
+
+  function closePalletModal() {
+    if (palletBusyRef.current) return;
+    palletBusyRef.current = false;
+    setPalletOperator(null);
+    window.setTimeout(() => palletTriggerRef.current?.focus(), 0);
   }
 
   return (
@@ -481,84 +566,159 @@ export function ProductionFlowPage() {
                 {!table || table.operators.length === 0 ? (
                   <div className="empty-team">Todavía no hay personas identificadas.</div>
                 ) : (
-                  table.operators.map((employee) => (
-                    <div className={`employee-chip ${employee.status === "EN_PAUSA" ? "paused" : "producing"}`} key={employee.employeeId}>
-                      <span className="employee-state-icon" aria-hidden="true">{employee.status === "EN_PAUSA" ? "Ⅱ" : "✓"}</span>
-                      <div className="employee-identity">
-                        <strong>{employee.fullName}</strong>
-                        <small>
-                          {employee.navEmployeeCode} · {employee.status === "EN_PAUSA" ? "En pausa" : "Produciendo"} · {formatDuration(
-                            employee.productiveSeconds
-                            + (employee.status === "PRODUCIENDO" && isProducing ? elapsedSinceSnapshot : 0),
+                  table.operators.map((employee) => {
+                    const initials = employee.fullName
+                      .split(/\s+/)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .map((part) => part[0]?.toUpperCase())
+                      .join("");
+
+                    return (
+                      <div
+                        className={`employee-chip ${employee.status === "EN_PAUSA" ? "paused" : "producing"}`}
+                        key={employee.employeeId}
+                      >
+                        <div className="employee-avatar" aria-hidden="true">
+                          {initials || "OP"}
+                        </div>
+
+                        <div className="employee-identity">
+                          <div className="employee-name-row">
+                            <strong>{employee.fullName}</strong>
+                            <span
+                              className="employee-state-icon"
+                              aria-hidden="true"
+                              title={employee.status === "EN_PAUSA" ? "En pausa" : "Produciendo"}
+                            >
+                              {employee.status === "EN_PAUSA" ? "Ⅱ" : "✓"}
+                            </span>
+                          </div>
+                          <small>
+                            {employee.navEmployeeCode} · {employee.status === "EN_PAUSA" ? "En pausa" : "Produciendo"} · {formatDuration(
+                              employee.productiveSeconds
+                              + (employee.status === "PRODUCIENDO" && isProducing ? elapsedSinceSnapshot : 0),
+                            )}
+                          </small>
+                        </div>
+
+                        <div className="employee-actions">
+                          {employee.status === "EN_PAUSA" ? (
+                            <button
+                              type="button"
+                              disabled={operatorAction !== null}
+                              aria-label={`Reanudar a ${employee.fullName}`}
+                              onClick={() => runOperatorAction(employee.employeeId, "RESUME")}
+                            >
+                              Reanudar
+                            </button>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                disabled={operatorAction !== null}
+                                aria-label={`Pausa WC de ${employee.fullName}`}
+                                onClick={() => runOperatorAction(employee.employeeId, "STOP_WC")}
+                              >
+                                WC
+                              </button>
+                              <button
+                                type="button"
+                                disabled={operatorAction !== null}
+                                aria-label={`Pausa calor de ${employee.fullName}`}
+                                onClick={() => runOperatorAction(employee.employeeId, "STOP_HEAT")}
+                              >
+                                Calor
+                              </button>
+                              <button
+                                type="button"
+                                className="employee-exit-action"
+                                disabled={operatorAction !== null}
+                                aria-label={`Registrar salida de ${employee.fullName}`}
+                                onClick={() => runOperatorAction(employee.employeeId, "EXIT")}
+                              >
+                                Salir
+                              </button>
+                              <button
+                                type="button"
+                                className="employee-pallet-action"
+                                disabled={!table || operatorAction !== null}
+                                aria-label={`Cerrar palet como ${employee.fullName}`}
+                                onClick={(event) => openPalletModal(employee, event.currentTarget)}
+                              >
+                                <PalletIcon />
+                                Cerrar palet
+                              </button>
+                            </>
                           )}
-                        </small>
+                        </div>
                       </div>
-                      <div className="employee-actions">
-                        {employee.status === "EN_PAUSA" ? (
-                          <button
-                            type="button"
-                            disabled={operatorAction !== null}
-                            aria-label={`Reanudar a ${employee.fullName}`}
-                            onClick={() => runOperatorAction(employee.employeeId, "RESUME")}
-                          >
-                            Reanudar
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              disabled={operatorAction !== null}
-                              aria-label={`Pausa WC de ${employee.fullName}`}
-                              onClick={() => runOperatorAction(employee.employeeId, "STOP_WC")}
-                            >
-                              WC
-                            </button>
-                            <button
-                              type="button"
-                              disabled={operatorAction !== null}
-                              aria-label={`Pausa calor de ${employee.fullName}`}
-                              onClick={() => runOperatorAction(employee.employeeId, "STOP_HEAT")}
-                            >
-                              Calor
-                            </button>
-                            <button
-                              type="button"
-                              disabled={operatorAction !== null}
-                              aria-label={`Registrar salida de ${employee.fullName}`}
-                              onClick={() => runOperatorAction(employee.employeeId, "EXIT")}
-                            >
-                              Salir
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 
-              <div className="work-pallet-panel">
-                <div className="work-section-heading">
-                  <div>
-                    <p className="eyebrow">Palet en curso</p>
-                    <h3>Cierra el palet desde la mesa</h3>
-                  </div>
-                  <span>NAV se procesa en segundo plano</span>
+              {!table && (
+                <div className="work-pallet-empty">
+                  Identifica al primer operario para preparar el palet.
                 </div>
-                {table ? (
-                  <PalletClosePage
-                    line={line ?? undefined}
-                    palletFormatCode={table.palletFormatCode}
-                    onPalletClosed={(quantity) => {
-                      setNotice(`Palet cerrado con ${quantity} unidades. NAV queda pendiente en segundo plano.`);
-                    }}
-                  />
-                ) : (
-                  <div className="work-pallet-empty">
-                    Identifica al primer operario para preparar el palet.
-                  </div>
-                )}
-              </div>
+              )}
+
+              {palletOperator && table && (
+                <div
+                  className="pallet-modal-backdrop"
+                  role="presentation"
+                  onMouseDown={(event) => {
+                    if (event.target === event.currentTarget) closePalletModal();
+                  }}
+                >
+                  <section
+                    className="pallet-modal"
+                    ref={palletModalRef}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="pallet-modal-title"
+                  >
+                    <header className="pallet-modal-header">
+                      <div>
+                        <p className="eyebrow">Palet en curso</p>
+                        <h3 id="pallet-modal-title">Cerrar palet</h3>
+                        <p>
+                          {palletOperator.fullName} · {palletOperator.navEmployeeCode}
+                        </p>
+                        <span className="pallet-modal-nav-status">
+                          NAV se procesa en segundo plano
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="pallet-modal-close"
+                        aria-label="Cerrar formulario"
+                        onClick={closePalletModal}
+                      >
+                        ×
+                      </button>
+                    </header>
+
+                    <PalletClosePage
+                      line={line ?? undefined}
+                      palletFormatCode={table.palletFormatCode}
+                      selectedEmployee={{
+                        id: palletOperator.employeeId,
+                        code: palletOperator.navEmployeeCode,
+                        name: palletOperator.fullName,
+                      }}
+                      onCancel={closePalletModal}
+                      onBusyChange={(isBusy) => {
+                        palletBusyRef.current = isBusy;
+                      }}
+                      onPalletClosed={(quantity) => {
+                        setNotice(`Palet cerrado con ${quantity} unidades por ${palletOperator.fullName}. NAV queda pendiente en segundo plano.`);
+                      }}
+                    />
+                  </section>
+                </div>
+              )}
             </section>
           )}
 
@@ -654,6 +814,19 @@ function operatorActionNotice(action: "EXIT" | "STOP_WC" | "STOP_HEAT" | "RESUME
   if (action === "EXIT") return "Salida registrada. Capacidad actualizada por el servidor.";
   if (action === "RESUME") return "Operario reincorporado. El tiempo individual vuelve a avanzar.";
   return "Pausa registrada. El acumulado individual queda detenido.";
+}
+
+function PalletIcon() {
+  return (
+    <svg
+      className="pallet-action-icon"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M4 5h16v4H4zM5 11h4v5H5zm5 0h4v5h-4zm5 0h4v5h-4zM3 18h18v2H3z" />
+    </svg>
+  );
 }
 
 function createCorrelationId(): string {
