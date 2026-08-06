@@ -76,7 +76,8 @@ public sealed class ProcessNextNavisionPalletOutputTests
         "LINE-TEST",
         20,
         new DateTimeOffset(2026, 8, 6, 10, 30, 0, TimeSpan.Zero),
-        1);
+        1,
+        null);
 
     private static readonly NavisionPalletOutputReceipt Confirmed = new(
         NavisionPalletOutputDeliveryOutcome.Confirmed,

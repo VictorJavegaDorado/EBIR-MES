@@ -125,6 +125,13 @@ supervisor autorizador vigente. El servidor calcula esa posicion usando las
 cantidades bloqueadas de la orden; el navegador no decide que palet es el
 ultimo.
 
+Un palet no final cerrado no detiene los fichajes ni el contador productivo.
+La salida NAV y la etiqueta conservan su estado propio mientras la mesa sigue
+operativa. El siguiente cierre queda bloqueado hasta que la salida anterior
+esté confirmada en NAV; esta barrera evita solapar o duplicar movimientos. El
+último palet continúa requiriendo supervisor y confirmación externa antes del
+cierre definitivo de la orden.
+
 El formato y las unidades por palet procederan del registro `POK` publicado por
 NAV en `WS_CPP_UndMedProd`, segun el contrato descrito en
 `production-workstation.md`.

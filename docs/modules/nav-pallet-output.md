@@ -103,3 +103,24 @@ La reconciliación OData inmediata encontró exactamente una fila para
 repetirse. El siguiente contrato deberá consultar esa fila y confirmar
 localmente solo ante un estado NAV inequívoco; mientras continúe `Pendiente`,
 debe conservarse el bloqueo de etiqueta.
+
+## Reconciliación diferida y continuidad operativa
+
+El paquete 028A y el Worker distinguen entre enviar y reconciliar. Una
+operación `RESULTADO_DESCONOCIDO` que ya contiene identificador externo se
+reserva de nuevo exclusivamente para una lectura OData exacta por `Id`; nunca
+se repite `RegistrarSalidaFabricacion`. Si NAV todavía publica `Pendiente`, la
+operación conserva el identificador y programa otra lectura. Cuando publica
+una única fila exacta `Registrado`, MES confirma la salida, habilita la
+etiqueta y conserva toda la auditoría de intentos.
+
+La salida NAV y el estado operativo de la línea quedan desacoplados. Cerrar un
+palet no final no cambia una línea `PRODUCIENDO` o `SIN_OPERARIOS` a
+`PENDIENTE_NAV`, por lo que los fichajes y el tiempo productivo continúan. Para
+mantener la secuencia y evitar duplicados, no se permite cerrar el siguiente
+palet de la misma sesión mientras exista una salida anterior distinta de
+`CONFIRMADA`. El último palet mantiene el bloqueo de cierre de orden hasta la
+confirmación externa.
+
+Para una orden de 100 unidades con POK 20, el resultado esperado son cinco
+palets MES y cinco filas NAV independientes en estado final `Registrado`.

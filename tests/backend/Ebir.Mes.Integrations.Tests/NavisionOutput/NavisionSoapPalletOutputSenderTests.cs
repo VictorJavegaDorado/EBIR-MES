@@ -55,8 +55,8 @@ public sealed class NavisionSoapPalletOutputSenderTests
         var outputQuery = Uri.UnescapeDataString(requests[2].Uri.Query);
         Assert.Contains("Orden eq 'FL-TEST'", outputQuery);
         Assert.Contains("Producto eq 'ITEM-TEST'", outputQuery);
-        Assert.Contains("Estado eq 'Registrado'", outputQuery);
         Assert.Contains("Tipo eq 'Salida'", outputQuery);
+        Assert.DoesNotContain("Estado eq", outputQuery);
         Assert.Contains("$top=100", outputQuery);
 
         var document = XDocument.Parse(requests[3].Body!);
@@ -328,6 +328,80 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_preserves_pending_output_id_for_later_reconciliation()
+    {
+        var posts = 0;
+        var outputReads = 0;
+        var sender = CreateSender(new StubHandler((request, _) =>
+        {
+            if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                return Task.FromResult(Json(Order()));
+            if (IsEntity(request, "WS_CPP_Producto"))
+                return Task.FromResult(Json(Product()));
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                outputReads++;
+                return Task.FromResult(outputReads == 1
+                    ? Json()
+                    : Json(Output(321, 20, "Pendiente")));
+            }
+            posts++;
+            return Task.FromResult(SoapResult(true));
+        }));
+
+        var result = await sender.SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Equal(1, posts);
+        Assert.Equal(4, outputReads);
+        Assert.Contains("OutputStillPending", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_reconciles_existing_identifier_without_post_or_line_mapping()
+    {
+        var requests = new List<CapturedRequest>();
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            requests.Add(await CaptureAsync(request, cancellationToken));
+            return Json(Output(321, 20));
+        });
+        var job = Job with { ExternalIdentifier = "321" };
+
+        var result = await CreateSender(
+                handler,
+                new Dictionary<string, string>())
+            .SendAsync(job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Single(requests);
+        Assert.Equal(HttpMethod.Get, requests[0].Method);
+        var query = Uri.UnescapeDataString(requests[0].Uri.Query);
+        Assert.Contains("Id eq 321", query);
+        Assert.Contains("$top=2", query);
+    }
+
+    [Fact]
+    public async Task SendAsync_keeps_existing_pending_identifier_unknown()
+    {
+        var sender = CreateSender(new StubHandler((request, _) =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            return Task.FromResult(Json(Output(321, 20, "Pendiente")));
+        }));
+
+        var result = await sender.SendAsync(
+            Job with { ExternalIdentifier = "321" },
+            CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Contains("OutputStillPending", result.TechnicalDataJson);
+    }
+
+    [Fact]
     public async Task SendAsync_rejects_ambiguous_multiple_new_outputs()
     {
         var outputReads = 0;
@@ -424,13 +498,16 @@ public sealed class NavisionSoapPalletOutputSenderTests
         Base_Unit_of_Measure = "UN"
     };
 
-    private static object Output(int id, decimal quantity) => new
+    private static object Output(
+        int id,
+        decimal quantity,
+        string state = "Registrado") => new
     {
         Id = id,
         Orden = "FL-TEST",
         Producto = "ITEM-TEST",
         Cantidad_salida = quantity,
-        Estado = "Registrado",
+        Estado = state,
         Tipo = "Salida"
     };
 
@@ -471,7 +548,8 @@ public sealed class NavisionSoapPalletOutputSenderTests
         "LINE-TEST",
         20,
         new DateTimeOffset(2026, 8, 6, 10, 30, 0, TimeSpan.Zero),
-        1);
+        1,
+        null);
 
     private sealed record CapturedRequest(
         HttpMethod Method,

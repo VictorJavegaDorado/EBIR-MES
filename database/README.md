@@ -1,7 +1,7 @@
 # Paquete SQL — EBIR MES
 
 Estado: paquetes `001–018`, `021A`, `022A`, `024A`, `025A–025B`,
-`026A–026C` y `027A` aplicados y validados en `EBIR_MES_TEST`.
+`026A–026C`, `027A` y `028A` aplicados y validados en `EBIR_MES_TEST`.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -45,6 +45,9 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 26. `027A_contexto_salida_palet_codeunit.sql` - instalado y validado el
     06/08/2026; amplía la reserva con lote, operario NAV y línea MES sin
     reencolar ni contactar NAV.
+27. `028A_reconciliacion_salida_palet_continua.sql` - instalado y validado el
+    06/08/2026; reconcilia por identificador externo sin repetir el alta y
+    desacopla la producción de los palets no finales del estado pendiente NAV.
 
 ## Reglas
 

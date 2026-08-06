@@ -11,4 +11,5 @@ public sealed record NavisionPalletOutputJob(
     string LineCode,
     int GoodQuantity,
     DateTimeOffset ClosedAtUtc,
-    int AttemptNumber);
+    int AttemptNumber,
+    string? ExternalIdentifier);

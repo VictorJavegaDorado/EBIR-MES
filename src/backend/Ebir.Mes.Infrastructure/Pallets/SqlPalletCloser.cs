@@ -67,6 +67,7 @@ public sealed class SqlPalletCloser(string? connectionString) : IPalletCloser
             51409 => ("OTHER_ACTIVE_PALLET_RESERVATIONS_EXIST", "Existen otras reservas activas.", false),
             51410 => ("PALLET_CLOSER_NOT_PRODUCING", "El empleado debe estar produciendo en esta mesa.", false),
             51411 => ("PALLET_PRODUCT_POSTING_GROUP_UNAVAILABLE", "La orden no dispone de grupo contable de producto.", false),
+            51412 => ("PREVIOUS_PALLET_OUTPUT_NOT_CONFIRMED", "La salida del palé anterior todavía no está registrada en NAV.", false),
             55400 => ("CORRELATION_ID_REQUIRED", "La correlación es obligatoria.", false),
             55401 => ("PALLET_CLOSE_IDEMPOTENCY_LOCK_UNAVAILABLE", "El cierre no está disponible.", true),
             55402 => ("CORRELATION_ID_ALREADY_USED", "La correlación ya pertenece a otra operación.", false),
