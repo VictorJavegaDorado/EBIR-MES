@@ -6,6 +6,9 @@ public sealed record NavisionPalletOutputJob(
     string IdempotencyKey,
     string OrderNumber,
     string ProductNumber,
+    string LotNumber,
+    string EmployeeNumber,
+    string LineCode,
     int GoodQuantity,
     DateTimeOffset ClosedAtUtc,
     int AttemptNumber);

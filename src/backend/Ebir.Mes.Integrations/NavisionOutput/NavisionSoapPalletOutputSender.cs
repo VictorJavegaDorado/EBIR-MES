@@ -12,17 +12,268 @@ public sealed class NavisionSoapPalletOutputSender(
     HttpClient httpClient,
     NavisionPalletOutputOptions options) : INavisionPalletOutputSender
 {
-    private const int MaximumResponseBytes = 64 * 1024;
+    private const int MaximumResponseBytes = 128 * 1024;
+    private const int MaximumODataRecords = 100;
+    private const int MaximumReadAttempts = 3;
     private const string SoapEnvelopeNamespace =
         "http://schemas.xmlsoap.org/soap/envelope/";
-    private const string PageNamespace =
-        "urn:microsoft-dynamics-schemas/page/ws_cpp_salidasfabrica";
+    private const string CodeunitNamespace =
+        "urn:microsoft-dynamics-schemas/codeunit/WS_CPP_ControlPlanta";
 
     public async Task<NavisionPalletOutputReceipt> SendAsync(
         NavisionPalletOutputJob job,
         CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(job);
+        var validation = ValidateJob(job, out var assemblyLine);
+        if (validation is not null)
+            return validation;
+
+        OrderRecord order;
+        ProductRecord product;
+        IReadOnlyList<OutputRecord> baseline;
+        try
+        {
+            order = await ReadOrderAsync(job.OrderNumber, cancellationToken);
+            if (!string.Equals(order.ProductNumber, job.ProductNumber,
+                    StringComparison.Ordinal)
+                || !string.Equals(order.LotNumber, job.LotNumber,
+                    StringComparison.Ordinal))
+            {
+                return Receipt(
+                    NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                    null,
+                    "OrderMismatch");
+            }
+
+            product = await ReadProductAsync(job.ProductNumber, cancellationToken);
+            baseline = await ReadRegisteredOutputsAsync(job, cancellationToken);
+            if (baseline.Count >= MaximumODataRecords)
+            {
+                return Receipt(
+                    NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                    null,
+                    "BaselineTruncated");
+            }
+        }
+        catch (NavisionReadException exception)
+        {
+            return Receipt(
+                exception.IsTransient
+                    ? NavisionPalletOutputDeliveryOutcome.RetryableFailure
+                    : NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                exception.HttpStatusCode,
+                exception.Reason);
+        }
+
+        var baselineMaximumId = baseline.Count == 0 ? 0 : baseline.Max(row => row.Id);
+        var attempt = await SendCodeunitAsync(
+            job,
+            order.BinCode,
+            product.UnitOfMeasure,
+            assemblyLine!,
+            cancellationToken);
+
+        if (attempt.IsDefinitiveRejection)
+        {
+            return Receipt(
+                NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                attempt.HttpStatusCode,
+                attempt.Reason,
+                baselineMaximumId: baselineMaximumId);
+        }
+
+        return await ReconcileAsync(
+            job,
+            baselineMaximumId,
+            attempt,
+            cancellationToken);
+    }
+
+    private NavisionPalletOutputReceipt? ValidateJob(
+        NavisionPalletOutputJob job,
+        out string? assemblyLine)
+    {
+        assemblyLine = null;
+        if (string.IsNullOrWhiteSpace(job.OrderNumber)
+            || string.IsNullOrWhiteSpace(job.ProductNumber)
+            || string.IsNullOrWhiteSpace(job.LotNumber)
+            || string.IsNullOrWhiteSpace(job.EmployeeNumber)
+            || string.IsNullOrWhiteSpace(job.LineCode)
+            || job.GoodQuantity <= 0)
+        {
+            return Receipt(
+                NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                null,
+                "InvalidJob");
+        }
+
+        if (!options.TryResolveAssemblyLine(job.LineCode, out assemblyLine))
+        {
+            return Receipt(
+                NavisionPalletOutputDeliveryOutcome.PermanentFailure,
+                null,
+                "AssemblyLineMappingMissing");
+        }
+
+        return null;
+    }
+
+    private async Task<OrderRecord> ReadOrderAsync(
+        string orderNumber,
+        CancellationToken cancellationToken)
+    {
+        var records = await ReadODataAsync(
+            CreateODataEndpoint(
+                "WS_CPP_OPLanzadas",
+                $"No eq '{EscapeODataLiteral(orderNumber)}'",
+                "No,Source_No,Bin_Code,C%C3%B3d_Lote_Salida",
+                2),
+            element => new OrderRecord(
+                RequiredString(element, "No"),
+                RequiredString(element, "Source_No"),
+                RequiredString(element, "Cód_Lote_Salida"),
+                OptionalString(element, "Bin_Code")),
+            cancellationToken);
+        if (records.Count != 1
+            || !string.Equals(records[0].OrderNumber, orderNumber,
+                StringComparison.Ordinal))
+        {
+            throw new NavisionReadException(false, null, "OrderNotUnique");
+        }
+        return records[0];
+    }
+
+    private async Task<ProductRecord> ReadProductAsync(
+        string productNumber,
+        CancellationToken cancellationToken)
+    {
+        var records = await ReadODataAsync(
+            CreateODataEndpoint(
+                "WS_CPP_Producto",
+                $"No eq '{EscapeODataLiteral(productNumber)}'",
+                "No,Base_Unit_of_Measure",
+                2),
+            element => new ProductRecord(
+                RequiredString(element, "No"),
+                RequiredString(element, "Base_Unit_of_Measure")),
+            cancellationToken);
+        if (records.Count != 1
+            || !string.Equals(records[0].ProductNumber, productNumber,
+                StringComparison.Ordinal))
+        {
+            throw new NavisionReadException(false, null, "ProductNotUnique");
+        }
+        return records[0];
+    }
+
+    private Task<IReadOnlyList<OutputRecord>> ReadRegisteredOutputsAsync(
+        NavisionPalletOutputJob job,
+        CancellationToken cancellationToken) =>
+        ReadODataAsync(
+            CreateODataEndpoint(
+                "WS_CPP_SalidasFabrica",
+                $"Orden eq '{EscapeODataLiteral(job.OrderNumber)}' and " +
+                $"Producto eq '{EscapeODataLiteral(job.ProductNumber)}' and " +
+                "Estado eq 'Registrado' and Tipo eq 'Salida'",
+                "Id,Orden,Producto,Cantidad_salida,Estado,Tipo",
+                MaximumODataRecords,
+                "Id desc"),
+            element => new OutputRecord(
+                RequiredPositiveInt(element, "Id"),
+                RequiredString(element, "Orden"),
+                RequiredString(element, "Producto"),
+                RequiredDecimal(element, "Cantidad_salida"),
+                RequiredString(element, "Estado"),
+                RequiredString(element, "Tipo")),
+            cancellationToken);
+
+    private async Task<NavisionPalletOutputReceipt> ReconcileAsync(
+        NavisionPalletOutputJob job,
+        int baselineMaximumId,
+        SoapAttempt attempt,
+        CancellationToken cancellationToken)
+    {
+        for (var readAttempt = 1; readAttempt <= MaximumReadAttempts; readAttempt++)
+        {
+            try
+            {
+                var outputs = await ReadRegisteredOutputsAsync(job, cancellationToken);
+                if (outputs.Count >= MaximumODataRecords)
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode,
+                        "ReconciliationTruncated",
+                        baselineMaximumId: baselineMaximumId);
+                }
+
+                var newMatches = outputs
+                    .Where(output =>
+                        output.Id > baselineMaximumId
+                        && string.Equals(output.OrderNumber, job.OrderNumber,
+                            StringComparison.Ordinal)
+                        && string.Equals(output.ProductNumber, job.ProductNumber,
+                            StringComparison.Ordinal)
+                        && output.Quantity == job.GoodQuantity
+                        && string.Equals(output.State, "Registrado",
+                            StringComparison.Ordinal)
+                        && string.Equals(output.Type, "Salida",
+                            StringComparison.Ordinal))
+                    .ToArray();
+                if (newMatches.Length == 1)
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.Confirmed,
+                        attempt.HttpStatusCode,
+                        attempt.Reason,
+                        newMatches[0].Id.ToString(CultureInfo.InvariantCulture),
+                        baselineMaximumId);
+                }
+                if (newMatches.Length > 1)
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode,
+                        "MultipleNewOutputs",
+                        baselineMaximumId: baselineMaximumId);
+                }
+            }
+            catch (NavisionReadException exception)
+            {
+                if (!exception.IsTransient || readAttempt == MaximumReadAttempts)
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode ?? exception.HttpStatusCode,
+                        exception.Reason,
+                        baselineMaximumId: baselineMaximumId);
+                }
+            }
+
+            if (readAttempt < MaximumReadAttempts)
+                await Task.Delay(TimeSpan.FromMilliseconds(100 * readAttempt),
+                    cancellationToken);
+        }
+
+        return Receipt(
+            NavisionPalletOutputDeliveryOutcome.UnknownResult,
+            attempt.HttpStatusCode,
+            attempt.Reason ?? "OutputNotObserved",
+            baselineMaximumId: baselineMaximumId);
+    }
+
+    private async Task<SoapAttempt> SendCodeunitAsync(
+        NavisionPalletOutputJob job,
+        string binCode,
+        string unitOfMeasure,
+        string assemblyLine,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateCodeunitRequest(
+            job,
+            binCode,
+            unitOfMeasure,
+            assemblyLine);
         using var timeout =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.RequestTimeout);
@@ -32,17 +283,25 @@ public sealed class NavisionSoapPalletOutputSender(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 timeout.Token);
-
-            if (response.StatusCode is HttpStatusCode.OK)
-                return await ReadConfirmationAsync(job, response, timeout.Token);
-
             var status = (int)response.StatusCode;
-            var outcome = response.StatusCode is HttpStatusCode.RequestTimeout
-                or HttpStatusCode.TooManyRequests
-                || status >= 500
-                ? NavisionPalletOutputDeliveryOutcome.UnknownResult
-                : NavisionPalletOutputDeliveryOutcome.PermanentFailure;
-            return Receipt(outcome, status);
+            if (response.StatusCode is not HttpStatusCode.OK)
+            {
+                var uncertain = response.StatusCode is HttpStatusCode.RequestTimeout
+                    or HttpStatusCode.TooManyRequests
+                    || status >= 500;
+                return new SoapAttempt(
+                    status,
+                    uncertain ? "SoapHttpUncertain" : "SoapHttpRejected",
+                    !uncertain);
+            }
+
+            var result = await ReadCodeunitResultAsync(response, timeout.Token);
+            return result switch
+            {
+                true => new SoapAttempt(status, null, false),
+                false => new SoapAttempt(status, "CodeunitReturnedFalse", true),
+                null => new SoapAttempt(status, "InvalidSoapResponse", false)
+            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -50,43 +309,42 @@ public sealed class NavisionSoapPalletOutputSender(
         }
         catch (OperationCanceledException exception)
         {
-            return Receipt(
-                NavisionPalletOutputDeliveryOutcome.UnknownResult,
-                null,
-                exception.GetType().Name);
+            return new SoapAttempt(null, exception.GetType().Name, false);
         }
         catch (HttpRequestException exception)
         {
-            return Receipt(
-                NavisionPalletOutputDeliveryOutcome.UnknownResult,
+            return new SoapAttempt(
                 exception.StatusCode is null ? null : (int)exception.StatusCode.Value,
-                exception.GetType().Name);
+                exception.GetType().Name,
+                false);
         }
     }
 
-    private HttpRequestMessage CreateRequest(NavisionPalletOutputJob job)
+    private HttpRequestMessage CreateCodeunitRequest(
+        NavisionPalletOutputJob job,
+        string binCode,
+        string unitOfMeasure,
+        string assemblyLine)
     {
         XNamespace soap = SoapEnvelopeNamespace;
-        XNamespace page = PageNamespace;
-        var output = new XElement(
-            page + "WS_CPP_SalidasFabrica",
-            new XElement(page + "Orden", job.OrderNumber),
-            new XElement(page + "Producto", job.ProductNumber),
-            new XElement(
-                page + "Cantidad_salida",
-                job.GoodQuantity.ToString(CultureInfo.InvariantCulture)),
-            new XElement(
-                page + "fecha",
-                XmlConvert.ToString(
-                    job.ClosedAtUtc.UtcDateTime,
-                    XmlDateTimeSerializationMode.Utc)),
-            new XElement(page + "Tipo", "Salida"));
+        XNamespace codeunit = CodeunitNamespace;
         var document = new XDocument(
             new XElement(
                 soap + "Envelope",
                 new XElement(
                     soap + "Body",
-                    new XElement(page + "Create", output))));
+                    new XElement(
+                        codeunit + "RegistrarSalidaFabricacion",
+                        new XElement(codeunit + "n_OP", job.OrderNumber),
+                        new XElement(codeunit + "n_Producto", job.ProductNumber),
+                        new XElement(codeunit + "n_Lote", job.LotNumber),
+                        new XElement(
+                            codeunit + "dec_Cdad",
+                            job.GoodQuantity.ToString(CultureInfo.InvariantCulture)),
+                        new XElement(codeunit + "cod_Ubicacion", binCode),
+                        new XElement(codeunit + "unidadMedida", unitOfMeasure),
+                        new XElement(codeunit + "userBC", job.EmployeeNumber),
+                        new XElement(codeunit + "assemblyLine", assemblyLine)))));
         var request = new HttpRequestMessage(HttpMethod.Post, options.ServiceEndpoint)
         {
             Content = new StringContent(
@@ -94,25 +352,23 @@ public sealed class NavisionSoapPalletOutputSender(
                 Encoding.UTF8,
                 "text/xml")
         };
-        request.Headers.TryAddWithoutValidation("SOAPAction", PageNamespace + ":Create");
+        request.Headers.TryAddWithoutValidation(
+            "SOAPAction",
+            CodeunitNamespace + ":RegistrarSalidaFabricacion");
         return request;
     }
 
-    private static async Task<NavisionPalletOutputReceipt> ReadConfirmationAsync(
-        NavisionPalletOutputJob job,
+    private static async Task<bool?> ReadCodeunitResultAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
     {
-        var status = (int)response.StatusCode;
         if (response.Content.Headers.ContentLength > MaximumResponseBytes)
-            return Receipt(NavisionPalletOutputDeliveryOutcome.UnknownResult, status);
-
+            return null;
         try
         {
             var body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             if (body.Length == 0 || body.Length > MaximumResponseBytes)
-                return Receipt(NavisionPalletOutputDeliveryOutcome.UnknownResult, status);
-
+                return null;
             using var stream = new MemoryStream(body, writable: false);
             using var reader = XmlReader.Create(
                 stream,
@@ -123,94 +379,170 @@ public sealed class NavisionSoapPalletOutputSender(
                 });
             var document = XDocument.Load(reader);
             XNamespace soap = SoapEnvelopeNamespace;
-            XNamespace page = PageNamespace;
+            XNamespace codeunit = CodeunitNamespace;
             if (document.Descendants(soap + "Fault").Any())
-            {
-                return Receipt(
-                    NavisionPalletOutputDeliveryOutcome.UnknownResult,
-                    status,
-                    "SoapFault");
-            }
-
-            var output = document
-                .Descendants(page + "Create_Result")
-                .Elements(page + "WS_CPP_SalidasFabrica")
-                .SingleOrDefault();
-            if (output is null
-                || !TryReadPositiveId(output, page, out var id)
-                || !MatchesString(output, page, "Orden", job.OrderNumber)
-                || !MatchesString(output, page, "Producto", job.ProductNumber)
-                || !MatchesQuantity(output, page, job.GoodQuantity)
-                || !MatchesString(output, page, "Tipo", "Salida"))
-            {
-                return Receipt(NavisionPalletOutputDeliveryOutcome.UnknownResult, status);
-            }
-
-            var externalIdentifier = id.ToString(CultureInfo.InvariantCulture);
-            var state = output.Element(page + "Estado")?.Value;
-            return state switch
-            {
-                "Registrado" => Receipt(
-                    NavisionPalletOutputDeliveryOutcome.Confirmed,
-                    status,
-                    externalIdentifier: externalIdentifier),
-                "Error" => Receipt(
-                    NavisionPalletOutputDeliveryOutcome.PermanentFailure,
-                    status,
-                    externalIdentifier: externalIdentifier),
-                _ => Receipt(
-                    NavisionPalletOutputDeliveryOutcome.UnknownResult,
-                    status,
-                    externalIdentifier: externalIdentifier)
-            };
+                return null;
+            var value = document
+                .Descendants(codeunit + "RegistrarSalidaFabricacion_Result")
+                .Elements(codeunit + "return_value")
+                .SingleOrDefault()?.Value;
+            return bool.TryParse(value, out var result) ? result : null;
         }
         catch (Exception exception)
             when (exception is XmlException or InvalidOperationException)
         {
-            return Receipt(
-                NavisionPalletOutputDeliveryOutcome.UnknownResult,
-                status,
-                exception.GetType().Name);
+            return null;
         }
     }
 
-    private static bool TryReadPositiveId(
-        XElement output,
-        XNamespace page,
-        out int id) =>
-        int.TryParse(
-            output.Element(page + "Id")?.Value,
-            NumberStyles.None,
-            CultureInfo.InvariantCulture,
-            out id)
-        && id > 0;
+    private async Task<IReadOnlyList<T>> ReadODataAsync<T>(
+        Uri endpoint,
+        Func<JsonElement, T> map,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= MaximumReadAttempts; attempt++)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+            using var timeout =
+                CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(options.RequestTimeout);
+            try
+            {
+                using var response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseHeadersRead,
+                    timeout.Token);
+                var status = (int)response.StatusCode;
+                if (!response.IsSuccessStatusCode)
+                {
+                    var transient = response.StatusCode is HttpStatusCode.RequestTimeout
+                        or HttpStatusCode.TooManyRequests
+                        || status >= 500;
+                    if (transient && attempt < MaximumReadAttempts)
+                        continue;
+                    throw new NavisionReadException(
+                        transient,
+                        status,
+                        "ODataHttpFailure");
+                }
 
-    private static bool MatchesString(
-        XElement output,
-        XNamespace page,
-        string name,
-        string expected) =>
-        string.Equals(
-            output.Element(page + name)?.Value,
-            expected,
-            StringComparison.Ordinal);
+                if (response.Content.Headers.ContentLength > MaximumResponseBytes)
+                    throw new NavisionReadException(false, status, "ODataResponseTooLarge");
+                var body = await response.Content.ReadAsByteArrayAsync(timeout.Token);
+                if (body.Length == 0 || body.Length > MaximumResponseBytes)
+                    throw new NavisionReadException(false, status, "ODataResponseInvalid");
+                try
+                {
+                    using var document = JsonDocument.Parse(body);
+                    var value = document.RootElement.GetProperty("value");
+                    if (value.ValueKind is not JsonValueKind.Array)
+                        throw new FormatException();
+                    return value.EnumerateArray().Select(map).ToArray();
+                }
+                catch (Exception exception)
+                    when (exception is JsonException or FormatException
+                        or InvalidOperationException or OverflowException)
+                {
+                    throw new NavisionReadException(
+                        false,
+                        status,
+                        "ODataResponseInvalid");
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (OperationCanceledException) when (attempt < MaximumReadAttempts)
+            {
+                continue;
+            }
+            catch (OperationCanceledException)
+            {
+                throw new NavisionReadException(true, null, "ODataTimeout");
+            }
+            catch (HttpRequestException) when (attempt < MaximumReadAttempts)
+            {
+                continue;
+            }
+            catch (HttpRequestException exception)
+            {
+                throw new NavisionReadException(
+                    true,
+                    exception.StatusCode is null ? null : (int)exception.StatusCode.Value,
+                    "ODataTransportFailure");
+            }
+        }
 
-    private static bool MatchesQuantity(
-        XElement output,
-        XNamespace page,
-        int expected) =>
-        decimal.TryParse(
-            output.Element(page + "Cantidad_salida")?.Value,
-            NumberStyles.Number,
-            CultureInfo.InvariantCulture,
-            out var quantity)
-        && quantity == expected;
+        throw new InvalidOperationException("Unreachable OData read state.");
+    }
+
+    private Uri CreateODataEndpoint(
+        string entity,
+        string filter,
+        string select,
+        int top,
+        string? orderBy = null)
+    {
+        var query = "$filter=" + Uri.EscapeDataString(filter)
+            + "&$select=" + select
+            + "&$top=" + top.ToString(CultureInfo.InvariantCulture);
+        if (orderBy is not null)
+            query += "&$orderby=" + Uri.EscapeDataString(orderBy);
+        return new Uri(options.ODataCompanyRoot, entity + "?" + query);
+    }
+
+    private static string EscapeODataLiteral(string value) =>
+        value.Replace("'", "''", StringComparison.Ordinal);
+
+    private static string RequiredString(JsonElement element, string name)
+    {
+        var value = OptionalString(element, name);
+        return string.IsNullOrWhiteSpace(value) ? throw new FormatException() : value;
+    }
+
+    private static string OptionalString(JsonElement element, string name) =>
+        element.TryGetProperty(name, out var property)
+            && property.ValueKind is JsonValueKind.String
+            ? property.GetString()?.Trim() ?? string.Empty
+            : string.Empty;
+
+    private static int RequiredPositiveInt(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var property)
+            || !property.TryGetInt32(out var value)
+            || value <= 0)
+        {
+            throw new FormatException();
+        }
+        return value;
+    }
+
+    private static decimal RequiredDecimal(JsonElement element, string name)
+    {
+        if (!element.TryGetProperty(name, out var property))
+            throw new FormatException();
+        if (property.ValueKind is JsonValueKind.Number
+            && property.TryGetDecimal(out var numeric))
+            return numeric;
+        if (property.ValueKind is JsonValueKind.String
+            && decimal.TryParse(
+                property.GetString(),
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var text))
+        {
+            return text;
+        }
+        throw new FormatException();
+    }
 
     private static NavisionPalletOutputReceipt Receipt(
         NavisionPalletOutputDeliveryOutcome outcome,
         int? status,
-        string? exception = null,
-        string? externalIdentifier = null) =>
+        string? reason = null,
+        string? externalIdentifier = null,
+        int? baselineMaximumId = null) =>
         new(
             outcome,
             externalIdentifier,
@@ -218,8 +550,41 @@ public sealed class NavisionSoapPalletOutputSender(
             JsonSerializer.Serialize(new
             {
                 adapter = nameof(NavisionSoapPalletOutputSender),
+                contract = "RegistrarSalidaFabricacion",
                 outcome = outcome.ToString(),
                 httpStatus = status,
-                exception
+                reason,
+                baselineMaximumId
             }));
+
+    private sealed record OrderRecord(
+        string OrderNumber,
+        string ProductNumber,
+        string LotNumber,
+        string BinCode);
+
+    private sealed record ProductRecord(string ProductNumber, string UnitOfMeasure);
+
+    private sealed record OutputRecord(
+        int Id,
+        string OrderNumber,
+        string ProductNumber,
+        decimal Quantity,
+        string State,
+        string Type);
+
+    private sealed record SoapAttempt(
+        int? HttpStatusCode,
+        string? Reason,
+        bool IsDefinitiveRejection);
+
+    private sealed class NavisionReadException(
+        bool isTransient,
+        int? httpStatusCode,
+        string reason) : Exception
+    {
+        public bool IsTransient { get; } = isTransient;
+        public int? HttpStatusCode { get; } = httpStatusCode;
+        public string Reason { get; } = reason;
+    }
 }

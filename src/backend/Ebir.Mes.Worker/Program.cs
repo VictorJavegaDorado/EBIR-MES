@@ -25,7 +25,18 @@ if (navisionOutputEnabled)
             builder.Configuration.GetValue("NavisionOutput:RequestTimeoutSeconds", 10),
             1,
             30));
-    var options = new NavisionPalletOutputOptions(endpoint, requestTimeout);
+    var assemblyLineMappings = builder.Configuration
+        .GetSection("NavisionOutput:AssemblyLineMappings")
+        .GetChildren()
+        .Where(child => !string.IsNullOrWhiteSpace(child.Value))
+        .ToDictionary(
+            child => child.Key,
+            child => child.Value!,
+            StringComparer.OrdinalIgnoreCase);
+    var options = new NavisionPalletOutputOptions(
+        endpoint,
+        requestTimeout,
+        assemblyLineMappings);
     const string clientName = "NavisionPalletOutput";
     builder.Services.AddHttpClient(clientName)
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler

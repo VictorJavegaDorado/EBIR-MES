@@ -1,6 +1,7 @@
 # Paquete SQL — EBIR MES
 
-Estado: paquetes `001–018` y `021A` aplicados y validados en `EBIR_MES_TEST`.
+Estado: paquetes `001–018`, `021A`, `022A`, `024A`, `025A–025B`,
+`026A–026C` y `027A` aplicados y validados en `EBIR_MES_TEST`.
 
 La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos los scripts fueron revisados y aplicados con autorización expresa sobre `EBIR_MES_TEST`.
 
@@ -32,6 +33,18 @@ Base permitida en esta fase: `EBIR_MES_TEST`.
 19. `017A_lote_nav_ordenes_entrada.sql` - instalado y validado el 01/08/2026.
 20. `018A_cola_impresion_worker.sql` - instalado y validado el 01/08/2026.
 21. `021A_lote_salida_opcional.sql` - instalado y validado el 04/08/2026; permite lote de salida NAV pendiente sin inventarlo.
+22. `022A_formato_palet_pok.sql` - instalado y validado el 05/08/2026.
+23. `024A_tiempo_operario_acumulado.sql` - instalado y validado el 05/08/2026.
+24. `025A_grupo_contable_y_cierre_palet.sql` y
+    `025B_adopcion_grupo_contable_snapshot.sql` - instalados y validados el
+    05/08/2026.
+25. `026A_cola_salida_palet_nav.sql`,
+    `026B_reencolar_salida_palet_405.sql` y
+    `026C_reencolar_salida_palet_wsdl.sql` - instalados y validados el
+    06/08/2026.
+26. `027A_contexto_salida_palet_codeunit.sql` - instalado y validado el
+    06/08/2026; amplía la reserva con lote, operario NAV y línea MES sin
+    reencolar ni contactar NAV.
 
 ## Reglas
 
@@ -156,6 +169,22 @@ Se instalo en `EBIR_MES_TEST` el 05/08/2026 tras un backup `COPY_ONLY`
 verificado. La promocion real de `FL26-00003` devolvio `SIN_CAMBIOS`, repitio
 de forma idempotente y adopto `P_MATPRIMA` sin cambiar el estado operativo.
 `DBCC CHECKDB` termino sin errores.
+
+## Paquete 026 instalado y validado
+
+`026A_cola_salida_palet_nav.sql` instala la reserva, registro de intentos y
+confirmacion transaccional de salidas `SALIDA_PALET`. `026B` y `026C` son
+reencolaciones supervisadas e irrepetibles de la operacion 31, protegidas por
+el historial exacto de intentos y auditoria. Los tres paquetes se validaron
+transaccionalmente y se instalaron en `EBIR_MES_TEST` tras backups `COPY_ONLY`
+verificados.
+
+El tercer y ultimo ensayo autorizado recibio HTTP 200 de SOAP `Create`. NAV
+devolvio identificador positivo y estado `Pendiente`; OData confirmo una unica
+fila exacta de cantidad 20. MES conserva la operacion en
+`RESULTADO_DESCONOCIDO`, sin etiqueta habilitada ni trabajo de impresion. No
+debe repetirse la escritura: queda pendiente un contrato de reconciliacion que
+solo confirme localmente cuando NAV publique un estado inequivoco.
 
 ## Paquete 019 preparado, no instalado
 

@@ -71,6 +71,9 @@ public sealed class ProcessNextNavisionPalletOutputTests
         "MES:PALET:synthetic",
         "FL-TEST",
         "ITEM-TEST",
+        "LOT-TEST",
+        "EMP-TEST",
+        "LINE-TEST",
         20,
         new DateTimeOffset(2026, 8, 6, 10, 30, 0, TimeSpan.Zero),
         1);

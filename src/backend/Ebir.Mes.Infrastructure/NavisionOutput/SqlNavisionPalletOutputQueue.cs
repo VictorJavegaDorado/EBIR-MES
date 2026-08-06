@@ -29,10 +29,13 @@ public sealed class SqlNavisionPalletOutputQueue(string? connectionString)
                 reader.GetString(2),
                 reader.GetString(3),
                 reader.GetString(4),
-                reader.GetInt32(5),
+                reader.GetString(5),
+                reader.GetString(6),
+                reader.GetString(7),
+                reader.GetInt32(8),
                 new DateTimeOffset(
-                    DateTime.SpecifyKind(reader.GetDateTime(6), DateTimeKind.Utc)),
-                reader.GetInt32(7));
+                    DateTime.SpecifyKind(reader.GetDateTime(9), DateTimeKind.Utc)),
+                reader.GetInt32(10));
         }
         catch (OperationCanceledException) { throw; }
         catch (SqlException exception)
