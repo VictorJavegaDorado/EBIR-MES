@@ -38,7 +38,7 @@ if (navisionOutputEnabled)
         new SqlNavisionPalletOutputQueue(
             builder.Configuration.GetConnectionString("MesDatabase")));
     builder.Services.AddSingleton<INavisionPalletOutputSender>(services =>
-        new NavisionODataV4PalletOutputSender(
+        new NavisionSoapPalletOutputSender(
             services.GetRequiredService<IHttpClientFactory>().CreateClient(clientName),
             options));
     builder.Services.AddSingleton<ProcessNextNavisionPalletOutput>();

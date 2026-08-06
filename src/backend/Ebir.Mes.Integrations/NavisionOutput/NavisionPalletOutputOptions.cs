@@ -5,7 +5,7 @@ public sealed class NavisionPalletOutputOptions
     private const string AllowedHost = "navision.ebir.local";
     private const int AllowedPort = 7147;
     private const string AllowedPath =
-        "/EbirTest/ODataV4/Company('EBIR')/WS_CPP_SalidasFabrica";
+        "/EbirTest/WS/EBIR/Page/WS_CPP_SalidasFabrica";
 
     public NavisionPalletOutputOptions(Uri serviceEndpoint, TimeSpan requestTimeout)
     {
@@ -25,7 +25,7 @@ public sealed class NavisionPalletOutputOptions
             || !string.IsNullOrEmpty(serviceEndpoint.UserInfo))
         {
             throw new ArgumentException(
-                "El endpoint debe ser la pagina ODataV4 de salidas de EbirTest.",
+                "El endpoint debe ser la pagina SOAP de salidas de EbirTest.",
                 nameof(serviceEndpoint));
         }
 

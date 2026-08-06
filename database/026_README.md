@@ -1,6 +1,6 @@
 # Paquete 026 — cola segura de salidas de palet NAV
 
-Estado: preparado; no instalado.
+Estado de `026A`: instalado en `EBIR_MES_TEST` el 2026-08-06.
 
 El paquete `026A_cola_salida_palet_nav.sql` publica el límite transaccional que
 necesita un Worker para procesar exclusivamente operaciones `SALIDA_PALET`.
@@ -22,3 +22,15 @@ El contrato:
 La instalación requiere una autorización SQL independiente y pruebas con
 fixtures sintéticos en `EBIR_MES_TEST`. Instalar el paquete no habilita el
 Worker ni realiza escrituras en NAV.
+
+## Reconciliación 026B
+
+El primer ensayo controlado demostró que la página ODataV4 publicada permite
+lectura pero rechaza `POST` con HTTP 405. La operación 31 quedó en
+`ERROR_DEFINITIVO`, sin identificador externo y con un único intento auditado.
+
+`026B_reencolar_salida_palet_405.sql` queda preparado, pero no instalado. Solo
+puede reencolar esa operación si conserva exactamente el rechazo 405, no tiene
+reserva ni identificador externo y el palet de `FL26-00003` continúa cerrado.
+Mantiene el intento 1, de modo que el envío SOAP será el intento 2, y registra
+la decisión en `aud.eventos`. No contiene endpoint ni contacta NAV.

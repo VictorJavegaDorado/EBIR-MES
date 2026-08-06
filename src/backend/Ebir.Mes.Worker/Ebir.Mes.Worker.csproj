@@ -9,5 +9,10 @@
     <ProjectReference Include="..\Ebir.Mes.Infrastructure\Ebir.Mes.Infrastructure.csproj" />
     <ProjectReference Include="..\Ebir.Mes.Integrations\Ebir.Mes.Integrations.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
 </Project>
-
