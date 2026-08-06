@@ -330,7 +330,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
 
         Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
         Assert.Equal(1, posts);
-        Assert.Equal(7, outputReads);
+        Assert.Equal(12, outputReads);
     }
 
     [Fact]
@@ -682,6 +682,39 @@ public sealed class NavisionSoapPalletOutputSenderTests
                 LineMappings));
     }
 
+    [Fact]
+    public void Options_rejects_invalid_reconciliation_observation_delays()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new NavisionPalletOutputOptions(
+                Endpoint,
+                TimeSpan.FromSeconds(10),
+                LineMappings,
+                [TimeSpan.Zero]));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            new NavisionPalletOutputOptions(
+                Endpoint,
+                TimeSpan.FromSeconds(10),
+                LineMappings,
+                []));
+    }
+
+    [Fact]
+    public void Options_defaults_to_thirty_second_reconciliation_window()
+    {
+        var options = new NavisionPalletOutputOptions(
+            Endpoint,
+            TimeSpan.FromSeconds(10),
+            LineMappings);
+
+        Assert.Equal(10, options.ReconciliationObservationDelays.Count);
+        Assert.Equal(
+            TimeSpan.FromSeconds(30),
+            options.ReconciliationObservationDelays.Aggregate(
+                TimeSpan.Zero,
+                (total, delay) => total + delay));
+    }
+
     private static NavisionSoapPalletOutputSender CreateSender(
         HttpMessageHandler handler,
         IReadOnlyDictionary<string, string>? mappings = null,
@@ -694,7 +727,8 @@ public sealed class NavisionSoapPalletOutputSenderTests
             new NavisionPalletOutputOptions(
                 Endpoint,
                 TimeSpan.FromSeconds(10),
-                mappings ?? LineMappings));
+                mappings ?? LineMappings,
+                Enumerable.Repeat(TimeSpan.FromMilliseconds(1), 10).ToArray()));
 
     private static bool IsEntity(HttpRequestMessage request, string entity) =>
         request.Method == HttpMethod.Get

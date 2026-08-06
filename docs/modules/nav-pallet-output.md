@@ -74,10 +74,16 @@ bulto con estado incierto, truncamiento o fallo de lectura producen igualmente
 `RESULTADO_DESCONOCIDO` y mantienen bloqueadas etiqueta e impresión.
 
 La publicación OData posterior al codeunit puede demorarse. MES realiza una
-ventana acotada de seis observaciones durante aproximadamente cinco segundos,
+ventana acotada de once observaciones durante aproximadamente treinta segundos,
 sin repetir la escritura. En cuanto aparece una única fila exacta `Pendiente`,
 conserva inmediatamente su identificador para las conciliaciones posteriores;
 no espera a que NAV la registre dentro del mismo intento.
+
+La operación 34 confirmó que una ventana de aproximadamente cinco segundos no
+era suficiente: NAV creó una sola salida, 26840, que OData publicó después de
+la última observación. El paquete 032A vincula exclusivamente esa operación con
+la fila ya existente y mantiene el flujo en modo de solo conciliación; no
+repite `RegistrarSalidaFabricacion` ni habilita por sí mismo la impresión.
 
 No se registran cuerpos completos, credenciales, identificadores RFID ni datos
 personales. La configuración debe restringir el host a NAV TEST y permanecer

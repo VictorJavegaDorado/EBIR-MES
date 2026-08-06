@@ -8,12 +8,26 @@ public sealed class NavisionPalletOutputOptions
         "/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta";
     private const string ODataCompanyPath =
         "/EbirTest/ODataV4/Company('EBIR')/";
+    private static readonly TimeSpan[] DefaultReconciliationObservationDelays =
+    [
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(2),
+        TimeSpan.FromSeconds(3),
+        TimeSpan.FromSeconds(3),
+        TimeSpan.FromSeconds(4),
+        TimeSpan.FromSeconds(4),
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(5)
+    ];
     private readonly IReadOnlyDictionary<string, string> assemblyLineMappings;
 
     public NavisionPalletOutputOptions(
         Uri serviceEndpoint,
         TimeSpan requestTimeout,
-        IReadOnlyDictionary<string, string> assemblyLineMappings)
+        IReadOnlyDictionary<string, string> assemblyLineMappings,
+        IReadOnlyList<TimeSpan>? reconciliationObservationDelays = null)
     {
         ArgumentNullException.ThrowIfNull(serviceEndpoint);
         ArgumentNullException.ThrowIfNull(assemblyLineMappings);
@@ -50,6 +64,19 @@ public sealed class NavisionPalletOutputOptions
             Fragment = string.Empty
         }.Uri;
         RequestTimeout = requestTimeout;
+        var observationDelays = reconciliationObservationDelays
+            ?? DefaultReconciliationObservationDelays;
+        if (observationDelays.Count is < 1 or > 20
+            || observationDelays.Any(delay =>
+                delay <= TimeSpan.Zero || delay > TimeSpan.FromSeconds(10))
+            || observationDelays.Aggregate(TimeSpan.Zero, (total, delay) => total + delay)
+                > TimeSpan.FromMinutes(1))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(reconciliationObservationDelays));
+        }
+        ReconciliationObservationDelays = Array.AsReadOnly(
+            observationDelays.ToArray());
         this.assemblyLineMappings = assemblyLineMappings.ToDictionary(
             pair => RequiredMappingValue(pair.Key, nameof(assemblyLineMappings)),
             pair => RequiredMappingValue(pair.Value, nameof(assemblyLineMappings)),
@@ -61,6 +88,8 @@ public sealed class NavisionPalletOutputOptions
     public Uri ODataCompanyRoot { get; }
 
     public TimeSpan RequestTimeout { get; }
+
+    public IReadOnlyList<TimeSpan> ReconciliationObservationDelays { get; }
 
     public bool TryResolveAssemblyLine(string mesLineCode, out string assemblyLine) =>
         assemblyLineMappings.TryGetValue(mesLineCode.Trim(), out assemblyLine!);

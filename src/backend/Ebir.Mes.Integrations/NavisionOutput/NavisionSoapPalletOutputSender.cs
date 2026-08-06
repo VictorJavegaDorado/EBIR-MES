@@ -15,14 +15,6 @@ public sealed class NavisionSoapPalletOutputSender(
     private const int MaximumResponseBytes = 128 * 1024;
     private const int MaximumODataRecords = 100;
     private const int MaximumReadAttempts = 3;
-    private static readonly TimeSpan[] ReconciliationObservationDelays =
-    [
-        TimeSpan.FromMilliseconds(250),
-        TimeSpan.FromMilliseconds(500),
-        TimeSpan.FromSeconds(1),
-        TimeSpan.FromMilliseconds(1500),
-        TimeSpan.FromSeconds(2)
-    ];
     private const string SoapEnvelopeNamespace =
         "http://schemas.xmlsoap.org/soap/envelope/";
     private const string CodeunitNamespace =
@@ -540,7 +532,7 @@ public sealed class NavisionSoapPalletOutputSender(
         CancellationToken cancellationToken)
     {
         for (var readAttempt = 0;
-             readAttempt <= ReconciliationObservationDelays.Length;
+             readAttempt <= options.ReconciliationObservationDelays.Count;
              readAttempt++)
         {
             try
@@ -600,7 +592,7 @@ public sealed class NavisionSoapPalletOutputSender(
             catch (NavisionReadException exception)
             {
                 if (!exception.IsTransient
-                    || readAttempt == ReconciliationObservationDelays.Length)
+                    || readAttempt == options.ReconciliationObservationDelays.Count)
                 {
                     return Receipt(
                         NavisionPalletOutputDeliveryOutcome.UnknownResult,
@@ -610,9 +602,9 @@ public sealed class NavisionSoapPalletOutputSender(
                 }
             }
 
-            if (readAttempt < ReconciliationObservationDelays.Length)
+            if (readAttempt < options.ReconciliationObservationDelays.Count)
                 await Task.Delay(
-                    ReconciliationObservationDelays[readAttempt],
+                    options.ReconciliationObservationDelays[readAttempt],
                     cancellationToken);
         }
 
