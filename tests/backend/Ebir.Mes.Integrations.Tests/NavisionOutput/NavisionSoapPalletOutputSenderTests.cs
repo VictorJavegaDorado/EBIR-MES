@@ -189,7 +189,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
         Assert.Equal("321", result.ExternalIdentifier);
         Assert.Contains("OutputStillPending", result.TechnicalDataJson);
         Assert.Equal(1, posts);
-        Assert.Equal(4, outputReads);
+        Assert.Equal(2, outputReads);
     }
 
     [Fact]
@@ -330,7 +330,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
 
         Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
         Assert.Equal(1, posts);
-        Assert.Equal(4, outputReads);
+        Assert.Equal(7, outputReads);
     }
 
     [Fact]
@@ -353,6 +353,37 @@ public sealed class NavisionSoapPalletOutputSenderTests
             }
             posts++;
             return Task.FromResult(SoapResult(true));
+        }));
+
+        var result = await sender.SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Equal(1, posts);
+        Assert.Equal(2, outputReads);
+        Assert.Contains("OutputStillPending", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_observes_output_published_after_initial_reconciliation_reads()
+    {
+        var posts = 0;
+        var outputReads = 0;
+        var sender = CreateSender(new StubHandler((request, _) =>
+        {
+            if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                return Task.FromResult(Json(Order()));
+            if (IsEntity(request, "WS_CPP_Producto"))
+                return Task.FromResult(Json(Product()));
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                outputReads++;
+                return Task.FromResult(outputReads < 4
+                    ? Json()
+                    : Json(Output(321, 20, "Pendiente")));
+            }
+            posts++;
+            return Task.FromResult(SoapResult(false));
         }));
 
         var result = await sender.SendAsync(Job, CancellationToken.None);

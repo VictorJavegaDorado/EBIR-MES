@@ -73,6 +73,12 @@ su identificador como `RESULTADO_DESCONOCIDO`; cero filas, más de una fila,
 bulto con estado incierto, truncamiento o fallo de lectura producen igualmente
 `RESULTADO_DESCONOCIDO` y mantienen bloqueadas etiqueta e impresión.
 
+La publicación OData posterior al codeunit puede demorarse. MES realiza una
+ventana acotada de seis observaciones durante aproximadamente cinco segundos,
+sin repetir la escritura. En cuanto aparece una única fila exacta `Pendiente`,
+conserva inmediatamente su identificador para las conciliaciones posteriores;
+no espera a que NAV la registre dentro del mismo intento.
+
 No se registran cuerpos completos, credenciales, identificadores RFID ni datos
 personales. La configuración debe restringir el host a NAV TEST y permanecer
 fuera de Git.
@@ -170,3 +176,18 @@ El paquete 030A recupera exclusivamente esa operación como
 ejecución posterior entra solo por reconciliación OData por `Id`: mientras NAV
 mantenga `Pendiente` conserva el bloqueo; cuando NAV publique `Registrado`, MES
 confirma, habilita la etiqueta y no repite el codeunit.
+
+## Tercer palet y latencia de publicación OData
+
+El intento 1 de la operación 33 ejecutó una sola vez el ciclo completo del
+bulto y recibió HTTP 200 en todas las llamadas. Las tres observaciones OData de
+la versión anterior terminaron antes de que NAV publicara la nueva salida. Poco
+después se observó exactamente la fila 26839, cantidad 20 y estado `Pendiente`;
+el bulto permanecía cerrado. La operación quedó `RESULTADO_DESCONOCIDO` sin
+identificador, por lo que no es elegible para reenvío ni conciliación automática.
+
+El paquete 031A vincula exclusivamente la operación 33 con la fila 26839 y la
+mantiene en modo de solo reconciliación. No contacta NAV ni habilita impresión.
+Cuando la fila pase a `Registrado`, una conciliación por identificador podrá
+confirmar la operación y liberar la etiqueta sin repetir
+`RegistrarSalidaFabricacion`.

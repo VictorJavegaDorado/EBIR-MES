@@ -15,6 +15,14 @@ public sealed class NavisionSoapPalletOutputSender(
     private const int MaximumResponseBytes = 128 * 1024;
     private const int MaximumODataRecords = 100;
     private const int MaximumReadAttempts = 3;
+    private static readonly TimeSpan[] ReconciliationObservationDelays =
+    [
+        TimeSpan.FromMilliseconds(250),
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromMilliseconds(1500),
+        TimeSpan.FromSeconds(2)
+    ];
     private const string SoapEnvelopeNamespace =
         "http://schemas.xmlsoap.org/soap/envelope/";
     private const string CodeunitNamespace =
@@ -531,7 +539,9 @@ public sealed class NavisionSoapPalletOutputSender(
         SoapAttempt attempt,
         CancellationToken cancellationToken)
     {
-        for (var readAttempt = 1; readAttempt <= MaximumReadAttempts; readAttempt++)
+        for (var readAttempt = 0;
+             readAttempt <= ReconciliationObservationDelays.Length;
+             readAttempt++)
         {
             try
             {
@@ -569,17 +579,14 @@ public sealed class NavisionSoapPalletOutputSender(
                             baselineMaximumId);
                     }
 
-                    if (readAttempt == MaximumReadAttempts)
-                    {
-                        return Receipt(
-                            NavisionPalletOutputDeliveryOutcome.UnknownResult,
-                            attempt.HttpStatusCode,
-                            string.Equals(match.State, "Pendiente", StringComparison.Ordinal)
-                                ? "OutputStillPending"
-                                : "OutputStateNotRegistered",
-                            match.Id.ToString(CultureInfo.InvariantCulture),
-                            baselineMaximumId);
-                    }
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode,
+                        string.Equals(match.State, "Pendiente", StringComparison.Ordinal)
+                            ? "OutputStillPending"
+                            : "OutputStateNotRegistered",
+                        match.Id.ToString(CultureInfo.InvariantCulture),
+                        baselineMaximumId);
                 }
                 if (newMatches.Length > 1)
                 {
@@ -592,7 +599,8 @@ public sealed class NavisionSoapPalletOutputSender(
             }
             catch (NavisionReadException exception)
             {
-                if (!exception.IsTransient || readAttempt == MaximumReadAttempts)
+                if (!exception.IsTransient
+                    || readAttempt == ReconciliationObservationDelays.Length)
                 {
                     return Receipt(
                         NavisionPalletOutputDeliveryOutcome.UnknownResult,
@@ -602,8 +610,9 @@ public sealed class NavisionSoapPalletOutputSender(
                 }
             }
 
-            if (readAttempt < MaximumReadAttempts)
-                await Task.Delay(TimeSpan.FromMilliseconds(100 * readAttempt),
+            if (readAttempt < ReconciliationObservationDelays.Length)
+                await Task.Delay(
+                    ReconciliationObservationDelays[readAttempt],
                     cancellationToken);
         }
 
