@@ -162,8 +162,9 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
-    public async Task SendAsync_treats_false_codeunit_result_as_definitive()
+    public async Task SendAsync_reconciles_false_codeunit_result_and_preserves_pending_output()
     {
+        var posts = 0;
         var outputReads = 0;
         var sender = CreateSender(new StubHandler((request, _) =>
         {
@@ -174,16 +175,21 @@ public sealed class NavisionSoapPalletOutputSenderTests
             if (IsEntity(request, "WS_CPP_SalidasFabrica"))
             {
                 outputReads++;
-                return Task.FromResult(Json());
+                return Task.FromResult(outputReads == 1
+                    ? Json()
+                    : Json(Output(321, 20, "Pendiente")));
             }
+            posts++;
             return Task.FromResult(SoapResult(false));
         }));
 
         var result = await sender.SendAsync(Job, CancellationToken.None);
 
-        Assert.Equal(NavisionPalletOutputDeliveryOutcome.PermanentFailure, result.Outcome);
-        Assert.Contains("CodeunitReturnedFalse", result.TechnicalDataJson);
-        Assert.Equal(1, outputReads);
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Contains("OutputStillPending", result.TechnicalDataJson);
+        Assert.Equal(1, posts);
+        Assert.Equal(4, outputReads);
     }
 
     [Fact]

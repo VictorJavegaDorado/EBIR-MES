@@ -62,13 +62,16 @@ Una ausencia, ambigüedad o diferencia de datos bloquea el envío. Las lecturas
 transitorias pueden reintentarse antes de escribir. El codeunit no se repite
 después de una respuesta incierta.
 
-La confirmación local exige que la llamada devuelva `true` o que, ante una
-incertidumbre de transporte, la reconciliación lo demuestre, que OData publique
-exactamente una fila nueva `Registrado`, posterior al mayor `Id` observado,
-con orden, producto y cantidad exactos, y que `IsOpenPallet` confirme el bulto
-cerrado. Cero filas, más de una fila, bulto con estado incierto, truncamiento o
-fallo de lectura producen `RESULTADO_DESCONOCIDO` y mantienen bloqueadas
-etiqueta e impresión. Un `false` del codeunit es error definitivo.
+La confirmación local exige que la reconciliación OData publique exactamente
+una fila nueva `Registrado`, posterior al mayor `Id` observado, con orden,
+producto y cantidad exactos, y que `IsOpenPallet` confirme el bulto cerrado.
+La respuesta booleana del codeunit no es prueba suficiente: en TEST se ha
+observado que puede devolver `false` después de crear una salida `Pendiente`.
+Por ello tanto `true` como `false` continúan hacia la reconciliación y el
+codeunit nunca se repite dentro del intento. Una fila nueva `Pendiente` conserva
+su identificador como `RESULTADO_DESCONOCIDO`; cero filas, más de una fila,
+bulto con estado incierto, truncamiento o fallo de lectura producen igualmente
+`RESULTADO_DESCONOCIDO` y mantienen bloqueadas etiqueta e impresión.
 
 No se registran cuerpos completos, credenciales, identificadores RFID ni datos
 personales. La configuración debe restringir el host a NAV TEST y permanecer
@@ -154,3 +157,16 @@ Comprueba operación 32, palet 22, cantidad 20, ausencia de identificador y
 reserva, HTTP 500, adaptador, resultado, motivo y mayor identificador previo.
 Conserva el intento original y registra auditoría. El paquete no contacta NAV
 ni autoriza el siguiente envío; instalación y ensayo real son fases separadas.
+
+El intento 2 gestionó correctamente el ciclo del bulto: lo abrió, ejecutó una
+sola vez `RegistrarSalidaFabricacion` y comprobó su cierre. El codeunit respondió
+HTTP 200 con valor `false`, pero OData publicó exactamente la nueva fila 26838,
+cantidad 20 y estado `Pendiente`. La versión anterior clasificó el booleano como
+rechazo definitivo antes de reconciliar y no conservó ese identificador. La
+salida existe y no debe reenviarse.
+
+El paquete 030A recupera exclusivamente esa operación como
+`RESULTADO_DESCONOCIDO` con el identificador externo ya observado. Una
+ejecución posterior entra solo por reconciliación OData por `Id`: mientras NAV
+mantenga `Pendiente` conserva el bloqueo; cuando NAV publique `Registrado`, MES
+confirma, habilita la etiqueta y no repite el codeunit.

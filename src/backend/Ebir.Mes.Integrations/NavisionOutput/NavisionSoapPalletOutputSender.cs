@@ -651,7 +651,7 @@ public sealed class NavisionSoapPalletOutputSender(
             return result switch
             {
                 true => new SoapAttempt(status, null, false),
-                false => new SoapAttempt(status, "CodeunitReturnedFalse", true),
+                false => new SoapAttempt(status, "CodeunitReturnedFalse", false),
                 null => new SoapAttempt(status, "InvalidSoapResponse", false)
             };
         }
