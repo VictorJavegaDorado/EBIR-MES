@@ -228,3 +228,17 @@ El paquete 034A vincula exclusivamente la operación 35 con 26841 y la mantiene
 en modo de solo conciliación. No contacta NAV ni habilita impresión. Cuando la
 fila pase a `Registrado`, la conciliación por identificador podrá completar el
 palet final sin repetir `RegistrarSalidaFabricacion`.
+
+## Primer palet de FL26-00004
+
+El primer palet de `FL26-00004` cerro 20 unidades en MES como operacion 36. La
+ejecucion controlada del Worker realizo una sola vez el ciclo completo del
+bulto, recibio HTTP 200 y dejo el bulto cerrado. La ventana de observacion
+termino antes de que OData publicara la salida, por lo que MES conservo el
+resultado como desconocido y sin identificador externo.
+
+Despues se observo una unica fila nueva, 26842, para la orden y producto
+exactos, con cantidad 20, tipo `Salida` y estado `Pendiente`. El paquete 036A
+vincula exclusivamente la operacion 36 con esa fila y la mantiene en modo de
+solo conciliacion. No contacta NAV, no repite `RegistrarSalidaFabricacion` y no
+habilita la etiqueta mientras NAV no publique el estado `Registrado`.
