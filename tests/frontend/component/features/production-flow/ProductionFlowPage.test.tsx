@@ -147,6 +147,50 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText(/Actualización automática cada 10 s/i)).toBeInTheDocument();
   });
 
+  it("recovers a completed order by line so the last operator can leave", async () => {
+    const completedOrder = {
+      ...order,
+      orderNumber: "FL26-00003",
+      targetQuantity: 100,
+      goodQuantity: 100,
+      state: "PENDIENTE_CIERRE",
+    };
+    const recoveredTable = {
+      ...tableState,
+      orderId: completedOrder.productionOrderId,
+    };
+    const tableWithoutOperators = {
+      ...recoveredTable,
+      state: "SIN_OPERARIOS",
+      activeResources: 0,
+      operators: [],
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        order: completedOrder,
+        table: recoveredTable,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ activeResources: 0 }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableWithoutOperators), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL26-00003{enter}");
+
+    expect(await screen.findByText(/Mesa pendiente de FL26-00003 recuperada/i))
+      .toBeInTheDocument();
+    expect(screen.getByText("Operario piloto")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Registrar salida de Operario piloto/i }));
+
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/exits");
+    expect(await screen.findByText("Todavía no hay personas identificadas.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nueva orden" })).toBeInTheDocument();
+  });
+
   it("advances visible times every second when the server clock is ahead", async () => {
     let monotonicTime = 1_000;
     vi.spyOn(performance, "now").mockImplementation(() => monotonicTime);

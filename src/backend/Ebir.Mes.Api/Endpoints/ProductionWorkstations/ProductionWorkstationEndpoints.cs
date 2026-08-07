@@ -27,6 +27,16 @@ public static class ProductionWorkstationEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
+        endpoints.MapGet(
+                "/api/production-workstations/active",
+                HandleActiveAsync)
+            .WithName("GetActiveProductionTable")
+            .WithSummary("Recupera la mesa activa vinculada a una línea.")
+            .Produces<ActiveProductionTableRecord>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
         return endpoints;
     }
 
@@ -99,6 +109,37 @@ public static class ProductionWorkstationEndpoints
                     "PRODUCTION_TABLE_NOT_ACTIVE",
                     "No existe una mesa activa para esta orden y línea.")
                 : Results.Ok(state);
+        }
+        catch (ProductionTableUnavailableException)
+        {
+            return Unavailable();
+        }
+    }
+
+    private static async Task<IResult> HandleActiveAsync(
+        long lineId,
+        GetActiveProductionTable useCase,
+        CancellationToken cancellationToken)
+    {
+        if (lineId <= 0)
+        {
+            return Problem(
+                StatusCodes.Status400BadRequest,
+                "Consulta de mesa no válida",
+                "PRODUCTION_LINE_KEY_INVALID",
+                "lineId debe ser un identificador positivo.");
+        }
+
+        try
+        {
+            var active = await useCase.ExecuteAsync(lineId, cancellationToken);
+            return active is null
+                ? Problem(
+                    StatusCodes.Status404NotFound,
+                    "Línea sin mesa activa",
+                    "PRODUCTION_LINE_WITHOUT_ACTIVE_TABLE",
+                    "No existe una mesa activa vinculada a esta línea.")
+                : Results.Ok(active);
         }
         catch (ProductionTableUnavailableException)
         {

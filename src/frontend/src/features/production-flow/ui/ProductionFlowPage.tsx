@@ -16,6 +16,7 @@ import {
 } from "../api/identifyEmployeeByRfid";
 import {
   finishOperatorStop,
+  getActiveProductionTable,
   getProductionTableState,
   type ProductionTableState,
   ProductionTableApiError,
@@ -223,10 +224,54 @@ export function ProductionFlowPage() {
       (candidate) => candidate.orderNumber.trim().toUpperCase() === normalized,
     );
     if (!match) {
-      setError({
-        message: "La orden escaneada no está disponible para producción.",
-        code: "PRODUCTION_ORDER_NOT_AVAILABLE",
-      });
+      if (!line) {
+        setError({
+          message: "Vuelve a identificar la línea antes de cargar la orden.",
+          code: "PRODUCTION_CONTEXT_REQUIRED",
+        });
+        return;
+      }
+
+      setBusy(true);
+      setError(null);
+      setNotice("");
+      request.current?.abort();
+      const controller = new AbortController();
+      request.current = controller;
+      try {
+        const active = await getActiveProductionTable(line.id, controller.signal);
+        if (
+          active
+          && active.order.orderNumber.trim().toUpperCase() === normalized
+          && active.table.lineId === line.id
+          && active.table.orderId === active.order.productionOrderId
+        ) {
+          setOrder(active.order);
+          setOrderCode(active.order.orderNumber);
+          acceptTableSnapshot(active.table);
+          setActiveStep(3);
+          setNotice(
+            `Mesa pendiente de ${active.order.orderNumber} recuperada. Retira al operario antes de iniciar otra orden.`,
+          );
+          return;
+        }
+
+        setError({
+          message: "La orden escaneada no está disponible para producción.",
+          code: "PRODUCTION_ORDER_NOT_AVAILABLE",
+        });
+      } catch (caught) {
+        if (controller.signal.aborted) return;
+        setError({
+          message: "No se puede comprobar si la línea conserva una mesa pendiente.",
+          code: caught instanceof ProductionTableApiError
+            ? caught.code
+            : "PRODUCTION_TABLE_UNAVAILABLE",
+        });
+      } finally {
+        if (request.current === controller) request.current = null;
+        setBusy(false);
+      }
       return;
     }
 

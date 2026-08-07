@@ -51,6 +51,7 @@ builder.Services.AddScoped<ListSelectableProductionOrders>();
 builder.Services.AddScoped<IdentifyEmployeeByRfid>();
 builder.Services.AddScoped<StartOrJoinProductionTable>();
 builder.Services.AddScoped<GetProductionTableState>();
+builder.Services.AddScoped<GetActiveProductionTable>();
 builder.Services.AddSingleton<IRfidCredentialFingerprinter>(_ =>
     new HmacSha256RfidCredentialFingerprinter(
         builder.Configuration["Rfid:LookupKey"]));

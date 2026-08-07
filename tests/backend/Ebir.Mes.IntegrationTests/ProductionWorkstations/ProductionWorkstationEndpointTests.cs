@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Ebir.Mes.Application.ProductionOrders;
 using Ebir.Mes.Application.ProductionWorkstations;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -78,6 +79,35 @@ public sealed class ProductionWorkstationEndpointTests
     }
 
     [Fact]
+    public async Task Active_RecoversTheLineTableEvenWhenTheOrderIsNoLongerSelectable()
+    {
+        var now = new DateTime(2026, 8, 7, 8, 20, 0, DateTimeKind.Utc);
+        var state = new ProductionTableStateRecord(
+            12, 28, 40, "PRODUCIENDO", now.AddMinutes(-10), now,
+            600, 1, 6m, "POK", 20,
+            [new(3, "EMP-3", "Operario piloto", now.AddMinutes(-10), 600, "PRODUCIENDO")]);
+        var order = new ProductionOrderSelectionRecord(
+            28, "FL26-00003", "27924LG", "Producto piloto", "", 100,
+            100, 0, 0, 10m, "PENDIENTE_CIERRE", now.AddDays(-1));
+        using var factory = CreateFactory(
+            new StubStarter(new(12, 31, null, false)),
+            new StubStateReader(state, new(order, state)));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/production-workstations/active?lineId=40");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("FL26-00003", body.RootElement.GetProperty("order")
+            .GetProperty("orderNumber").GetString());
+        Assert.Equal("PENDIENTE_CIERRE", body.RootElement.GetProperty("order")
+            .GetProperty("state").GetString());
+        Assert.Single(body.RootElement.GetProperty("table")
+            .GetProperty("operators").EnumerateArray());
+    }
+
+    [Fact]
     public async Task StartOrJoin_HidesInfrastructureFailure()
     {
         using var factory = CreateFactory(
@@ -122,12 +152,18 @@ public sealed class ProductionWorkstationEndpointTests
             throw new ProductionTableUnavailableException("synthetic database detail");
     }
 
-    private sealed class StubStateReader(ProductionTableStateRecord? state)
+    private sealed class StubStateReader(
+        ProductionTableStateRecord? state,
+        ActiveProductionTableRecord? active = null)
         : IProductionTableStateReader
     {
         public Task<ProductionTableStateRecord?> ReadAsync(
             long orderId,
             long lineId,
             CancellationToken cancellationToken) => Task.FromResult(state);
+
+        public Task<ActiveProductionTableRecord?> ReadActiveByLineAsync(
+            long lineId,
+            CancellationToken cancellationToken) => Task.FromResult(active);
     }
 }

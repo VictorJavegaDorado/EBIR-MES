@@ -6,4 +6,8 @@ public interface IProductionTableStateReader
         long orderId,
         long lineId,
         CancellationToken cancellationToken);
+
+    Task<ActiveProductionTableRecord?> ReadActiveByLineAsync(
+        long lineId,
+        CancellationToken cancellationToken);
 }

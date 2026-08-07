@@ -1,3 +1,5 @@
+import type { ProductionOrder } from "../../production-order-selection/model/productionOrder";
+
 export type ProductionTableOperator = {
   employeeId: number;
   navEmployeeCode: string;
@@ -20,6 +22,11 @@ export type ProductionTableState = {
   palletFormatCode: string;
   unitsPerPallet: number;
   operators: ProductionTableOperator[];
+};
+
+export type ActiveProductionTable = {
+  order: ProductionOrder;
+  table: ProductionTableState;
 };
 
 type ApiProblem = { code?: string; detail?: string };
@@ -63,6 +70,21 @@ export async function getProductionTableState(
   });
 
   if (response.ok) return (await response.json()) as ProductionTableState;
+  if (response.status === 404) return null;
+  throw await toError(response);
+}
+
+export async function getActiveProductionTable(
+  lineId: number,
+  signal?: AbortSignal,
+): Promise<ActiveProductionTable | null> {
+  const query = new URLSearchParams({ lineId: String(lineId) });
+  const response = await fetch(`/api/production-workstations/active?${query}`, {
+    headers: { Accept: "application/json" },
+    signal,
+  });
+
+  if (response.ok) return (await response.json()) as ActiveProductionTable;
   if (response.status === 404) return null;
   throw await toError(response);
 }

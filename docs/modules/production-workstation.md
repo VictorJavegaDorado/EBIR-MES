@@ -143,6 +143,17 @@ capacidad teorica, POK y operarios activos. Los cronometros avanzan localmente
 desde esa instantanea UTC; no generan escrituras periodicas. La respuesta no
 incluye credenciales RFID.
 
+Una orden que alcanza su cantidad objetivo deja de formar parte de la lista de
+ordenes seleccionables, pero su mesa puede conservar personas con fichaje
+abierto. Para ese cierre operativo,
+`GET /api/production-workstations/active?lineId=...` recupera exclusivamente la
+sesion no finalizada vinculada a la linea, junto con la orden y el mismo estado
+de mesa. La interfaz solo acepta esa recuperacion si el numero escaneado
+coincide exactamente y si los identificadores de linea y orden son coherentes.
+Asi se puede registrar la salida de la ultima persona y, cuando la capacidad
+queda a cero, usar `Nueva orden` sin volver a abrir la orden terminada ni
+hacerla seleccionable para otras lineas.
+
 La pantalla refresca esa instantanea cada 10 segundos para recoger cambios
 realizados desde otro terminal. Un fallo puntual conserva el ultimo estado
 confirmado y se reintenta en el siguiente ciclo. Entre instantaneas, la
