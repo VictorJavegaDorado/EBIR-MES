@@ -217,3 +217,14 @@ original y auditando la recuperación. La versión corregida permite el lote NAV
 vacío, pero sigue exigiendo el lote trazable MES y bloquea cualquier lote NAV
 no vacío que discrepe. Instalación, activación y nuevo ensayo permanecen como
 fases separadas.
+
+El intento 2 alcanzó el ciclo NAV completo con el lote MES conservado: partió
+de la fila máxima 26840, recibió HTTP 200 con valor `false` y dejó el bulto
+cerrado. OData publicó la única fila nueva 26841, cantidad 20 y estado
+`Pendiente`, después de agotar la ventana de treinta segundos. La operación
+quedó `RESULTADO_DESCONOCIDO` sin identificador y no debe reenviarse.
+
+El paquete 034A vincula exclusivamente la operación 35 con 26841 y la mantiene
+en modo de solo conciliación. No contacta NAV ni habilita impresión. Cuando la
+fila pase a `Registrado`, la conciliación por identificador podrá completar el
+palet final sin repetir `RegistrarSalidaFabricacion`.
