@@ -124,16 +124,60 @@ public sealed class ProductionWorkstationEndpointTests
         Assert.DoesNotContain("synthetic database detail", text);
     }
 
+    [Fact]
+    public async Task CompleteOrder_ReturnsFinalizedAfterTheServerAcceptsTheTransition()
+    {
+        var completer = new StubCompleter();
+        using var factory = CreateFactory(
+            new StubStarter(new(12, 31, null, false)),
+            new StubStateReader(null),
+            completer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/production-workstations/12/complete-order",
+            new { correlationId = CorrelationId });
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("FINALIZADA", body.RootElement.GetProperty("state").GetString());
+        Assert.Equal(12, completer.LastCommand?.LineSessionId);
+        Assert.Equal(CorrelationId, completer.LastCommand?.CorrelationId);
+    }
+
+    [Fact]
+    public async Task CompleteOrder_ReturnsSafeConflict()
+    {
+        using var factory = CreateFactory(
+            new StubStarter(new(12, 31, null, false)),
+            new StubStateReader(null),
+            new RejectingCompleter());
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/production-workstations/12/complete-order",
+            new { correlationId = CorrelationId });
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            "PALLET_OUTPUT_NOT_CONFIRMED",
+            body.RootElement.GetProperty("code").GetString());
+    }
+
     private static WebApplicationFactory<Program> CreateFactory(
         IProductionTableStarter starter,
-        IProductionTableStateReader reader) =>
+        IProductionTableStateReader reader,
+        IProductionOrderCompleter? completer = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IProductionTableStarter>();
                 services.RemoveAll<IProductionTableStateReader>();
+                services.RemoveAll<IProductionOrderCompleter>();
                 services.AddSingleton(starter);
                 services.AddSingleton(reader);
+                services.AddSingleton(completer ?? new StubCompleter());
             }));
 
     private sealed class StubStarter(ProductionTableStartRecord result)
@@ -165,5 +209,28 @@ public sealed class ProductionWorkstationEndpointTests
         public Task<ActiveProductionTableRecord?> ReadActiveByLineAsync(
             long lineId,
             CancellationToken cancellationToken) => Task.FromResult(active);
+    }
+
+    private sealed class StubCompleter : IProductionOrderCompleter
+    {
+        public CompleteProductionOrderCommand? LastCommand { get; private set; }
+
+        public Task CompleteAsync(
+            CompleteProductionOrderCommand command,
+            CancellationToken cancellationToken)
+        {
+            LastCommand = command;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RejectingCompleter : IProductionOrderCompleter
+    {
+        public Task CompleteAsync(
+            CompleteProductionOrderCommand command,
+            CancellationToken cancellationToken) =>
+            throw new ProductionTableRejectedException(
+                "PALLET_OUTPUT_NOT_CONFIRMED",
+                "Las salidas todavía no están confirmadas.");
     }
 }

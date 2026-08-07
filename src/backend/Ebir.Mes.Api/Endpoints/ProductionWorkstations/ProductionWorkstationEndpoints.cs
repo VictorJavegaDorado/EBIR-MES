@@ -37,6 +37,16 @@ public static class ProductionWorkstationEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
+        endpoints.MapPost(
+                "/api/production-workstations/{lineSessionId:long}/complete-order",
+                HandleCompleteOrderAsync)
+            .WithName("CompleteProductionOrder")
+            .WithSummary("Finaliza una orden completa y libera su línea.")
+            .Produces<CompleteProductionOrderResponse>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
+
         return endpoints;
     }
 
@@ -140,6 +150,45 @@ public static class ProductionWorkstationEndpoints
                     "PRODUCTION_LINE_WITHOUT_ACTIVE_TABLE",
                     "No existe una mesa activa vinculada a esta línea.")
                 : Results.Ok(active);
+        }
+        catch (ProductionTableUnavailableException)
+        {
+            return Unavailable();
+        }
+    }
+
+    private static async Task<IResult> HandleCompleteOrderAsync(
+        long lineSessionId,
+        CompleteProductionOrderRequest request,
+        CompleteProductionOrder useCase,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await useCase.ExecuteAsync(
+                new CompleteProductionOrderCommand(
+                    lineSessionId,
+                    request.CorrelationId),
+                cancellationToken);
+            return result.Outcome switch
+            {
+                CompleteProductionOrderOutcome.Completed => Results.Ok(
+                    new CompleteProductionOrderResponse(
+                        "FINALIZADA",
+                        request.CorrelationId)),
+                CompleteProductionOrderOutcome.InvalidRequest => Problem(
+                    StatusCodes.Status400BadRequest,
+                    "Solicitud de finalización no válida",
+                    result.ErrorCode,
+                    result.ErrorMessage),
+                CompleteProductionOrderOutcome.Rejected => Problem(
+                    StatusCodes.Status409Conflict,
+                    "Finalización de orden rechazada",
+                    result.ErrorCode,
+                    result.ErrorMessage),
+                _ => throw new InvalidOperationException(
+                    $"Resultado de finalización no soportado: {result.Outcome}.")
+            };
         }
         catch (ProductionTableUnavailableException)
         {

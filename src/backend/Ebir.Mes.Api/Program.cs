@@ -52,6 +52,7 @@ builder.Services.AddScoped<IdentifyEmployeeByRfid>();
 builder.Services.AddScoped<StartOrJoinProductionTable>();
 builder.Services.AddScoped<GetProductionTableState>();
 builder.Services.AddScoped<GetActiveProductionTable>();
+builder.Services.AddScoped<CompleteProductionOrder>();
 builder.Services.AddSingleton<IRfidCredentialFingerprinter>(_ =>
     new HmacSha256RfidCredentialFingerprinter(
         builder.Configuration["Rfid:LookupKey"]));
@@ -94,6 +95,9 @@ builder.Services.AddScoped<IProductionTableStarter>(_ =>
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IProductionTableStateReader>(_ =>
     new SqlProductionTableStateReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionOrderCompleter>(_ =>
+    new SqlProductionOrderCompleter(
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineSessionOpener>(_ =>
     new SqlLineSessionOpener(

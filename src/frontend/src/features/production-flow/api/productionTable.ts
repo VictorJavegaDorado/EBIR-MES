@@ -89,6 +89,24 @@ export async function getActiveProductionTable(
   throw await toError(response);
 }
 
+export async function completeProductionOrder(
+  lineSessionId: number,
+  correlationId: string,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await fetch(
+    `/api/production-workstations/${lineSessionId}/complete-order`,
+    {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ correlationId }),
+      signal,
+    },
+  );
+
+  if (!response.ok) throw await toError(response);
+}
+
 export async function registerProductiveExit(
   lineSessionId: number,
   employeeId: number,

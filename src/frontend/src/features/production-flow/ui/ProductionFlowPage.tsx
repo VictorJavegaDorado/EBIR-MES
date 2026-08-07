@@ -15,6 +15,7 @@ import {
   RfidIdentificationApiError,
 } from "../api/identifyEmployeeByRfid";
 import {
+  completeProductionOrder,
   finishOperatorStop,
   getActiveProductionTable,
   getProductionTableState,
@@ -455,7 +456,7 @@ export function ProductionFlowPage() {
     setNotice("");
   }
 
-  function startNewOrder() {
+  async function startNewOrder() {
     if (!line) return;
     if (table && table.activeResources > 0) {
       setError({
@@ -463,6 +464,43 @@ export function ProductionFlowPage() {
         code: "ACTIVE_OPERATORS_PREVENT_NEW_ORDER",
       });
       return;
+    }
+
+    if (table && order?.state === "PENDIENTE_CIERRE") {
+      const operationKey = `complete-order:${table.lineSessionId}`;
+      const correlationId = pendingCorrelations.current.get(operationKey)
+        ?? createCorrelationId();
+      pendingCorrelations.current.set(operationKey, correlationId);
+      setBusy(true);
+      setError(null);
+      setNotice("");
+      request.current?.abort();
+      refreshRequest.current?.abort();
+      refreshRequest.current = null;
+      const controller = new AbortController();
+      request.current = controller;
+      try {
+        await completeProductionOrder(
+          table.lineSessionId,
+          correlationId,
+          controller.signal,
+        );
+        pendingCorrelations.current.delete(operationKey);
+      } catch (caught) {
+        if (controller.signal.aborted) return;
+        setError({
+          message: caught instanceof ProductionTableApiError
+            ? caught.message
+            : "No se ha podido finalizar la orden y liberar la línea.",
+          code: caught instanceof ProductionTableApiError
+            ? caught.code
+            : "ORDER_COMPLETION_UNAVAILABLE",
+        });
+        return;
+      } finally {
+        if (request.current === controller) request.current = null;
+        setBusy(false);
+      }
     }
 
     request.current?.abort();
@@ -508,7 +546,12 @@ export function ProductionFlowPage() {
         {line && (
           <div className="flow-heading-actions">
             {order && (
-              <button className="flow-new-order" type="button" onClick={startNewOrder}>
+              <button
+                className="flow-new-order"
+                type="button"
+                onClick={startNewOrder}
+                disabled={busy}
+              >
                 Nueva orden
               </button>
             )}

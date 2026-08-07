@@ -71,6 +71,14 @@ sistema y la correlación recibida. Los rechazos conocidos de
 no exponen detalles de NAV, impresión o SQL. Las solicitudes inválidas
 devuelven `400` y los fallos no clasificados se ocultan tras `503`.
 
+Este contrato administrativo no finaliza una orden productiva completa. El
+fin de orden pertenece a la mesa y usa
+`POST /api/production-workstations/{lineSessionId}/complete-order`, documentado
+en `production-workstation.md`. Son transiciones distintas: el fin de turno
+mantiene sus requisitos de supervisor e impresion, mientras que el fin de orden
+se apoya en el ultimo pale ya autorizado, exige todas las salidas NAV
+confirmadas y permite etiquetas MES listas pendientes de impresion.
+
 ## Inicio de paro de operario
 
 `POST /api/line-sessions/{sessionId}/operator-stops` recibe `employeeId`,

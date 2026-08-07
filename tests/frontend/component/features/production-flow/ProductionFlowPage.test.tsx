@@ -173,7 +173,11 @@ describe("ProductionFlowPage", () => {
         table: recoveredTable,
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ activeResources: 0 }), { status: 201 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(tableWithoutOperators), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableWithoutOperators), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        state: "FINALIZADA",
+        correlationId: "9a8b1e15-ec9a-46e5-9f3e-c159b069080b",
+      }), { status: 200 }));
 
     render(<ProductionFlowPage />);
     await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
@@ -188,7 +192,54 @@ describe("ProductionFlowPage", () => {
 
     expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/exits");
     expect(await screen.findByText("Todavía no hay personas identificadas.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nueva orden" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Nueva orden" }));
+
+    expect(fetchMock.mock.calls[5][0]).toBe(
+      "/api/production-workstations/12/complete-order",
+    );
+    expect(screen.getByRole("heading", { name: "Escanea la orden" })).toBeInTheDocument();
+    expect(screen.getByText(/Línea LINEA-TEST-01 conservada/i)).toBeInTheDocument();
+  });
+
+  it("keeps the completed table visible when order completion is rejected", async () => {
+    const completedOrder = {
+      ...order,
+      orderNumber: "FL26-00003",
+      targetQuantity: 100,
+      goodQuantity: 100,
+      state: "PENDIENTE_CIERRE",
+    };
+    const tableWithoutOperators = {
+      ...tableState,
+      orderId: completedOrder.productionOrderId,
+      state: "SIN_OPERARIOS",
+      activeResources: 0,
+      operators: [],
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        order: completedOrder,
+        table: tableWithoutOperators,
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "PALLET_OUTPUT_NOT_CONFIRMED",
+        detail: "Todas las salidas de palé deben estar confirmadas.",
+      }), { status: 409 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL26-00003{enter}");
+    await screen.findByText(/Mesa pendiente de FL26-00003 recuperada/i);
+
+    await userEvent.click(screen.getByRole("button", { name: "Nueva orden" }));
+
+    expect(await screen.findByText("PALLET_OUTPUT_NOT_CONFIRMED")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Gestiona la producción" })).toBeInTheDocument();
+    expect(screen.getByText("FL26-00003")).toBeInTheDocument();
+    expect(screen.getByText("Todavía no hay personas identificadas.")).toBeInTheDocument();
   });
 
   it("advances visible times every second when the server clock is ahead", async () => {
