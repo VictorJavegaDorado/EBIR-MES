@@ -162,6 +162,61 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_accepts_empty_nav_lot_and_keeps_mes_traceability_lot()
+    {
+        CapturedRequest? registrar = null;
+        var outputReads = 0;
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                return Json(Order(lot: string.Empty));
+            if (IsEntity(request, "WS_CPP_Producto"))
+                return Json(Product());
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                outputReads++;
+                return outputReads == 1 ? Json() : Json(Output(321, 20));
+            }
+            if (request.Headers.TryGetValues("SOAPAction", out var actions)
+                && actions.Single().EndsWith(
+                    ":RegistrarSalidaFabricacion",
+                    StringComparison.Ordinal))
+            {
+                registrar = await CaptureAsync(request, cancellationToken);
+            }
+            return SoapResult(true);
+        });
+
+        var result = await CreateSender(handler).SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.NotNull(registrar);
+        var document = XDocument.Parse(registrar.Body!);
+        XNamespace codeunit = CodeunitNamespace;
+        var call = document.Descendants(
+            codeunit + "RegistrarSalidaFabricacion").Single();
+        Assert.Equal("LOT-TEST", call.Element(codeunit + "n_Lote")!.Value);
+    }
+
+    [Fact]
+    public async Task SendAsync_blocks_nonempty_nav_lot_mismatch_before_post()
+    {
+        var methods = new List<HttpMethod>();
+        var sender = CreateSender(new StubHandler((request, _) =>
+        {
+            methods.Add(request.Method);
+            return Task.FromResult(Json(Order(lot: "OTHER-LOT")));
+        }));
+
+        var result = await sender.SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.PermanentFailure, result.Outcome);
+        Assert.Contains("OrderMismatch", result.TechnicalDataJson);
+        Assert.Single(methods);
+        Assert.Equal(HttpMethod.Get, methods[0]);
+    }
+
+    [Fact]
     public async Task SendAsync_reconciles_false_codeunit_result_and_preserves_pending_output()
     {
         var posts = 0;

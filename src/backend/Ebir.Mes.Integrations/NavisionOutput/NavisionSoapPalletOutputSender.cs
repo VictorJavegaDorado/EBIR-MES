@@ -43,8 +43,9 @@ public sealed class NavisionSoapPalletOutputSender(
             order = await ReadOrderAsync(job.OrderNumber, cancellationToken);
             if (!string.Equals(order.ProductNumber, job.ProductNumber,
                     StringComparison.Ordinal)
-                || !string.Equals(order.LotNumber, job.LotNumber,
-                    StringComparison.Ordinal))
+                || (!string.IsNullOrEmpty(order.LotNumber)
+                    && !string.Equals(order.LotNumber, job.LotNumber,
+                        StringComparison.Ordinal)))
             {
                 return Receipt(
                     NavisionPalletOutputDeliveryOutcome.PermanentFailure,
@@ -165,7 +166,7 @@ public sealed class NavisionSoapPalletOutputSender(
             element => new OrderRecord(
                 RequiredString(element, "No"),
                 RequiredString(element, "Source_No"),
-                RequiredString(element, "Cód_Lote_Salida"),
+                OptionalString(element, "Cód_Lote_Salida"),
                 OptionalString(element, "Bin_Code")),
             cancellationToken);
         if (records.Count != 1

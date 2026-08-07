@@ -58,6 +58,11 @@ Antes de escribir, el adaptador consulta ODataV4 en lectura:
 - `WS_CPP_SalidasFabrica`: toma el mayor `Id` ya `Registrado` para la misma
   orden, producto y tipo `Salida`.
 
+`Cód_Lote_Salida` puede llegar vacío desde NAV. En ese caso no bloquea la
+salida y MES conserva el lote trazable ya persistido en la orden para enviarlo
+al codeunit. Si NAV informa un lote no vacío distinto del lote MES, el
+adaptador mantiene el bloqueo por discrepancia.
+
 Una ausencia, ambigüedad o diferencia de datos bloquea el envío. Las lecturas
 transitorias pueden reintentarse antes de escribir. El codeunit no se repite
 después de una respuesta incierta.
@@ -197,3 +202,18 @@ mantiene en modo de solo reconciliación. No contacta NAV ni habilita impresión
 Cuando la fila pase a `Registrado`, una conciliación por identificador podrá
 confirmar la operación y liberar la etiqueta sin repetir
 `RegistrarSalidaFabricacion`.
+
+## Quinto palet final y lote NAV vacío
+
+El cierre del palet 25, número 5, registró correctamente su carácter final y
+la autorización de supervisor. El intento 1 de la operación 35 realizó una
+única lectura de `WS_CPP_OPLanzadas` y terminó antes de abrir el bulto o llamar
+al codeunit: NAV devolvió la orden exacta con `Cód_Lote_Salida` vacío y el
+adaptador anterior lo trató como una respuesta OData inválida. No se creó una
+quinta salida NAV.
+
+El paquete 033A reencola exclusivamente esa operación conservando el intento
+original y auditando la recuperación. La versión corregida permite el lote NAV
+vacío, pero sigue exigiendo el lote trazable MES y bloquea cualquier lote NAV
+no vacío que discrepe. Instalación, activación y nuevo ensayo permanecen como
+fases separadas.
