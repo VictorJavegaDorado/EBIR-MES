@@ -75,6 +75,7 @@ try {
     }
 
     $frontendRoot = Join-Path $repository 'src\frontend'
+    $solution = Join-Path $repository 'Ebir.Mes.sln'
     $apiProject = Join-Path $repository 'src\backend\Ebir.Mes.Api\Ebir.Mes.Api.csproj'
     $workerProject = Join-Path $repository 'src\backend\Ebir.Mes.Worker\Ebir.Mes.Worker.csproj'
     $apiOutput = Join-Path $workingDirectory 'api'
@@ -86,6 +87,10 @@ try {
     Invoke-NativeCommand {
         npm --prefix $frontendRoot run build
     } 'Frontend build failed.'
+
+    Invoke-NativeCommand {
+        dotnet restore $solution
+    } 'Solution restore failed.'
 
     Invoke-NativeCommand {
         dotnet publish $apiProject --configuration Release --no-restore --output $apiOutput
