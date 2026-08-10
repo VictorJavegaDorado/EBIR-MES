@@ -475,6 +475,34 @@ describe("PalletClosePage", () => {
     expect(await screen.findByText("Palé 125 cerrado")).toBeInTheDocument();
   });
 
+  it("explains that NAV must confirm the previous pallet before the next close", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          detail: "detalle interno que no debe mostrarse",
+          code: "PREVIOUS_PALLET_OUTPUT_NOT_CONFIRMED",
+        }),
+        { status: 409 },
+      ),
+    );
+    render(<PalletClosePage />);
+
+    await fillRequiredFields();
+    await userEvent.click(
+      screen.getByRole("button", { name: /confirmar cierre/i }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Palet cerrado. Esperando confirmación de NAV antes del siguiente.",
+    );
+    expect(alert).not.toHaveTextContent("detalle interno");
+    expect(alert).not.toHaveTextContent("Revisa los datos");
+    expect(
+      screen.getByRole("button", { name: /revisa los datos para continuar/i }),
+    ).toBeDisabled();
+  });
+
   it("creates a new correlation after the request data changes", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

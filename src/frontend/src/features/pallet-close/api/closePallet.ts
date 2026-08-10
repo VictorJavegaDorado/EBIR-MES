@@ -90,6 +90,15 @@ function toSafeError(
     };
   }
 
+  if (code === "PREVIOUS_PALLET_OUTPUT_NOT_CONFIRMED") {
+    return {
+      code,
+      message:
+        "Palet cerrado. Esperando confirmación de NAV antes del siguiente.",
+      retryable: false,
+    };
+  }
+
   if (code && conflictMessages[code]) {
     return {
       code,

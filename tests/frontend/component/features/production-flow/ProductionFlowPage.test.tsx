@@ -373,7 +373,10 @@ describe("ProductionFlowPage", () => {
         }],
         employees: [{ id: 7, code: "EMP-7", name: "Operario piloto" }],
         supervisors: [],
-      }), { status: 200 }));
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "PREVIOUS_PALLET_OUTPUT_NOT_CONFIRMED",
+      }), { status: 409 }));
 
     render(<ProductionFlowPage />);
     await userEvent.type(screen.getByRole("textbox", { name: /código de línea/i }), "LINEA-TEST-01{enter}");
@@ -397,6 +400,16 @@ describe("ProductionFlowPage", () => {
       .toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /continuar a palés/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /confirmar NAV/i })).not.toBeInTheDocument();
+
+    await userEvent.click(
+      within(dialog).getByRole("button", { name: /^cerrar palet$/i }),
+    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Palet cerrado. Esperando confirmación de NAV antes del siguiente.",
+    );
+    expect(screen.getAllByText("Operario piloto").length).toBeGreaterThan(0);
+    expect(screen.getByText("Tiempo productivo total")).toBeInTheDocument();
+    expect(screen.getByText(/NAV se procesa en segundo plano/i)).toBeInTheDocument();
 
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("dialog", { name: /cerrar palet/i })).not.toBeInTheDocument();
