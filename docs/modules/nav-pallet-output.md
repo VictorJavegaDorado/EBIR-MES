@@ -242,3 +242,10 @@ exactos, con cantidad 20, tipo `Salida` y estado `Pendiente`. El paquete 036A
 vincula exclusivamente la operacion 36 con esa fila y la mantiene en modo de
 solo conciliacion. No contacta NAV, no repite `RegistrarSalidaFabricacion` y no
 habilita la etiqueta mientras NAV no publique el estado `Registrado`.
+
+NAV publico posteriormente la fila 26842 como `Registrado`. Una ejecucion
+controlada del Worker bajo `NetworkService` entro exclusivamente por
+conciliacion del identificador ya vinculado: no llamo a
+`RegistrarSalidaFabricacion` ni abrio o cerro el bulto. MES dejo la operacion 36
+`CONFIRMADA`, la etiqueta 28 `LISTA` y creo exactamente un trabajo de impresion.
+Printing permanecio desactivado y el siguiente palet quedo desbloqueado.
