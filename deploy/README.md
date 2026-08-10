@@ -20,6 +20,10 @@ crear una release completa, validarla y cambiar `current` de manera controlada.
 La preparación, el preflight, la activación y el rollback del piloto se
 documentan en [`iis/PILOT-RUNBOOK.md`](iis/PILOT-RUNBOOK.md).
 
+La preparación del Worker como servicio Windows, su canario y su parada segura
+se documentan en [`worker/PILOT-RUNBOOK.md`](worker/PILOT-RUNBOOK.md). El
+runbook no autoriza instalarlo, iniciarlo ni configurar secretos.
+
 `New-PilotRelease.ps1` compila el frontend, publica API y Worker, integra la SPA
 en `api\wwwroot` y genera manifiesto y hashes SHA-256. Rechaza por defecto un
 repositorio sucio y no sobrescribe una release existente. `-AllowDirty` se

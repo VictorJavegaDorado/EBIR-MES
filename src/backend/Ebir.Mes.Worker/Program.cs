@@ -11,6 +11,9 @@ using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+builder.Services.AddWindowsService(options =>
+    options.ServiceName = "MES Worker");
+
 var navisionOutputEnabled =
     builder.Configuration.GetValue<bool>("NavisionOutput:Enabled");
 if (navisionOutputEnabled)
