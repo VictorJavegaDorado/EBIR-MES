@@ -57,7 +57,7 @@ ESTADO VERIFICADO EN PREVUELO EL 2026-08-17
 Repositorio: C:\MES
 Rama: main
 Baseline tecnica verificada antes de versionar este contexto:
-4bc3904bf867796f90168d750c0ae93e6acb6217
+623c8790d9976f708205a9370dbc4fc0b7ab65a8
 
 Este TXT se versiona en un commit documental posterior, por lo que no fija su
 propio hash Git. Al reanudar se debe exigir HEAD = origin/main local =
@@ -66,11 +66,12 @@ origin/main remoto y worktree limpio.
 Worktree: limpio.
 
 Ultimos commits:
+- 623c879 fix(nav): recuperar identificador de operacion 37
+- e43007b docs: distinguir baseline del contexto
+- c979215 docs: actualizar contexto de continuacion
 - 4bc3904 docs(nav): cerrar conciliacion de operacion 36
 - 04e84bf fix(deploy): restaurar antes de publicar release
 - 6ba8fef feat(worker): preparar servicio Windows seguro
-- caccc5f fix(frontend): aclarar espera de confirmacion NAV
-- f53e8a5 fix(nav): recuperar salida tardia de FL26-00004
 
 Release web activa:
 C:\MES\runtime\releases\20260810.0-caccc5f-combined
@@ -81,6 +82,10 @@ Application Pool MES: Started.
 Ruta fisica IIS: C:\MES\runtime\current\api.
 HTTPS /health/live: 200.
 HTTPS /: 200.
+
+El 2026-08-17 ambos 200 se revalidaron omitiendo la validacion TLS solo para
+el chequeo. El certificado sigue siendo no confiable y presenta el desajuste
+de nombre ya conocido; no se modifico IIS ni el certificado.
 
 Worker MES permanente: no instalado.
 Procesos Ebir.Mes.Worker.exe: 0.
@@ -197,11 +202,92 @@ La candidata 20260810.2 NO esta activa y no debe activarse como web solo para
 probar el Worker. El canario debe ejecutarse desde su binario exacto y el
 servicio futuro debe quedar fijado a una release autorizada.
 
+7. Canario tecnico RunOnce sin trabajo
+---------------------------------------
+Con autorizacion expresa se inventario EBIR_MES_TEST y se ejecuto una sola vez
+la candidata 20260810.2 bajo NetworkService, SID S-1-5-20.
+
+- la cola no contenia operaciones elegibles ni reservas;
+- el resultado fue NoWork y exit code 0;
+- no hubo conexiones ni llamadas NAV;
+- Printing permanecio Disabled;
+- no se instalo ningun servicio ni quedo proceso o tarea residual.
+
+Evidencia final:
+C:\MES\runtime\shared\temp\phase-a-no-work-canary-20260817-b7d92e43
+
+8. Segundo palet y canario real de salida NAV
+----------------------------------------------
+Tras revalidar la mesa se cerro desde el navegador remoto autorizado
+exclusivamente el palet 2 ordinario de FL26-00004, con 20 unidades. El cierre
+creo:
+
+- palet MES 27, numero 2, CERRADO y no final;
+- operacion NAV MES 37;
+- etiqueta 29 en PENDIENTE_NAV;
+- cero trabajos de impresion para esa etiqueta.
+
+La candidata 20260810.2 se ejecuto una sola vez bajo NetworkService contra
+EbirTest. Se permitio como maximo un RegistrarSalidaFabricacion y no se repitio
+ante incertidumbre. El resultado MES fue RESULTADO_DESCONOCIDO, un intento,
+HTTP 200, sin identificador ni reserva. La observacion OData posterior encontro
+exactamente la salida 26843, cantidad 20 y estado Pendiente. No existio una
+segunda salida.
+
+Evidencias principales:
+- C:\MES\runtime\shared\temp\phase-b-real-canary-20260817-68c114cb
+- C:\MES\runtime\shared\temp\phase-b-nav-observation-20260817-fb141467
+
+9. Paquete 037A y vinculacion segura de la salida 26843
+-------------------------------------------------------
+Se preparo el paquete inmutable:
+C:\MES\database\037A_recuperar_salida_palet_37_identificador.sql
+
+El paquete exige operacion 37, palet 27, orden 31, un intento desconocido,
+ausencia de identificador y reserva, etiqueta 29 PENDIENTE_NAV y cero trabajos
+de impresion. Solo vincula el identificador 26843 y registra auditoria; no
+contacta NAV ni modifica produccion, intentos o impresion.
+
+Se valido primero dentro de una transaccion exterior con rollback completo y
+despues se instalo con autorizacion SQL expresa en EBIR_MES_TEST. La instalacion
+dejo una unica auditoria, la operacion vinculada y una unica elegible para
+reconciliacion. Los intentos fallidos previos a la validacion final abortaron
+antes de iniciar la transaccion y se conservaron como evidencia.
+
+Commit publicado en main:
+623c8790d9976f708205a9370dbc4fc0b7ab65a8
+
+Evidencias finales:
+- C:\MES\runtime\shared\temp\phase-037a-rollback-validation-20260817-e056f8c4
+- C:\MES\runtime\shared\temp\phase-037a-installation-20260817-f167a9d2
+
+10. Registro NAV y conciliacion final de la operacion 37
+--------------------------------------------------------
+Dos lecturas OData controladas confirmaron inicialmente que 26843 seguia
+Pendiente. Despues de que el usuario informara su registro en NAV TEST, una
+fase nueva revalido exactamente 26843 como Registrado y ejecuto una sola vez la
+candidata 20260810.2 en modo reconciliacion.
+
+- no se ejecuto RegistrarSalidaFabricacion;
+- no se ejecuto OpenClosePallet;
+- solo se permitieron lecturas OData e IsOpenPallet;
+- operacion MES 37: CONFIRMADA;
+- intentos conservados: 2, exactamente uno confirmado;
+- identificador externo: 26843;
+- sin reserva residual y sin operaciones NAV elegibles;
+- etiqueta 29: LISTA;
+- exactamente un trabajo de impresion creado para la etiqueta 29;
+- Printing permanecio Disabled y no hubo impresion fisica;
+- no quedo Worker, servicio ni tarea MES.
+
+Evidencia final:
+C:\MES\runtime\shared\temp\reconcile-nav-output-37-registered-20260817-j49ad2c8
+
 
 ESTADO FUNCIONAL CONOCIDO DE FL26-00004
 =======================================
-Ultima verificacion funcional/SQL autorizada: 2026-08-10. No se volvio a
-consultar SQL ni NAV durante el prevuelo documental del 2026-08-17.
+Ultima verificacion funcional/SQL autorizada: 2026-08-17, despues de la
+conciliacion de la operacion 37.
 
 - orden MES: 31;
 - numero: FL26-00004;
@@ -210,17 +296,20 @@ consultar SQL ni NAV durante el prevuelo documental del 2026-08-17.
 - POK: 20;
 - operacion fabricable: 010, Paterna;
 - tiempo de ejecucion: 10 minutos;
-- primer palet MES: 26, numero 1, cantidad 20, no final;
-- salida NAV: 26842, Registrado;
-- operacion NAV MES: 36, CONFIRMADA;
-- etiqueta: 28, LISTA;
-- un unico trabajo de impresion creado para la etiqueta 28;
-- segundo palet habilitado por dominio, pero no se cerro en esta sesion.
+- cantidad buena conocida tras cerrar el segundo palet: 40;
+- palet 26, numero 1, cantidad 20, no final, operacion 36 CONFIRMADA, salida
+  26842 Registrado, etiqueta 28 LISTA y un trabajo de impresion;
+- palet 27, numero 2, cantidad 20, no final, operacion 37 CONFIRMADA, salida
+  26843 Registrado, etiqueta 29 LISTA y un trabajo de impresion;
+- intentos de cada operacion: 2;
+- cola NAV MES sin elegibles ni reservas al terminar la conciliacion 37;
+- ningun tercer palet se ha cerrado en esta continuacion.
 
-En la prueba original se incorporaron dos operarios y la mesa estaba
-PRODUCIENDO. Su estado actual no se ha revalidado el 2026-08-17. Antes de una
-nueva accion funcional se debe comprobar de forma autorizada la mesa, los
-operarios activos, la capacidad y los tiempos; no asumir que estan cerrados.
+Antes del cierre del palet 2 se observaron dos operarios activos, ninguna
+pausa y tiempos piloto antiguos. Ese estado de mesa, operarios, capacidad,
+reserva productiva y tiempos no se revalido despues de la conciliacion. No se
+debe asumir que sigue igual ni usar FL26-00004 para aceptar el calculo limpio
+de tiempos.
 
 No cerrar otro palet ni usar identificaciones de operario sin una fase
 funcional expresamente acordada.
@@ -249,7 +338,9 @@ RIESGO Y ESTADO DE IMPRESION
 - No existe una cola Windows VRETTI instalada en MES.EBIR.LOCAL.
 - Ultimo inventario SQL autorizado, 2026-08-10: seis trabajos PENDIENTE, cinco
   historicos de FL26-00003 y uno de FL26-00004.
-- Ese total no se revalido el 2026-08-17.
+- El 2026-08-17 se creo exactamente un trabajo adicional para la etiqueta 29,
+  pero no se repitio un inventario global de estados despues de la
+  conciliacion. No asumir el total ni el estado actual de los historicos.
 - Nunca activar Printing globalmente: podria consumir todos los historicos.
 - Antes de imprimir hay que aislar un unico trabajo canario y acordar la
   politica de los historicos.
@@ -267,6 +358,14 @@ EVIDENCIAS PRINCIPALES CONSERVADAS
 - C:\MES\runtime\shared\temp\activation-20260810.0-caccc5f
 - C:\MES\runtime\shared\temp\worker-service-readiness-postflight-20260810.json
 - C:\MES\runtime\shared\temp\build-20260810.2-4bc3904-combined.log
+- C:\MES\runtime\shared\temp\phase-a-no-work-canary-20260817-b7d92e43
+- C:\MES\runtime\shared\temp\phase-b-readiness-20260817-4c349098
+- C:\MES\runtime\shared\temp\phase-b-real-canary-20260817-68c114cb
+- C:\MES\runtime\shared\temp\phase-b-nav-observation-20260817-fb141467
+- C:\MES\runtime\shared\temp\phase-037a-rollback-validation-20260817-e056f8c4
+- C:\MES\runtime\shared\temp\phase-037a-installation-20260817-f167a9d2
+- C:\MES\runtime\shared\temp\phase-nav-output-26843-readonly-20260817-h389c1f7
+- C:\MES\runtime\shared\temp\reconcile-nav-output-37-registered-20260817-j49ad2c8
 
 Todas existian en el prevuelo del 2026-08-17. No eliminarlas.
 
@@ -275,44 +374,44 @@ SIGUIENTE PASO: REQUIERE AUTORIZACION NUEVA
 ===========================================
 La siguiente autorizacion propuesta, todavia no concedida, es:
 
-"Autorizo inventariar en solo lectura la cola NAV de EBIR_MES_TEST y ejecutar
-un canario RunOnce sin trabajo bajo NetworkService, configurado exclusivamente
-para EbirTest, abortando si existe cualquier operacion elegible, sin llamadas
-NAV, sin impresion y sin instalar el servicio."
+"Autorizo consultar en solo lectura exclusivamente EBIR_MES_TEST y el estado
+MES de FL26-00004 para revalidar mesa, sesion, operarios, pausas, tiempos,
+capacidad, reserva productiva, cantidades, palets, operaciones NAV MES,
+etiquetas y trabajos de impresion, sin usar RFID, sin cerrar palets, sin
+contactar NAV, sin imprimir y sin iniciar ni instalar el Worker."
 
 Secuencia cuando se autorice:
 1. repetir prevuelo completo;
-2. inventariar la cola exclusivamente en EBIR_MES_TEST;
-3. abortar si hay cualquier operacion elegible o estado ambiguo;
-4. ejecutar la candidata 20260810.2 bajo NetworkService con RunOnce=true;
-5. usar configuracion NAV TEST exacta y Printing desactivado;
-6. exigir resultado NoWork y cero llamadas HTTP NAV;
-7. verificar proceso/tarea ausentes y cero reservas residuales;
-8. guardar evidencia sin secretos.
+2. consultar solo EBIR_MES_TEST mediante identidad integrada autorizada;
+3. exigir orden 31, dos palets cerrados y operaciones 36/37 confirmadas;
+4. inventariar por separado reservas productivas y reservas de cola NAV;
+5. medir el estado actual de mesa, operarios, pausas, capacidad y tiempos;
+6. inventariar etiquetas y trabajos sin cambiar ningun estado;
+7. abortar la siguiente accion funcional ante cualquier ambiguedad;
+8. guardar evidencia sin datos protegidos.
 
-Este canario no instala el servicio y no sustituye un canario real con una
-operacion futura conocida.
+Esta lectura no autoriza cerrar el palet 3 ni reutilizar identificaciones de
+operario. Tampoco autoriza consultar NAV ni ejecutar el Worker.
 
 
 HOJA DE RUTA RESTANTE
 =====================
 
-FASE A - Canario tecnico sin trabajo
-------------------------------------
-Ejecutar la secuencia anterior solo tras autorizacion expresa. Su objetivo es
-validar identidad, configuracion, acceso a la cola y ciclo RunOnce sin tocar
-NAV.
+FASE A - Canario tecnico sin trabajo - COMPLETADA
+-------------------------------------------------
+Se valido identidad NetworkService, configuracion externa, acceso a la cola y
+ciclo RunOnce con resultado NoWork, sin llamadas NAV ni residuos.
 
-FASE B - Canario real de salida NAV
------------------------------------
-1. Seleccionar una unica operacion futura apta y conocida.
-2. Conciliar primero cualquier salida previa por identificador.
-3. Ejecutar RunOnce bajo NetworkService con guardas exactas.
-4. Verificar una sola escritura, reintentos acotados y reserva liberada.
-5. Exigir Registrado antes de confirmar MES y habilitar etiqueta.
+FASE B - Canario real de salida NAV - COMPLETADA
+------------------------------------------------
+El palet 27 demostro una sola escritura NAV, resultado inicialmente incierto,
+recuperacion segura por identificador 26843 y conciliacion posterior sin
+reenviar el codeunit. La operacion 37 quedo CONFIRMADA, la etiqueta LISTA y la
+reserva liberada.
 
-Cerrar un nuevo palet, acceder SQL o contactar NAV requieren autorizacion de la
-fase concreta.
+El canario tambien demostro que una salida puede permanecer Pendiente hasta
+que actua un proceso externo a MES. Cerrar un nuevo palet, acceder SQL o
+contactar NAV siguen requiriendo autorizacion de la fase concreta.
 
 FASE C - Worker continuo
 ------------------------
@@ -323,12 +422,17 @@ FASE C - Worker continuo
 5. Iniciar solo con autorizacion expresa nueva.
 6. Validar parada limpia y rollback sin reenviar resultados inciertos.
 
+No iniciar esta fase hasta controlar el paso Pendiente -> Registrado y el
+backoff de reconciliacion. Printing debe continuar desactivado.
+
 FASE D - Pendiente -> Registrado autonomo en NAV
 ------------------------------------------------
 Sigue siendo un bloqueo del circuito autonomo. Determinar el proceso NAV
-autoritativo que registra SALIDA/SALIDASFAB. No escribir tablas NAV ni marcar
-Registrado desde MES. Cualquier cambio NAV TEST exige backup de objetos, cambio
-minimo, compilacion GUI y prueba de un unico palet sin romper DataCPP.
+autoritativo que registra SALIDA/SALIDASFAB. La salida 26843 permanecio
+Pendiente en dos observaciones y solo despues se verifico como Registrado; MES
+no ejecuto esa transicion. No escribir tablas NAV ni marcar Registrado desde
+MES. Cualquier cambio NAV TEST exige backup de objetos, cambio minimo,
+compilacion GUI y prueba de un unico palet sin romper DataCPP.
 
 FASE E - Impresion fisica VRETTI
 --------------------------------
@@ -349,7 +453,8 @@ autorizacion.
 
 FASE G - Ensayo completo de cinco palets
 ----------------------------------------
-Con FL apta:
+Con una FL apta y una sesion limpia; no usar los tiempos piloto acumulados de
+FL26-00004 como aceptacion temporal:
 - linea y orden;
 - al menos dos operarios, tiempos y capacidad;
 - salida Registrado, conciliacion, etiqueta e impresion por cada palet;
@@ -381,9 +486,11 @@ DOCUMENTACION AUTORITATIVA
 PRIMERA ACCION AL REANUDAR
 ==========================
 Leer completos los AGENTS.md aplicables y este documento, repetir prevuelo y
-no reutilizar autorizaciones antiguas. Si se desea continuar con el Worker,
-solicitar o confirmar literalmente la autorizacion del canario tecnico indicada
-arriba. Si se desea continuar con planta, verificar primero de forma autorizada
-el estado real de mesa y operarios de FL26-00004.
+no reutilizar autorizaciones antiguas. Revalidar primero de forma autorizada el
+estado real de FL26-00004 con la consulta de solo lectura propuesta arriba. No
+cerrar el palet 3 hasta conocer mesa, operarios, pausas, tiempos, capacidad,
+reserva productiva, cola NAV y trabajos de impresion. Si se desea avanzar hacia
+el Worker continuo, resolver antes el registro autonomo de las salidas
+Pendiente en NAV TEST.
 
 FIN DEL CONTEXTO
