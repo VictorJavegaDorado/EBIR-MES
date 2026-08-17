@@ -56,8 +56,12 @@ ESTADO VERIFICADO EN PREVUELO EL 2026-08-17
 ==========================================
 Repositorio: C:\MES
 Rama: main
-HEAD = origin/main local = origin/main remoto:
+Baseline tecnica verificada antes de versionar este contexto:
 4bc3904bf867796f90168d750c0ae93e6acb6217
+
+Este TXT se versiona en un commit documental posterior, por lo que no fija su
+propio hash Git. Al reanudar se debe exigir HEAD = origin/main local =
+origin/main remoto y worktree limpio.
 
 Worktree: limpio.
 
@@ -175,7 +179,7 @@ Commit de correccion:
 Candidata intermedia conservada:
 C:\MES\runtime\releases\20260810.1-04e84bf-combined
 
-Candidata final que coincide con HEAD:
+Candidata final que coincide con la baseline tecnica 4bc3904:
 C:\MES\runtime\releases\20260810.2-4bc3904-combined
 
 Estado verificado de la candidata final:
