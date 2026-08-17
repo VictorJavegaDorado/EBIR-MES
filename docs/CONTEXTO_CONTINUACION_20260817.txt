@@ -1,0 +1,385 @@
+CONTEXTO DE CONTINUACION - MES EBIR - CIRCUITO COMPLETO EN TEST
+==============================================================
+Fecha de corte: 2026-08-17 (Europe/Madrid)
+Servidor: MES.EBIR.LOCAL
+Entorno unico autorizado: TEST
+Rama: main
+
+Este documento es una fotografia operativa para continuar otra sesion. Las
+reglas funcionales permanentes siguen viviendo en docs/modules y el indice en
+docs/functional-map.md. Ante una discrepancia, repetir el prevuelo y contrastar
+el estado real antes de actuar.
+
+
+OBJETIVO GENERAL
+================
+Completar desde https://MES.EBIR.LOCAL un circuito sencillo para planta:
+
+1. conservar la linea entre ordenes;
+2. cargar una FL fabricable en Paterna;
+3. identificar operarios mediante RFID;
+4. contar tiempo productivo total e individual desde el primer operario;
+5. gestionar entradas, salidas y pausas desde una unica mesa;
+6. cerrar palets ordinarios desde cualquier tarjeta de operario;
+7. exigir supervisor solo en el ultimo palet;
+8. crear una salida NAV exacta por palet, sin duplicados;
+9. conciliar cada salida hasta Registrado;
+10. generar e imprimir una etiqueta MES por palet en la VRETTI;
+11. finalizar orden y sesion sin operarios ni tiempos activos;
+12. conservar la linea y solicitar una nueva FL.
+
+
+RESTRICCIONES PERMANENTES
+=========================
+- Nunca acceder a produccion.
+- NAV permitido exclusivamente en EbirTest.
+- SQL permitido solo en SQL.EBIR.LOCAL\NAVISION2017, base EBIR_MES_TEST, y
+  dentro de una fase expresamente autorizada.
+- No mostrar ni guardar credenciales, RFID, UID, HMAC, CIF/NIF, licencias NAV
+  ni otros datos protegidos.
+- No copiar configuracion o artefactos protegidos a C:\MES, Git o Z:\MES.
+- Leer completos C:\MES\AGENTS.md y todos los AGENTS.md aplicables antes de
+  editar.
+- Repetir siempre el prevuelo de solo lectura antes de actuar.
+- Pedir autorizacion expresa nueva antes de activar otra release, cambiar IIS,
+  configurar secretos, ejecutar SQL de escritura, contactar NAV en una nueva
+  fase, instalar/iniciar/dejar un Worker permanente o imprimir fisicamente.
+- Conservar todos los junctions de rollback y las evidencias materiales.
+- No modificar paquetes SQL instalados; entregar siempre el siguiente paquete
+  versionado.
+- No repetir una escritura NAV si puede existir una salida previa. Conciliar
+  primero por identificador y estado.
+- No consumir, cancelar ni marcar impresos trabajos historicos sin permiso.
+
+
+ESTADO VERIFICADO EN PREVUELO EL 2026-08-17
+==========================================
+Repositorio: C:\MES
+Rama: main
+HEAD = origin/main local = origin/main remoto:
+4bc3904bf867796f90168d750c0ae93e6acb6217
+
+Worktree: limpio.
+
+Ultimos commits:
+- 4bc3904 docs(nav): cerrar conciliacion de operacion 36
+- 04e84bf fix(deploy): restaurar antes de publicar release
+- 6ba8fef feat(worker): preparar servicio Windows seguro
+- caccc5f fix(frontend): aclarar espera de confirmacion NAV
+- f53e8a5 fix(nav): recuperar salida tardia de FL26-00004
+
+Release web activa:
+C:\MES\runtime\releases\20260810.0-caccc5f-combined
+
+C:\MES\runtime\current es un junction a esa release.
+IIS MES: Started.
+Application Pool MES: Started.
+Ruta fisica IIS: C:\MES\runtime\current\api.
+HTTPS /health/live: 200.
+HTTPS /: 200.
+
+Worker MES permanente: no instalado.
+Procesos Ebir.Mes.Worker.exe: 0.
+Tareas MES: 0.
+Listeners temporales 50731-50735/8765: 0.
+
+Rollbacks conservados: 23. El mas reciente es:
+C:\MES\runtime\current.previous-20260810.0-e3a912e
+-> C:\MES\runtime\releases\20260807.2-e3a912e-combined
+
+No eliminar ninguna release, junction, log ni evidencia historica.
+
+
+TRABAJO COMPLETADO DESDE EL CORTE DEL 2026-08-07
+================================================
+
+1. Conciliacion final de la operacion 36
+----------------------------------------
+- OData TEST publico exactamente la salida 26842 como Registrado.
+- Se ejecuto una conciliacion controlada bajo NetworkService.
+- La operacion entro por el identificador ya vinculado; no repitio
+  RegistrarSalidaFabricacion ni abrio/cambio el bulto.
+- Operacion MES 36: CONFIRMADA.
+- Intentos conservados: 2.
+- Sin reserva residual.
+- Etiqueta 28: LISTA.
+- Se creo exactamente un trabajo de impresion para esa etiqueta.
+- Printing permanecio desactivado.
+- El siguiente palet quedo desbloqueado en dominio.
+
+La verificacion SQL fue exacta y pertenecio a una autorizacion ya consumida.
+No reutilizar esa autorizacion para nuevas consultas o escrituras.
+
+2. Mensaje claro mientras NAV no confirma
+------------------------------------------
+Se mapeo PREVIOUS_PALLET_OUTPUT_NOT_CONFIRMED al texto:
+
+"Palet cerrado. Esperando confirmacion de NAV antes del siguiente."
+
+La mesa, operarios, tiempos y estado NAV permanecen visibles. El conflicto no
+se presenta como error generico y no habilita un cierre duplicado.
+
+Validaciones realizadas:
+- 32 pruebas frontend correctas;
+- typecheck correcto;
+- build frontend correcto;
+- pruebas de componente del modal y del flujo de produccion;
+- 616 pruebas backend correctas (153 + 71 + 392).
+
+Commit: caccc5f1b61646b0e389f8dd8a238e468b04843f.
+
+3. Activacion web del mensaje
+-----------------------------
+Se activo con autorizacion expresa:
+C:\MES\runtime\releases\20260810.0-caccc5f-combined
+
+La activacion intercambio runtime/current de forma controlada, reciclo IIS,
+conservo el rollback anterior y valido health, SPA y assets. El bundle servido
+contiene el mensaje exacto. No se contacto NAV, no se imprimio y no se instalo
+Worker.
+
+4. Preparacion del Worker como servicio Windows
+------------------------------------------------
+Se incorporo Microsoft.Extensions.Hosting.WindowsServices y el host registra
+el nombre de servicio "MES Worker". La ejecucion RunOnce/consola se conserva.
+
+Se creo:
+C:\MES\deploy\worker\PILOT-RUNBOOK.md
+
+El contrato preparado exige:
+- identidad NetworkService, SID S-1-5-20, resuelta sin asumir idioma;
+- binario fijado a una release exacta, nunca a runtime/current;
+- endpoint limitado por codigo a Navision.EBIR.LOCAL:7147/EbirTest, EBIR y el
+  codeunit TEST de planta;
+- mapeo unico piloto LINEA-TEST-01 -> L01;
+- cadena SQL protegida fuera de Git y release;
+- Printing desactivado;
+- parada cooperativa, observabilidad y rollback explicitos.
+
+No se ha instalado, configurado ni iniciado ningun servicio.
+
+5. Generador de releases reproducible
+--------------------------------------
+New-PilotRelease.ps1 usaba dotnet publish --no-restore y dependia de un obj
+anterior. Una primera compilacion detecto el problema y aborto antes de crear
+release. Se agrego dotnet restore explicito antes de publicar.
+
+El intento fallido dejo log, pero no release:
+C:\MES\runtime\shared\temp\build-20260810.1-6ba8fef-combined.log
+
+Commit de correccion:
+04e84bfd3ff28001546a483bb08350d4b977844a.
+
+6. Candidatas Worker preparadas e inactivas
+--------------------------------------------
+Candidata intermedia conservada:
+C:\MES\runtime\releases\20260810.1-04e84bf-combined
+
+Candidata final que coincide con HEAD:
+C:\MES\runtime\releases\20260810.2-4bc3904-combined
+
+Estado verificado de la candidata final:
+- 101 archivos de manifiesto;
+- 0 diferencias de hash;
+- repositorio limpio al construir;
+- soporte Windows Service presente;
+- NavisionOutput desactivado;
+- endpoint NAV vacio;
+- cadena SQL vacia;
+- Printing desactivado y Mode=Disabled;
+- ninguna integracion externa habilitada.
+
+La candidata 20260810.2 NO esta activa y no debe activarse como web solo para
+probar el Worker. El canario debe ejecutarse desde su binario exacto y el
+servicio futuro debe quedar fijado a una release autorizada.
+
+
+ESTADO FUNCIONAL CONOCIDO DE FL26-00004
+=======================================
+Ultima verificacion funcional/SQL autorizada: 2026-08-10. No se volvio a
+consultar SQL ni NAV durante el prevuelo documental del 2026-08-17.
+
+- orden MES: 31;
+- numero: FL26-00004;
+- producto: 27920LG;
+- objetivo: 100;
+- POK: 20;
+- operacion fabricable: 010, Paterna;
+- tiempo de ejecucion: 10 minutos;
+- primer palet MES: 26, numero 1, cantidad 20, no final;
+- salida NAV: 26842, Registrado;
+- operacion NAV MES: 36, CONFIRMADA;
+- etiqueta: 28, LISTA;
+- un unico trabajo de impresion creado para la etiqueta 28;
+- segundo palet habilitado por dominio, pero no se cerro en esta sesion.
+
+En la prueba original se incorporaron dos operarios y la mesa estaba
+PRODUCIENDO. Su estado actual no se ha revalidado el 2026-08-17. Antes de una
+nueva accion funcional se debe comprobar de forma autorizada la mesa, los
+operarios activos, la capacidad y los tiempos; no asumir que estan cerrados.
+
+No cerrar otro palet ni usar identificaciones de operario sin una fase
+funcional expresamente acordada.
+
+
+CIRCUITO YA DEMOSTRADO CON FL26-00003
+=====================================
+- objetivo 100 y POK 20;
+- cinco palets de 20;
+- cinco salidas NAV independientes;
+- Finished Quantity 100 y Remaining Quantity 0;
+- ninguna sexta salida;
+- cinco salidas Registrado;
+- supervisor solo en el ultimo palet;
+- etiquetas LISTA y trabajos de impresion creados;
+- recuperacion de mesa para retirar al ultimo operario y Nueva orden
+  conservando linea.
+
+La impresion fisica no formo parte de esa demostracion.
+
+
+RIESGO Y ESTADO DE IMPRESION
+============================
+- El adaptador real VRETTI no esta implementado.
+- Ebir.Mes.Worker solo permite impresion Simulated; cualquier modo real falla.
+- No existe una cola Windows VRETTI instalada en MES.EBIR.LOCAL.
+- Ultimo inventario SQL autorizado, 2026-08-10: seis trabajos PENDIENTE, cinco
+  historicos de FL26-00003 y uno de FL26-00004.
+- Ese total no se revalido el 2026-08-17.
+- Nunca activar Printing globalmente: podria consumir todos los historicos.
+- Antes de imprimir hay que aislar un unico trabajo canario y acordar la
+  politica de los historicos.
+
+Nunca afirmar que la impresion fisica esta lista hasta implementar el adaptador
+real, confirmar topologia/permisos y probar una unica etiqueta con el usuario
+presente y autorizacion expresa.
+
+
+EVIDENCIAS PRINCIPALES CONSERVADAS
+==================================
+- C:\MES\runtime\shared\temp\reconcile-nav-output-36-registered-20260810
+- C:\MES\runtime\shared\temp\verify-nav-output-36-after-reconcile-20260810
+- C:\MES\runtime\shared\temp\candidate-validation-20260810.0-v6
+- C:\MES\runtime\shared\temp\activation-20260810.0-caccc5f
+- C:\MES\runtime\shared\temp\worker-service-readiness-postflight-20260810.json
+- C:\MES\runtime\shared\temp\build-20260810.2-4bc3904-combined.log
+
+Todas existian en el prevuelo del 2026-08-17. No eliminarlas.
+
+
+SIGUIENTE PASO: REQUIERE AUTORIZACION NUEVA
+===========================================
+La siguiente autorizacion propuesta, todavia no concedida, es:
+
+"Autorizo inventariar en solo lectura la cola NAV de EBIR_MES_TEST y ejecutar
+un canario RunOnce sin trabajo bajo NetworkService, configurado exclusivamente
+para EbirTest, abortando si existe cualquier operacion elegible, sin llamadas
+NAV, sin impresion y sin instalar el servicio."
+
+Secuencia cuando se autorice:
+1. repetir prevuelo completo;
+2. inventariar la cola exclusivamente en EBIR_MES_TEST;
+3. abortar si hay cualquier operacion elegible o estado ambiguo;
+4. ejecutar la candidata 20260810.2 bajo NetworkService con RunOnce=true;
+5. usar configuracion NAV TEST exacta y Printing desactivado;
+6. exigir resultado NoWork y cero llamadas HTTP NAV;
+7. verificar proceso/tarea ausentes y cero reservas residuales;
+8. guardar evidencia sin secretos.
+
+Este canario no instala el servicio y no sustituye un canario real con una
+operacion futura conocida.
+
+
+HOJA DE RUTA RESTANTE
+=====================
+
+FASE A - Canario tecnico sin trabajo
+------------------------------------
+Ejecutar la secuencia anterior solo tras autorizacion expresa. Su objetivo es
+validar identidad, configuracion, acceso a la cola y ciclo RunOnce sin tocar
+NAV.
+
+FASE B - Canario real de salida NAV
+-----------------------------------
+1. Seleccionar una unica operacion futura apta y conocida.
+2. Conciliar primero cualquier salida previa por identificador.
+3. Ejecutar RunOnce bajo NetworkService con guardas exactas.
+4. Verificar una sola escritura, reintentos acotados y reserva liberada.
+5. Exigir Registrado antes de confirmar MES y habilitar etiqueta.
+
+Cerrar un nuevo palet, acceder SQL o contactar NAV requieren autorizacion de la
+fase concreta.
+
+FASE C - Worker continuo
+------------------------
+1. Resolver secretos/configuracion externa especifica del servicio.
+2. Instalar MES Worker con SID S-1-5-20 y binario de release fija.
+3. Configurar inicio automatico retrasado, recuperacion y Event Log.
+4. Mantener Printing desactivado.
+5. Iniciar solo con autorizacion expresa nueva.
+6. Validar parada limpia y rollback sin reenviar resultados inciertos.
+
+FASE D - Pendiente -> Registrado autonomo en NAV
+------------------------------------------------
+Sigue siendo un bloqueo del circuito autonomo. Determinar el proceso NAV
+autoritativo que registra SALIDA/SALIDASFAB. No escribir tablas NAV ni marcar
+Registrado desde MES. Cualquier cambio NAV TEST exige backup de objetos, cambio
+minimo, compilacion GUI y prueba de un unico palet sin romper DataCPP.
+
+FASE E - Impresion fisica VRETTI
+--------------------------------
+1. Confirmar modelo, lenguaje, conexion, cola y permisos reales.
+2. Decidir cola Windows compartida o agente local si la impresora esta en mini
+   PC.
+3. Implementar adaptador real en Integrations/Printing con allowlist, timeout,
+   idempotencia, reintentos y logs seguros.
+4. Validar 201 dpi, 150 x 100 mm, orientacion horizontal y margenes.
+5. Aislar un unico trabajo canario.
+6. Imprimir con usuario presente y autorizacion expresa.
+
+FASE F - Trabajos historicos
+----------------------------
+Inventariar de nuevo y elegir una politica auditada: imprimir deliberadamente,
+cancelar como piloto o excluir temporalmente. No decidir ni cambiar estados sin
+autorizacion.
+
+FASE G - Ensayo completo de cinco palets
+----------------------------------------
+Con FL apta:
+- linea y orden;
+- al menos dos operarios, tiempos y capacidad;
+- salida Registrado, conciliacion, etiqueta e impresion por cada palet;
+- cantidades editables donde proceda;
+- una unica salida y etiqueta por palet;
+- supervisor solo en el ultimo;
+- objetivo exacto, Remaining Quantity 0 y ninguna sexta salida;
+- retirar operarios, congelar tiempos y finalizar sesion;
+- Nueva orden conserva linea y limpia el resto.
+
+FASE H - Aceptacion con jefe de fabricacion
+-------------------------------------------
+Guion corto, sin instrucciones tecnicas, mensajes NAV comprensibles, ningun
+camino de duplicidad, etiqueta legible, recuperacion tras recarga y nueva orden
+conservando linea. Registrar incidencias antes de plantear produccion.
+
+
+DOCUMENTACION AUTORITATIVA
+==========================
+- C:\MES\docs\modules\production-workstation.md
+- C:\MES\docs\modules\production-order-sync.md
+- C:\MES\docs\modules\line-operations.md
+- C:\MES\docs\modules\palletization.md
+- C:\MES\docs\modules\nav-pallet-output.md
+- C:\MES\docs\functional-map.md
+- C:\MES\deploy\worker\PILOT-RUNBOOK.md
+
+
+PRIMERA ACCION AL REANUDAR
+==========================
+Leer completos los AGENTS.md aplicables y este documento, repetir prevuelo y
+no reutilizar autorizaciones antiguas. Si se desea continuar con el Worker,
+solicitar o confirmar literalmente la autorizacion del canario tecnico indicada
+arriba. Si se desea continuar con planta, verificar primero de forma autorizada
+el estado real de mesa y operarios de FL26-00004.
+
+FIN DEL CONTEXTO
