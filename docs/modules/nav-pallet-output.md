@@ -249,3 +249,28 @@ conciliacion del identificador ya vinculado: no llamo a
 `RegistrarSalidaFabricacion` ni abrio o cerro el bulto. MES dejo la operacion 36
 `CONFIRMADA`, la etiqueta 28 `LISTA` y creo exactamente un trabajo de impresion.
 Printing permanecio desactivado y el siguiente palet quedo desbloqueado.
+
+## Registro autonomo dentro de NAV
+
+La transicion autoritativa de una salida de fabrica desde `Pendiente` hasta
+`Registrado` pertenece a NAV. MES conserva el identificador externo y solo
+confirma localmente cuando OData publica el estado final inequivoco.
+
+El diseno aceptado exige una marca explicita `Origen MES`; no se deduce el
+origen por linea, operario, producto o intervalo de identificadores. Las
+salidas MES se procesan mediante una entrada de Job Queue independiente y un
+modo que no selecciona salidas heredadas.
+
+Todos los puntos de entrada deben compartir una reclamacion atomica. Antes de
+contabilizar se busca un movimiento exacto por el identificador de la salida
+en `External Document No.`. Una coincidencia exacta se concilia sin repetir;
+una discrepancia o ambiguedad bloquea la operacion. Un estado `Procesando` no
+se devuelve automaticamente a `Pendiente`.
+
+NAV no imprime salidas con `Origen MES`. La etiqueta y su trabajo de impresion
+siguen habilitandose en MES solo despues de observar `Registrado`.
+
+El contrato preparado, todavia no instalado, vive en
+[`../../deploy/nav/NAV-001A/README.md`](../../deploy/nav/NAV-001A/README.md).
+La decision estructural se registra en
+[`../adr/0003-nav-mes-output-registration.md`](../adr/0003-nav-mes-output-registration.md).
