@@ -281,3 +281,11 @@ esta preparado en `main`, sin release activa. El contrato vive en
 [`../../deploy/nav/NAV-001A/README.md`](../../deploy/nav/NAV-001A/README.md).
 La decision estructural se registra en
 [`../adr/0003-nav-mes-output-registration.md`](../adr/0003-nav-mes-output-registration.md).
+
+La administracion por comando de la entrada Job Queue se aisla en
+[`../../deploy/nav/NAV-001B/README.md`](../../deploy/nav/NAV-001B/README.md).
+El paquete esta preparado pero no materializado: no publica la Page 672, no
+construye manualmente parametros de request page y separa la creacion detenida
+de cualquier ejecucion productiva. El ID del nuevo codeunit permanece pendiente
+de inventario y licencia. La decision se registra en
+[`../adr/0004-nav-mes-job-queue-administration.md`](../adr/0004-nav-mes-job-queue-administration.md).
