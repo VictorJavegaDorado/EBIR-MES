@@ -2,7 +2,9 @@
 
 ## Estado
 
-Aceptada como diseno; implementacion preparada en `NAV-001A`, no instalada.
+Aceptada e implementada en los cinco objetos `NAV-001A`, instalados y compilados
+exclusivamente en `EbirTest`. El adaptador MES esta preparado en `main`, pero su
+release y la automatizacion continua permanecen inactivas.
 
 ## Contexto
 
@@ -40,6 +42,7 @@ usara una entrada independiente del mismo informe y nacera tambien detenida.
 - Un estado `Procesando` abandonado requiere conciliacion y no se reabre solo.
 - El cambio exige modificar una tabla NAV y preparar rollback compatible con
   el nuevo campo.
-- El Worker necesitara una release posterior que use la nueva operacion SOAP.
-- Importacion, compilacion, Job Queue, canario y Worker siguen siendo fases
-  separadas con autorizaciones independientes.
+- El adaptador MES usa la nueva operacion SOAP en `main`; activarlo exige una
+  release posterior autorizada.
+- Job Queue, canario, release MES y Worker siguen siendo fases separadas con
+  autorizaciones independientes.

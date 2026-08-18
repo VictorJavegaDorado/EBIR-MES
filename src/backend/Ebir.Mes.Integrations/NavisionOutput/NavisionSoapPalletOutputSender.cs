@@ -19,6 +19,7 @@ public sealed class NavisionSoapPalletOutputSender(
         "http://schemas.xmlsoap.org/soap/envelope/";
     private const string CodeunitNamespace =
         "urn:microsoft-dynamics-schemas/codeunit/WS_CPP_ControlPlanta";
+    private const string PalletToggleOperation = "OpenClosePalletMES";
 
     public async Task<NavisionPalletOutputReceipt> SendAsync(
         NavisionPalletOutputJob job,
@@ -479,7 +480,7 @@ public sealed class NavisionSoapPalletOutputSender(
         string assemblyLine,
         CancellationToken cancellationToken)
     {
-        using var request = CreateOpenClosePalletRequest(job, assemblyLine);
+        using var request = CreateOpenClosePalletMesRequest(job, assemblyLine);
         using var timeout =
             CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(options.RequestTimeout);
@@ -503,7 +504,7 @@ public sealed class NavisionSoapPalletOutputSender(
 
             var valid = await ReadVoidCodeunitResultAsync(
                 response,
-                "OpenClosePallet_Result",
+                PalletToggleOperation + "_Result",
                 timeout.Token);
             return valid
                 ? new SoapAttempt(status, null, false)
@@ -730,7 +731,7 @@ public sealed class NavisionSoapPalletOutputSender(
         return CreateSoapRequest(document, "IsOpenPallet");
     }
 
-    private HttpRequestMessage CreateOpenClosePalletRequest(
+    private HttpRequestMessage CreateOpenClosePalletMesRequest(
         NavisionPalletOutputJob job,
         string assemblyLine)
     {
@@ -742,13 +743,13 @@ public sealed class NavisionSoapPalletOutputSender(
                 new XElement(
                     soap + "Body",
                     new XElement(
-                        codeunit + "OpenClosePallet",
+                        codeunit + PalletToggleOperation,
                         new XElement(codeunit + "productionOrderNo", job.OrderNumber),
                         new XElement(codeunit + "userBC", job.EmployeeNumber),
                         new XElement(codeunit + "itemNo", job.ProductNumber),
                         new XElement(codeunit + "partialQuantity", "0"),
                         new XElement(codeunit + "assemblyLine", assemblyLine)))));
-        return CreateSoapRequest(document, "OpenClosePallet");
+        return CreateSoapRequest(document, PalletToggleOperation);
     }
 
     private HttpRequestMessage CreateSoapRequest(XDocument document, string operation)

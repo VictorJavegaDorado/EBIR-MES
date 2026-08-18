@@ -34,18 +34,22 @@ La escritura correcta de TEST es el codeunit:
 El cierre completo usa tres operaciones SOAP 1.1 del mismo codeunit:
 
 - `IsOpenPallet`, de solo lectura, consulta el bulto exacto por orden y línea;
-- `OpenClosePallet` cambia una sola vez entre abierto y cerrado, con orden,
+- `OpenClosePalletMES` cambia una sola vez entre abierto y cerrado, marca la
+  salida como originada por MES y recibe orden,
   operario, producto, cantidad parcial cero y línea de montaje;
 - `RegistrarSalidaFabricacion` registra la salida con los ocho parámetros del
   WSDL: orden, producto, lote, cantidad, `Bin_Code`, unidad de medida base,
   código NAV del operario y línea de montaje NAV.
+
+Este contrato esta preparado en `main`, pero no modifica la release web/Worker
+activa hasta que se construya y active una release bajo autorizacion expresa.
 
 Todos los valores proceden de MES o de lecturas NAV exactas; el navegador no
 los aporta. Si NAV no informa `Bin_Code`, se envía vacío. Nunca se sustituye
 por `Location_Code`, porque representan conceptos distintos.
 
 Antes de registrar, MES exige observar el bulto abierto. Si estaba cerrado,
-ejecuta un solo `OpenClosePallet` y vuelve a consultar `IsOpenPallet`; no repite
+ejecuta un solo `OpenClosePalletMES` y vuelve a consultar `IsOpenPallet`; no repite
 el cambio ante una respuesta incierta. Después del intento de salida comprueba
 y cierra el bulto con la misma regla. Una salida observada conserva su
 identificador aunque el cierre del bulto quede incierto, para que una ejecución
@@ -270,7 +274,10 @@ se devuelve automaticamente a `Pendiente`.
 NAV no imprime salidas con `Origen MES`. La etiqueta y su trabajo de impresion
 siguen habilitandose en MES solo despues de observar `Registrado`.
 
-El contrato preparado, todavia no instalado, vive en
+Los cinco objetos de `NAV-001A` estan instalados y compilados exclusivamente en
+`EbirTest` desde el 17 de agosto de 2026. La entrada historica de Job Queue
+permanece detenida y no existe todavia una entrada MES activa. El adaptador MES
+esta preparado en `main`, sin release activa. El contrato vive en
 [`../../deploy/nav/NAV-001A/README.md`](../../deploy/nav/NAV-001A/README.md).
 La decision estructural se registra en
 [`../adr/0003-nav-mes-output-registration.md`](../adr/0003-nav-mes-output-registration.md).

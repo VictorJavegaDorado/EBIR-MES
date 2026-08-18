@@ -9,7 +9,7 @@ $runbook = Get-Content -LiteralPath (Join-Path $package 'PILOT-RUNBOOK.md') -Raw
 $all = $readme + "`n" + $spec + "`n" + $matrix + "`n" + $runbook
 
 $required = @(
-    'PREPARADO_NO_INSTALADO',
+    'INSTALADO_COMPILADO_EBIRTEST_SIN_EJECUCION',
     'EbirTest',
     'Tabla 50013',
     'Pagina 50036',
@@ -78,7 +78,7 @@ if ($spec -notmatch '(?is)Origen MES=FALSE.*Origen MES=TRUE' -or
 
 [pscustomobject]@{
     Package = 'NAV-001A'
-    Status = 'PREPARADO_NO_INSTALADO'
+    Status = 'INSTALADO_COMPILADO_EBIRTEST_SIN_EJECUCION'
     ExternalConnections = $false
     ProtectedObjectExports = $false
     BaselineHashes = $expectedHashes.Count

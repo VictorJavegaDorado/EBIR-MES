@@ -1,10 +1,12 @@
 # NAV-001A - Registro autonomo de salidas MES
 
-Estado: `PREPARADO_NO_INSTALADO`.
+Estado: `INSTALADO_COMPILADO_EBIRTEST_SIN_EJECUCION`.
 
 Este paquete define el cambio minimo para que NAV `EbirTest` registre de forma
-autonoma solo las salidas creadas por MES. No contiene objetos NAV exportados,
-no es importable y no autoriza modificar, compilar o ejecutar NAV.
+autonoma solo las salidas creadas por MES. Sus cinco objetos se instalaron y
+compilaron exclusivamente en `EbirTest` el 17 de agosto de 2026. Este directorio
+no contiene objetos NAV exportados, no es importable y no autoriza nuevas
+modificaciones ni ejecuciones en NAV.
 
 ## Alcance
 
@@ -28,9 +30,9 @@ no es importable y no autoriza modificar, compilar o ejecutar NAV.
 | Codeunit | 60103 | Consumos Fabrica | Reconciliacion exacta antes de contabilizar |
 | Codeunit | 82000 | WS Control Planta | `OpenClosePalletMES` y propagacion del origen |
 
-El campo 700 estaba libre en la exportacion examinada. Antes de materializar
-el objeto debe repetirse el inventario en `EbirTest`; cualquier ocupacion o
-cambio de hash obliga a detenerse y revisar este paquete.
+El campo 700 estaba libre en la exportacion examinada y quedo materializado en
+`EbirTest`. El backup versionado de los objetos previos y las evidencias de la
+importacion permanecen protegidos fuera de Git.
 
 ## Baseline examinada
 
@@ -60,11 +62,12 @@ SHA-256 para verificar que la implementacion futura parte de la misma baseline.
 - no se instala ni inicia el Worker;
 - no se imprime ni se consume ningun trabajo de impresion;
 - no se copian objetos NAV, licencias, configuracion o credenciales al repositorio;
-- el cambio futuro del Worker para usar `OpenClosePalletMES` sera una fase y
-  una release independientes.
+- el cambio del adaptador MES para usar `OpenClosePalletMES` pertenece a una
+  release independiente; esta preparado en `main`, pero no queda activo por
+  este estado documental.
 
-## Criterio de preparado
+## Estado instalado
 
-`NAV-001A` esta preparado cuando su prueba estatica pasa, la documentacion
-funcional enlaza este contrato y el repositorio queda limpio tras el commit.
-Esto no equivale a objeto NAV generado, importado, compilado o probado.
+`NAV-001A` esta instalado y compilado en `EbirTest`, pero no se ha ejecutado el
+procesador autonomo ni se ha activado ninguna Job Queue. La prueba estatica solo
+valida el paquete documental y sus barreras; no consulta ni ejecuta NAV.

@@ -516,10 +516,10 @@ public sealed class NavisionSoapPalletOutputSenderTests
             actions.Add(action);
             if (action == "IsOpenPallet")
                 return SoapBooleanResult("IsOpenPallet", isOpen);
-            if (action == "OpenClosePallet")
+            if (action == "OpenClosePalletMES")
             {
                 isOpen = !isOpen;
-                return SoapVoidResult("OpenClosePallet");
+                return SoapVoidResult("OpenClosePalletMES");
             }
             return SoapResult(true);
         });
@@ -535,19 +535,24 @@ public sealed class NavisionSoapPalletOutputSenderTests
         Assert.Equal(
             new[]
             {
-                "IsOpenPallet", "OpenClosePallet", "IsOpenPallet",
+                "IsOpenPallet", "OpenClosePalletMES", "IsOpenPallet",
                 "RegistrarSalidaFabricacion",
-                "IsOpenPallet", "OpenClosePallet", "IsOpenPallet"
+                "IsOpenPallet", "OpenClosePalletMES", "IsOpenPallet"
             },
             actions);
 
         XNamespace codeunit = CodeunitNamespace;
         var toggle = XDocument.Parse(
                 captured.First(request =>
-                    request.SoapAction!.EndsWith(":OpenClosePallet", StringComparison.Ordinal))
+                    request.SoapAction!.EndsWith(":OpenClosePalletMES", StringComparison.Ordinal))
                     .Body!)
-            .Descendants(codeunit + "OpenClosePallet")
+            .Descendants(codeunit + "OpenClosePalletMES")
             .Single();
+        Assert.DoesNotContain(
+            captured,
+            request => request.SoapAction?.EndsWith(
+                ":OpenClosePallet",
+                StringComparison.Ordinal) == true);
         Assert.Equal("FL-TEST", toggle.Element(codeunit + "productionOrderNo")!.Value);
         Assert.Equal("EMP-TEST", toggle.Element(codeunit + "userBC")!.Value);
         Assert.Equal("ITEM-TEST", toggle.Element(codeunit + "itemNo")!.Value);
@@ -579,7 +584,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
             {
                 "IsOpenPallet" => Task.FromResult(
                     SoapBooleanResult("IsOpenPallet", isOpen)),
-                "OpenClosePallet" => Toggle(),
+                "OpenClosePalletMES" => Toggle(),
                 _ => Register()
             };
 
@@ -589,7 +594,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
                 isOpen = !isOpen;
                 return Task.FromResult(toggles == 1
                     ? new HttpResponseMessage(HttpStatusCode.InternalServerError)
-                    : SoapVoidResult("OpenClosePallet"));
+                    : SoapVoidResult("OpenClosePalletMES"));
             }
 
             Task<HttpResponseMessage> Register()
@@ -628,10 +633,10 @@ public sealed class NavisionSoapPalletOutputSenderTests
 
             if (SoapOperation(request) == "IsOpenPallet")
                 return Task.FromResult(SoapBooleanResult("IsOpenPallet", false));
-            if (SoapOperation(request) == "OpenClosePallet")
+            if (SoapOperation(request) == "OpenClosePalletMES")
             {
                 toggles++;
-                return Task.FromResult(SoapVoidResult("OpenClosePallet"));
+                return Task.FromResult(SoapVoidResult("OpenClosePalletMES"));
             }
             registrarPosts++;
             return Task.FromResult(SoapResult(true));
@@ -671,12 +676,12 @@ public sealed class NavisionSoapPalletOutputSenderTests
             var operation = SoapOperation(request);
             if (operation == "IsOpenPallet")
                 return Task.FromResult(SoapBooleanResult("IsOpenPallet", isOpen));
-            if (operation == "OpenClosePallet")
+            if (operation == "OpenClosePalletMES")
             {
                 toggles++;
                 if (toggles == 1)
                     isOpen = true;
-                return Task.FromResult(SoapVoidResult("OpenClosePallet"));
+                return Task.FromResult(SoapVoidResult("OpenClosePalletMES"));
             }
 
             registrarPosts++;
@@ -943,10 +948,10 @@ public sealed class NavisionSoapPalletOutputSenderTests
                     return Task.FromResult(
                         SoapBooleanResult("IsOpenPallet", isOpen));
                 }
-                if (operation == "OpenClosePallet")
+                if (operation == "OpenClosePalletMES")
                 {
                     isOpen = !isOpen;
-                    return Task.FromResult(SoapVoidResult("OpenClosePallet"));
+                    return Task.FromResult(SoapVoidResult("OpenClosePalletMES"));
                 }
             }
 

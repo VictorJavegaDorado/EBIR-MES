@@ -105,12 +105,12 @@ cualquier palet, no solo para el ultimo.
 El diario nuevo debe seguir asignando el identificador de salida a
 `External Document No.` antes de contabilizar. El codeunit no imprime.
 
-## 6. Contrato MES posterior
+## 6. Contrato MES
 
-Una release MES futura cambiara exclusivamente las dos llamadas de apertura y
-cierre del bulto desde `OpenClosePallet` a `OpenClosePalletMES`. No se activara
-hasta que el WSDL de `EbirTest` publique la operacion nueva y las pruebas de
-compatibilidad demuestren que las operaciones existentes no han cambiado.
+El adaptador MES en `main` cambia exclusivamente las dos llamadas de apertura y
+cierre del bulto desde `OpenClosePallet` a `OpenClosePalletMES`. El WSDL de
+`EbirTest` ya publica la operacion nueva. El cambio no queda activo hasta crear
+y activar una release MES bajo una autorizacion independiente.
 
 La confirmacion MES continuara dependiendo de OData `Registrado` e
 `IsOpenPallet`; la respuesta SOAP o el estado `Procesando` no bastan.
