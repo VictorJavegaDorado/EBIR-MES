@@ -63,20 +63,46 @@ var printingEnabled = builder.Configuration.GetValue<bool>("Printing:Enabled");
 if (printingEnabled)
 {
     var mode = builder.Configuration["Printing:Mode"];
-    if (!string.Equals(mode, "Simulated", StringComparison.OrdinalIgnoreCase))
-        throw new InvalidOperationException(
-            "Only the explicitly selected Simulated printing mode is available.");
-
-    var outputDirectory = builder.Configuration["Printing:SimulatedOutputDirectory"];
-    if (string.IsNullOrWhiteSpace(outputDirectory))
-        throw new InvalidOperationException(
-            "Printing:SimulatedOutputDirectory is required.");
-
     builder.Services.AddSingleton<IPrintJobQueue>(_ =>
         new SqlPrintJobQueue(
             builder.Configuration.GetConnectionString("MesDatabase")));
-    builder.Services.AddSingleton<IPrinter>(
-        new SimulatedPrinter(new(outputDirectory)));
+    if (string.Equals(mode, "Simulated", StringComparison.OrdinalIgnoreCase))
+    {
+        var outputDirectory = builder.Configuration["Printing:SimulatedOutputDirectory"];
+        if (string.IsNullOrWhiteSpace(outputDirectory))
+            throw new InvalidOperationException(
+                "Printing:SimulatedOutputDirectory is required.");
+        builder.Services.AddSingleton<IPrinter>(
+            new SimulatedPrinter(new(outputDirectory)));
+    }
+    else if (string.Equals(mode, "WindowsSpooler", StringComparison.OrdinalIgnoreCase))
+    {
+        var printerQueues = builder.Configuration
+            .GetSection("Printing:WindowsSpooler:PrinterQueues")
+            .GetChildren()
+            .Where(child => !string.IsNullOrWhiteSpace(child.Value))
+            .ToDictionary(
+                child => child.Key,
+                child => child.Value!,
+                StringComparer.OrdinalIgnoreCase);
+        if (printerQueues.Count == 0)
+            throw new InvalidOperationException(
+                "Printing:WindowsSpooler:PrinterQueues requires an explicit mapping.");
+        var submissionTimeout = TimeSpan.FromSeconds(
+            Math.Clamp(
+                builder.Configuration.GetValue(
+                    "Printing:WindowsSpooler:SubmissionTimeoutSeconds",
+                    15),
+                1,
+                60));
+        builder.Services.AddSingleton<IPrinter>(
+            new WindowsSpoolerPrinter(new(printerQueues, submissionTimeout)));
+    }
+    else
+    {
+        throw new InvalidOperationException(
+            "Printing:Mode must explicitly select Simulated or WindowsSpooler.");
+    }
     builder.Services.AddSingleton<ProcessNextPrintJob>();
     builder.Services.AddHostedService<PrintingWorker>();
 }

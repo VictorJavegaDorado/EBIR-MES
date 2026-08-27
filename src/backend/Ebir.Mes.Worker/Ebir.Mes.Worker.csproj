@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <OutputType>Exe</OutputType>
     <RootNamespace>Ebir.Mes.Worker</RootNamespace>
   </PropertyGroup>
@@ -9,6 +10,7 @@
     <ProjectReference Include="..\Ebir.Mes.Application\Ebir.Mes.Application.csproj" />
     <ProjectReference Include="..\Ebir.Mes.Infrastructure\Ebir.Mes.Infrastructure.csproj" />
     <ProjectReference Include="..\Ebir.Mes.Integrations\Ebir.Mes.Integrations.csproj" />
+    <ProjectReference Include="..\Ebir.Mes.Integrations.Windows\Ebir.Mes.Integrations.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Update="appsettings.json">

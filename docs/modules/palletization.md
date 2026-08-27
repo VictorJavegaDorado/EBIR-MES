@@ -136,3 +136,25 @@ El formato y las unidades por palet procederan del registro `POK` publicado por
 NAV en `WS_CPP_UndMedProd`, segun el contrato descrito en
 `production-workstation.md`.
 
+## Impresion fisica mediante cola Windows
+
+La integracion fisica usa el controlador oficial del fabricante y una cola de
+Windows instalada en el host del Worker. MES no presupone TSPL, ZPL ni otro
+lenguaje propietario a partir del transporte `RAW_TCP`. El modo
+`WindowsSpooler` permanece desactivado por defecto y exige un mapeo explicito
+entre cada codigo de impresora MES y el nombre exacto de su cola Windows.
+
+La plantilla `PALET` version 1 se renderiza a 150 x 100 mm con marca EBIR,
+grupo contable, codigo y descripcion del articulo, orden, lote, cantidad,
+linea y codigo visible del palet. Los datos proceden exclusivamente del JSON
+persistido en `imp.etiquetas`; un campo funcional vacio bloquea la entrega.
+Cada documento usa el UID inmutable del trabajo en su nombre tecnico. La
+entrega al spooler tiene un timeout acotado; un timeout o cancelacion conserva
+la reserva para conciliacion supervisada y no habilita un reintento automatico
+que pueda duplicar una etiqueta ya aceptada por Windows.
+
+Instalar el controlador, crear la cola, habilitar `WindowsSpooler` o ejecutar
+una impresion fisica son operaciones separadas y requieren autorizacion
+expresa. Las pruebas automatizadas sustituyen la cola de Windows y nunca
+contactan una impresora real.
+

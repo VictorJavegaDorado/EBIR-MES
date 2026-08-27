@@ -14,7 +14,7 @@ mantendran estables aunque la implementacion interna evolucione.
 | Salida de palet hacia NAV | `modules/nav-pallet-output.md` | `Application/NavisionOutput`, `Infrastructure/NavisionOutput`, `Integrations/NavisionOutput`, `Worker/NavisionPalletOutputWorker`; NAV: 50013, 50036, 50056, 60103 y 82000 mediante `deploy/nav/NAV-001A`; administracion Job Queue mediante `deploy/nav/NAV-001B` | Estado dentro de `features/production-flow` | `Application.Tests/NavisionOutput`, `Integrations.Tests/NavisionOutput`, `database/nav_pallet_output_queue`, `nav/autonomous_mes_output`, `nav/job_queue_mes_admin` |
 | Scrap | `modules/scrap-replenishment.md` | `Application/Scrap` | `features/scrap-register` | `Application.Tests/Scrap` |
 | Reaprovisionamiento | `modules/scrap-replenishment.md` | `Application/Replenishment` | `features/replenishment-request` | `Application.Tests/Replenishment` |
-| Impresion | Documento del modulo consumidor | `Integrations/Printing` | Estado dentro de la feature | `IntegrationTests/Printing` |
+| Impresion | `modules/palletization.md` | `Integrations/Printing`, `Integrations.Windows/Printing`, `Worker/PrintingWorker` | Estado dentro de la feature | `Application.Tests/Printing`, `Integrations.Tests/Printing`, `Integrations.Windows.Tests/Printing`, `IntegrationTests/Printing` |
 | Maestros del piloto TEST | `modules/pilot-master-data.md` | Configuracion externa; sin caso de uso runtime | No aplica | `database/pilot_master_data` |
 
 Una fila se anade cuando comienza la implementacion de la funcionalidad, no
