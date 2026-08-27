@@ -49,12 +49,7 @@ internal sealed class WindowsSpoolerClient(TimeSpan submissionTimeout) : IWindow
                 "The configured Windows printer queue is unavailable.");
 
         document.PrinterSettings.Copies = copies;
-        document.DefaultPageSettings.Margins = new Margins(0, 0, 0, 0);
-        document.DefaultPageSettings.Landscape = false;
-        document.DefaultPageSettings.PaperSize = new PaperSize(
-            "EBIR 150x100 mm",
-            MillimetresToHundredthsOfInch(150),
-            MillimetresToHundredthsOfInch(100));
+        ConfigurePalletPage(document.DefaultPageSettings);
         document.PrintPage += (_, args) =>
         {
             PalletLabelRenderer.Draw(
@@ -78,6 +73,18 @@ internal sealed class WindowsSpoolerClient(TimeSpan submissionTimeout) : IWindow
                 "The label could not be submitted to the Windows print spooler.",
                 exception);
         }
+    }
+
+    internal static void ConfigurePalletPage(PageSettings pageSettings)
+    {
+        ArgumentNullException.ThrowIfNull(pageSettings);
+
+        pageSettings.Margins = new Margins(0, 0, 0, 0);
+        pageSettings.Landscape = true;
+        pageSettings.PaperSize = new PaperSize(
+            "EBIR 100x150 mm",
+            MillimetresToHundredthsOfInch(100),
+            MillimetresToHundredthsOfInch(150));
     }
 
     private static int MillimetresToHundredthsOfInch(int millimetres) =>
