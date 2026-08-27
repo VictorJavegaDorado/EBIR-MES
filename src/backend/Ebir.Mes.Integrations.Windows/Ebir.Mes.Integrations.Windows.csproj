@@ -7,4 +7,8 @@
   <ItemGroup>
     <ProjectReference Include="..\Ebir.Mes.Application\Ebir.Mes.Application.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ZXing.Net" />
+    <EmbeddedResource Include="Printing\Assets\ebir-logo-mono.png" />
+  </ItemGroup>
 </Project>
