@@ -1,6 +1,6 @@
 # Worker continuo en TEST
 
-Este runbook prepara el Worker de salidas de palet como servicio Windows. No
+Este runbook prepara el Worker de salidas NAV o de impresion como servicio Windows. No
 autoriza instalarlo, iniciarlo, configurar secretos ni contactar NAV. Esas
 acciones requieren autorización expresa y una release activable ya validada.
 
@@ -20,8 +20,11 @@ El contrato funcional e idempotente de la salida vive en
 - línea piloto: un único mapeo explícito `LINEA-TEST-01` a `L01`;
 - SQL: cadena con autenticación integrada y base explícita `EBIR_MES_TEST`,
   suministrada fuera de Git y de la release;
-- impresión: `Enabled=false` y `Mode=Disabled` durante todo el piloto NAV;
-- ejecución continua: `NavisionOutput:RunOnce=false`;
+- perfiles mutuamente excluyentes: salida NAV o impresion Windows Spooler;
+- perfil NAV: `NavisionOutput:Enabled=true` y `Printing:Enabled=false`;
+- perfil impresion: `NavisionOutput:Enabled=false`, `Printing:Enabled=true`,
+  `Printing:Mode=WindowsSpooler` y un unico mapeo de impresora explicito;
+- ejecucion continua: el `RunOnce` del perfil activo debe ser `false`;
 - apagado: cancelación cooperativa del host y de la operación en curso;
 - observabilidad: Application Event Log, resultado e identificador de
   correlación, sin cuerpos externos, credenciales ni datos personales.
@@ -51,6 +54,25 @@ Printing__Enabled=false
 Printing__Mode=Disabled
 ```
 
+Para el perfil de impresion validado en EbirTest son:
+
+```text
+DOTNET_ENVIRONMENT=Production
+NavisionOutput__Enabled=false
+Printing__Enabled=true
+Printing__Mode=WindowsSpooler
+Printing__RunOnce=false
+Printing__PollIntervalMilliseconds=1000
+Printing__WindowsSpooler__SubmissionTimeoutSeconds=15
+Printing__WindowsSpooler__PrinterQueues__PRN-VRETTI-01=MES-VRETTI-420B-PILOT
+```
+
+Los dos perfiles no se habilitan simultaneamente. El instalador
+`Install-MesPrintingWorker.ps1` solo instala el perfil de impresion y recibe la
+cadena SQL como `SecureString`, de modo que no se escriba en comandos, Git ni
+evidencias. El servicio apunta siempre al directorio `worker` de una release
+exacta cuyo commit coincide con `HEAD == main == origin/main`.
+
 Antes de instalar se resuelve el nombre localizado de `NetworkService` desde
 el SID, sin asumir el idioma del servidor:
 
@@ -69,10 +91,10 @@ $networkServiceAccount = $networkServiceSid.Translate(
 4. Exigir que no exista el servicio `MES Worker` ni otro proceso Worker.
 5. Confirmar que la cola seleccionada para el canario es inequívoca y que no
    puede reenviarse una salida ya existente; conciliar antes por identificador.
-6. Confirmar configuración exacta de TEST, mapeo único y Printing desactivado.
+6. Confirmar configuracion exacta de TEST y que solo el perfil autorizado esta activo.
 7. Preparar un procedimiento de parada y conservar la release anterior.
 
-## Canario `RunOnce`
+## Canario NAV `RunOnce`
 
 El canario se ejecuta como tarea efímera bajo el SID `S-1-5-20`, con
 `NavisionOutput:RunOnce=true`, Printing desactivado y una guarda exacta sobre
@@ -90,6 +112,18 @@ La evidencia debe demostrar:
 
 El canario y cualquier contacto con NAV o SQL requieren autorización expresa.
 
+## Canario de impresion `RunOnce`
+
+El canario de impresion se ejecuta como tarea efimera bajo `S-1-5-20`, con
+`NavisionOutput:Enabled=false`, `Printing:RunOnce=true` y un unico trabajo
+conocido elegible. Antes de cada salida se exige cola fisica vacia y se conserva
+una copia verificada de `EBIR_MES_TEST`.
+
+La evidencia debe demostrar una sola reserva, un solo intento, una sola pagina
+en spool, cola vacia, confirmacion fisica y ausencia de Worker al terminar. Un
+resultado SQL completado no autoriza a reenviar si el spool queda retenido: se
+concilia primero con el operador y los eventos 307/842.
+
 ## Instalación e inicio
 
 Solo después de un canario correcto y una nueva autorización se puede:
@@ -100,7 +134,12 @@ Solo después de un canario correcto y una nueva autorización se puede:
 4. configurar inicio automático retrasado y recuperación acotada;
 5. iniciar el servicio;
 6. observar una operación conocida hasta estado terminal;
-7. comprobar que no quedan reservas y que Printing continúa desactivado.
+7. comprobar que no quedan reservas y que solo el perfil autorizado esta activo.
+
+Para el perfil de impresion, antes del primer inicio continuo se exige ademas
+que no haya trabajos pendientes no autorizados, la cola VRETTI este vacia y el
+lote historico haya sido conciliado. Tras iniciar, el servicio debe permanecer
+`Running` con cero reservas y cero trabajos de spool cuando no haya trabajo.
 
 No se cambia el `ImagePath` a otra release ni se inicia el servicio como parte
 de una activación web.
