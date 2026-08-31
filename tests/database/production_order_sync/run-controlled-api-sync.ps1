@@ -14,7 +14,7 @@ param(
     [string] $Database = 'EBIR_MES_TEST',
     [string] $NavEnvironment = 'EBIRTEST',
     [string] $NavCompany = 'EBIR',
-    [uri] $NavServiceRoot = 'http://10.0.0.37:7147/EBIRTEST/WS/',
+    [uri] $NavServiceRoot = 'http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/',
     [ValidateRange(1024, 65535)]
     [int] $LocalPort = 50731,
     [switch] $ConfirmAuthorizedExecution
@@ -29,6 +29,15 @@ if (-not $ConfirmAuthorizedExecution) {
 
 if ($Database -cne 'EBIR_MES_TEST') {
     throw "Base no autorizada: $Database"
+}
+
+$authorizedNavServiceRoot = [uri] 'http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/'
+if ($NavServiceRoot.AbsoluteUri -cne $authorizedNavServiceRoot.AbsoluteUri) {
+    throw "Raiz NAV no autorizada: $($NavServiceRoot.AbsoluteUri)"
+}
+
+if ($NavEnvironment -cne 'EBIRTEST' -or $NavCompany -cne 'EBIR') {
+    throw "Entorno o empresa NAV no autorizados."
 }
 
 $windowsIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()

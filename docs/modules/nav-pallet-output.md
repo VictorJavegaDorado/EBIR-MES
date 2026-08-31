@@ -29,7 +29,7 @@ Un timeout posterior al envío nunca repite el codeunit a ciegas.
 
 La escritura correcta de TEST es el codeunit:
 
-`http://Navision.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta`
+`http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta`
 
 El cierre completo usa tres operaciones SOAP 1.1 del mismo codeunit:
 
@@ -100,7 +100,7 @@ fuera de Git.
 
 ## Compatibilidad e idempotencia
 
-El adaptador limita todos los endpoints a `Navision.EBIR.LOCAL:7147`, instancia
+El adaptador limita todos los endpoints a `NAVISION2.EBIR.LOCAL:7147`, instancia
 `EbirTest` y empresa `EBIR`, usa autenticación integrada y no sigue
 redirecciones. Las respuestas tienen límite de tamaño y el XML se analiza sin
 DTD ni resolución externa. El JSON técnico conserva solo resultado, motivo,

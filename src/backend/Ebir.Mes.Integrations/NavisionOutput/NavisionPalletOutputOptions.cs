@@ -2,7 +2,7 @@ namespace Ebir.Mes.Integrations.NavisionOutput;
 
 public sealed class NavisionPalletOutputOptions
 {
-    private const string AllowedHost = "navision.ebir.local";
+    private const string AllowedHost = "navision2.ebir.local";
     private const int AllowedPort = 7147;
     private const string AllowedPath =
         "/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta";

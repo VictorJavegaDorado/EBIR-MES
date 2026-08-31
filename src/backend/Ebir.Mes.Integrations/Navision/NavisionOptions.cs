@@ -2,6 +2,10 @@ namespace Ebir.Mes.Integrations.Navision;
 
 public sealed record NavisionOptions
 {
+    private const string AllowedHost = "navision2.ebir.local";
+    private const int AllowedPort = 7147;
+    private const string AllowedPath = "/EbirTest/WS/";
+    private const string AllowedCompany = "EBIR";
     public const int MaximumAllowedReadAttempts = 3;
 
     public NavisionOptions(
@@ -11,19 +15,41 @@ public sealed record NavisionOptions
         int maximumReadAttempts = MaximumAllowedReadAttempts)
     {
         ArgumentNullException.ThrowIfNull(serviceRoot);
+        ArgumentNullException.ThrowIfNull(company);
 
-        if (!serviceRoot.IsAbsoluteUri ||
-            (serviceRoot.Scheme != Uri.UriSchemeHttp &&
-             serviceRoot.Scheme != Uri.UriSchemeHttps))
+        if (!serviceRoot.IsAbsoluteUri)
         {
             throw new ArgumentException(
-                "NAV service root must be an absolute HTTP or HTTPS URI.",
+                "La raiz NAV debe ser la raiz SOAP exacta de EbirTest en NAVISION2.",
                 nameof(serviceRoot));
         }
 
-        if (string.IsNullOrWhiteSpace(company))
+        var normalizedServiceRoot = EnsureTrailingSlash(serviceRoot);
+        if (!string.Equals(normalizedServiceRoot.Scheme, Uri.UriSchemeHttp,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(normalizedServiceRoot.IdnHost, AllowedHost,
+                StringComparison.OrdinalIgnoreCase)
+            || normalizedServiceRoot.Port != AllowedPort
+            || !string.Equals(
+                Uri.UnescapeDataString(normalizedServiceRoot.AbsolutePath),
+                AllowedPath,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrEmpty(normalizedServiceRoot.Query)
+            || !string.IsNullOrEmpty(normalizedServiceRoot.Fragment)
+            || !string.IsNullOrEmpty(normalizedServiceRoot.UserInfo))
         {
-            throw new ArgumentException("NAV company is required.", nameof(company));
+            throw new ArgumentException(
+                "La raiz NAV debe ser la raiz SOAP exacta de EbirTest en NAVISION2.",
+                nameof(serviceRoot));
+        }
+
+        var normalizedCompany = company.Trim();
+        if (!string.Equals(normalizedCompany, AllowedCompany,
+                StringComparison.Ordinal))
+        {
+            throw new ArgumentException(
+                "La empresa NAV debe ser EBIR.",
+                nameof(company));
         }
 
         if (requestTimeout <= TimeSpan.Zero ||
@@ -42,8 +68,8 @@ public sealed record NavisionOptions
                 $"NAV read attempts must be between 1 and {MaximumAllowedReadAttempts}.");
         }
 
-        ServiceRoot = EnsureTrailingSlash(serviceRoot);
-        Company = company.Trim();
+        ServiceRoot = normalizedServiceRoot;
+        Company = normalizedCompany;
         RequestTimeout = requestTimeout;
         MaximumReadAttempts = maximumReadAttempts;
     }

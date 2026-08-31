@@ -819,9 +819,11 @@ public sealed class NavisionSoapPalletOutputSenderTests
 
     [Theory]
     [InlineData("http://external.example:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta")]
-    [InlineData("http://Navision.EBIR.LOCAL:7147/EbirTest/ODataV4/Company('EBIR')/WS_CPP_ControlPlanta")]
-    [InlineData("http://Navision.EBIR.LOCAL:7147/EbirTest/WS/OTHER/Codeunit/WS_CPP_ControlPlanta")]
-    [InlineData("http://Navision.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta?x=1")]
+    [InlineData("http://Navision.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta")]
+    [InlineData("http://10.0.0.9:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta")]
+    [InlineData("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/ODataV4/Company('EBIR')/WS_CPP_ControlPlanta")]
+    [InlineData("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/OTHER/Codeunit/WS_CPP_ControlPlanta")]
+    [InlineData("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta?x=1")]
     public void Options_rejects_endpoint_outside_exact_test_codeunit(string endpoint)
     {
         Assert.Throws<ArgumentException>(() =>
@@ -992,7 +994,7 @@ public sealed class NavisionSoapPalletOutputSenderTests
         };
 
     private static readonly Uri Endpoint = new(
-        "http://Navision.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta");
+        "http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta");
 
     private static readonly NavisionPalletOutputJob Job = new(
         7,

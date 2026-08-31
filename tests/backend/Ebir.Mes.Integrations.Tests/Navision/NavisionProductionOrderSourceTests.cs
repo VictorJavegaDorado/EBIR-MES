@@ -63,7 +63,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal(new DateOnly(2026, 8, 1), order.EndingDate);
         Assert.Equal(new DateOnly(2026, 8, 2), order.DueDate);
         Assert.Equal(
-            new Uri("http://nav.test/instance/WS/EBIR/Page/WS_CPP_ProdOrderList"),
+            new Uri("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Page/WS_CPP_ProdOrderList"),
             requestUri);
         Assert.Equal(
             "urn:microsoft-dynamics-schemas/page/ws_cpp_prodorderlist:ReadMultiple",
@@ -108,7 +108,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("BOM-01", line.ProductionBomNumber);
         Assert.Equal(
             new Uri(
-                "http://nav.test/instance/WS/EBIR/Page/WS_CPP_ProdOrderLineList"),
+                "http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Page/WS_CPP_ProdOrderLineList"),
             requestUri);
         Assert.Contains("<Field>Status</Field>", requestBody);
         Assert.Contains("<Criteria>Released</Criteria>", requestBody);
@@ -136,7 +136,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("ITEM-01", result.ProductNumber);
         Assert.Equal("OF2600042", result.LotNumber);
         Assert.Equal(
-            new Uri("http://nav.test/instance/WS/EBIR/Page/WS_CPP_OPLanzadas"),
+            new Uri("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/EBIR/Page/WS_CPP_OPLanzadas"),
             requestUri);
         Assert.Contains("<Field>No</Field>", requestBody);
         Assert.Contains("<Criteria>OF26-00042</Criteria>", requestBody);
@@ -190,7 +190,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.False(hasContent);
         Assert.False(hasSoapAction);
         Assert.Equal(
-            "/instance/OData/Company('EBIR')/WS_CPP_RutaOrdenProduccion",
+            "/EbirTest/OData/Company('EBIR')/WS_CPP_RutaOrdenProduccion",
             Uri.UnescapeDataString(requestUri!.AbsolutePath));
         Assert.Equal(
             "$filter=Prod_Order_No eq 'FL26-00001'&$top=20",
@@ -316,7 +316,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("POK", format.Code);
         Assert.Equal(20m, format.QuantityPerUnitMeasure);
         Assert.Equal(
-            "/instance/ODataV4/Company('EBIR')/WS_CPP_UndMedProd",
+            "/EbirTest/ODataV4/Company('EBIR')/WS_CPP_UndMedProd",
             Uri.UnescapeDataString(requestUri!.AbsolutePath));
         Assert.Equal(
             "$filter=Item_No eq 'ITEM-POK-01' and Code eq 'POK'&$top=2",
@@ -416,7 +416,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("27920LG", group.ProductNumber);
         Assert.Equal("P_MATPRIMA", group.Code);
         Assert.Equal(
-            "/instance/ODataV4/Company('EBIR')/ItemSalesAndProfit",
+            "/EbirTest/ODataV4/Company('EBIR')/ItemSalesAndProfit",
             Uri.UnescapeDataString(requestUri!.AbsolutePath));
         Assert.Equal(
             "$filter=No eq '27920LG'&$select=No,Gen_Prod_Posting_Group&$top=2",
@@ -601,11 +601,38 @@ public sealed class NavisionProductionOrderSourceTests
             exception.Message);
     }
 
+    [Theory]
+    [InlineData("http://Navision.EBIR.LOCAL:7147/EbirTest/WS/")]
+    [InlineData("http://10.0.0.9:7147/EbirTest/WS/")]
+    [InlineData("https://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/")]
+    [InlineData("http://NAVISION2.EBIR.LOCAL:7147/Other/WS/")]
+    [InlineData("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/?x=1")]
+    public void Options_rejects_service_root_outside_exact_test_instance(
+        string serviceRoot)
+    {
+        Assert.Throws<ArgumentException>(() => new NavisionOptions(
+            new Uri(serviceRoot),
+            "EBIR",
+            TimeSpan.FromSeconds(5)));
+    }
+
+    [Theory]
+    [InlineData("OTHER")]
+    [InlineData("ebir")]
+    [InlineData("")]
+    public void Options_rejects_company_other_than_exact_ebir(string company)
+    {
+        Assert.Throws<ArgumentException>(() => new NavisionOptions(
+            new Uri("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/"),
+            company,
+            TimeSpan.FromSeconds(5)));
+    }
+
     private static NavisionProductionOrderSource CreateSource(
         HttpMessageHandler handler)
     {
         var options = new NavisionOptions(
-            new Uri("http://nav.test/instance/WS"),
+            new Uri("http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/"),
             "EBIR",
             TimeSpan.FromSeconds(5));
         return new NavisionProductionOrderSource(

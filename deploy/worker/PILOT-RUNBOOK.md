@@ -16,7 +16,7 @@ El contrato funcional e idempotente de la salida vive en
 - inicio: automático retrasado únicamente después del canario autorizado;
 - entorno: `Production`;
 - endpoint NAV: el adaptador solo admite
-  `Navision.EBIR.LOCAL:7147/EbirTest`, empresa `EBIR` y el codeunit de planta;
+  `NAVISION2.EBIR.LOCAL:7147/EbirTest`, empresa `EBIR` y el codeunit de planta;
 - línea piloto: un único mapeo explícito `LINEA-TEST-01` a `L01`;
 - SQL: cadena con autenticación integrada y base explícita `EBIR_MES_TEST`,
   suministrada fuera de Git y de la release;

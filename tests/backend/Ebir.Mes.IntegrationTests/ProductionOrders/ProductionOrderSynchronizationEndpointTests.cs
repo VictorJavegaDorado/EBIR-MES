@@ -158,7 +158,7 @@ public sealed class ProductionOrderSynchronizationEndpointTests
                         ["Navision:Environment"] = "EBIRTEST",
                         ["Navision:Company"] = "EBIR",
                         ["Navision:ServiceRoot"] =
-                            "http://nav.test/EBIRTEST/WS/EBIR",
+                            "http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/",
                         ["Navision:RequestTimeoutSeconds"] = "30",
                         ["Navision:MaximumReadAttempts"] = "3"
                     }));

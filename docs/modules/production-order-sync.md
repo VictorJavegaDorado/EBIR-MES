@@ -124,12 +124,14 @@ de orden exacto y una correlacion. El entorno, la empresa, la raiz SOAP y los
 limites de resiliencia proceden de configuracion del servidor, nunca del
 navegador.
 
-La raiz configurada termina en `/WS/`. El adaptador SOAP agrega despues la
+La unica raiz admitida en TEST es
+`http://NAVISION2.EBIR.LOCAL:7147/EbirTest/WS/`. El adaptador SOAP agrega despues la
 empresa y la pagina NAV. Los lectores OData derivan exclusivamente de esa misma
 URI las raices `/OData/` y `/ODataV4/`, conservando esquema, host y puerto, y
-agregan empresa y entidad. No aceptan una autoridad externa ni una raiz que no
-termine en `/WS/`. Por ejemplo, la raiz de `EBIRTEST` no incluye de nuevo
-`EBIR`.
+agregan empresa y entidad. El alias antiguo, las direcciones IP, HTTPS, otra
+instancia, otro puerto y cualquier raiz que no termine en `/WS/` se rechazan.
+El codigo interno del entorno sigue siendo `EBIRTEST` y la empresa exacta es
+`EBIR`; la raiz no incluye de nuevo la empresa.
 
 La respuesta publica `CREADA`, `ACTUALIZADA` o `SIN_CAMBIOS`. Las validaciones
 funcionales se traducen a `400`, `404` o `409`; los fallos de NAV, SQL o de

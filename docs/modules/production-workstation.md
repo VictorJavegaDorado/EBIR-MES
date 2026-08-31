@@ -246,7 +246,7 @@ El formato se obtiene exclusivamente en lectura mediante ODataV4:
 
 Raiz TEST:
 
-`http://Navision.EBIR.LOCAL:7147/EbirTest/ODataV4/Company('EBIR')/`
+`http://NAVISION2.EBIR.LOCAL:7147/EbirTest/ODataV4/Company('EBIR')/`
 
 La consulta debe filtrar de forma exacta por el producto de la orden y por
 `Code eq 'POK'`. Los campos funcionales iniciales son:
