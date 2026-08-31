@@ -12,4 +12,6 @@ public sealed record NavisionPalletOutputJob(
     int GoodQuantity,
     DateTimeOffset ClosedAtUtc,
     int AttemptNumber,
-    string? ExternalIdentifier);
+    string? ExternalIdentifier,
+    bool ReconciliationOnly = false,
+    int? BaselineMaximumId = null);

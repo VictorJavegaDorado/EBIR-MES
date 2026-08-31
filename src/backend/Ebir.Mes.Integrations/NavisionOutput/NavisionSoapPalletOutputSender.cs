@@ -25,16 +25,22 @@ public sealed class NavisionSoapPalletOutputSender(
         NavisionPalletOutputJob job,
         CancellationToken cancellationToken)
     {
-        var reconciliationOnly = !string.IsNullOrWhiteSpace(job.ExternalIdentifier);
+        var reconciliationOnly = job.ReconciliationOnly
+            || !string.IsNullOrWhiteSpace(job.ExternalIdentifier);
         var validation = ValidateJob(job, true, out var assemblyLine);
         if (validation is not null)
             return validation;
 
         if (reconciliationOnly)
-            return await ReconcileExistingAsync(
-                job,
-                assemblyLine!,
-                cancellationToken);
+            return string.IsNullOrWhiteSpace(job.ExternalIdentifier)
+                ? await DiscoverAfterBaselineAsync(
+                    job,
+                    assemblyLine!,
+                    cancellationToken)
+                : await ReconcileExistingAsync(
+                    job,
+                    assemblyLine!,
+                    cancellationToken);
 
         OrderRecord order;
         ProductRecord product;
@@ -317,12 +323,114 @@ public sealed class NavisionSoapPalletOutputSender(
         }
     }
 
+    private async Task<NavisionPalletOutputReceipt> DiscoverAfterBaselineAsync(
+        NavisionPalletOutputJob job,
+        string assemblyLine,
+        CancellationToken cancellationToken)
+    {
+        const string reconciliationMode = "DISCOVER_AFTER_BASELINE";
+        if (job.BaselineMaximumId is null or < 0)
+        {
+            return Receipt(
+                NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                null,
+                "BaselineMaximumIdMissing",
+                baselineMaximumId: job.BaselineMaximumId,
+                reconciliationMode: reconciliationMode);
+        }
+
+        NavisionPalletOutputReceipt outputReceipt;
+        try
+        {
+            var outputs = await ReadOutputsAsync(job, cancellationToken);
+            if (outputs.Count >= MaximumODataRecords)
+            {
+                outputReceipt = Receipt(
+                    NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                    null,
+                    "ReconciliationTruncated",
+                    baselineMaximumId: job.BaselineMaximumId,
+                    reconciliationMode: reconciliationMode);
+            }
+            else
+            {
+                var matches = outputs
+                    .Where(output =>
+                        output.Id > job.BaselineMaximumId.Value
+                        && string.Equals(output.OrderNumber, job.OrderNumber,
+                            StringComparison.Ordinal)
+                        && string.Equals(output.ProductNumber, job.ProductNumber,
+                            StringComparison.Ordinal)
+                        && output.Quantity == job.GoodQuantity
+                        && string.Equals(output.Type, "Salida",
+                            StringComparison.Ordinal))
+                    .ToArray();
+
+                outputReceipt = matches.Length switch
+                {
+                    0 => Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        null,
+                        "OutputNotObservedAfterBaseline",
+                        baselineMaximumId: job.BaselineMaximumId,
+                        reconciliationMode: reconciliationMode),
+                    > 1 => Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        null,
+                        "MultipleNewOutputs",
+                        baselineMaximumId: job.BaselineMaximumId,
+                        reconciliationMode: reconciliationMode),
+                    _ when string.Equals(
+                        matches[0].State,
+                        "Registrado",
+                        StringComparison.Ordinal) => Receipt(
+                            NavisionPalletOutputDeliveryOutcome.Confirmed,
+                            null,
+                            "ReconciledRegisteredOutputAfterBaseline",
+                            matches[0].Id.ToString(CultureInfo.InvariantCulture),
+                            job.BaselineMaximumId,
+                            reconciliationMode),
+                    _ => Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        null,
+                        string.Equals(
+                            matches[0].State,
+                            "Pendiente",
+                            StringComparison.Ordinal)
+                                ? "OutputStillPending"
+                                : "OutputStateNotRegistered",
+                        matches[0].Id.ToString(CultureInfo.InvariantCulture),
+                        job.BaselineMaximumId,
+                        reconciliationMode)
+                };
+            }
+        }
+        catch (NavisionReadException exception)
+        {
+            outputReceipt = Receipt(
+                NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                exception.HttpStatusCode,
+                exception.Reason,
+                baselineMaximumId: job.BaselineMaximumId,
+                reconciliationMode: reconciliationMode);
+        }
+
+        return await ClosePalletAsync(
+            job,
+            assemblyLine,
+            outputReceipt,
+            job.BaselineMaximumId,
+            cancellationToken,
+            reconciliationMode);
+    }
+
     private async Task<NavisionPalletOutputReceipt> ClosePalletAsync(
         NavisionPalletOutputJob job,
         string assemblyLine,
         NavisionPalletOutputReceipt outputReceipt,
         int? baselineMaximumId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? reconciliationMode = null)
     {
         var closePallet = await EnsurePalletStateAsync(
             job,
@@ -337,7 +445,8 @@ public sealed class NavisionSoapPalletOutputSender(
             closePallet.HttpStatusCode ?? outputReceipt.HttpStatusCode,
             closePallet.Reason,
             outputReceipt.ExternalIdentifier,
-            baselineMaximumId);
+            baselineMaximumId,
+            reconciliationMode);
     }
 
     private async Task<PalletStateTransition> EnsurePalletStateAsync(
@@ -993,7 +1102,8 @@ public sealed class NavisionSoapPalletOutputSender(
         int? status,
         string? reason = null,
         string? externalIdentifier = null,
-        int? baselineMaximumId = null) =>
+        int? baselineMaximumId = null,
+        string? reconciliationMode = null) =>
         new(
             outcome,
             externalIdentifier,
@@ -1005,7 +1115,8 @@ public sealed class NavisionSoapPalletOutputSender(
                 outcome = outcome.ToString(),
                 httpStatus = status,
                 reason,
-                baselineMaximumId
+                baselineMaximumId,
+                reconciliationMode
             }));
 
     private sealed record OrderRecord(

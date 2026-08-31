@@ -36,7 +36,9 @@ public sealed class SqlNavisionPalletOutputQueue(string? connectionString)
                 new DateTimeOffset(
                     DateTime.SpecifyKind(reader.GetDateTime(9), DateTimeKind.Utc)),
                 reader.GetInt32(10),
-                reader.IsDBNull(11) ? null : reader.GetString(11));
+                reader.IsDBNull(11) ? null : reader.GetString(11),
+                reader.GetBoolean(12),
+                reader.IsDBNull(13) ? null : reader.GetInt32(13));
         }
         catch (OperationCanceledException) { throw; }
         catch (SqlException exception)

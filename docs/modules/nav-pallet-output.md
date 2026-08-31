@@ -163,6 +163,16 @@ confirmación externa.
 Para una orden de 100 unidades con POK 20, el resultado esperado son cinco
 palets MES y cinco filas NAV independientes en estado final `Registrado`.
 
+El paquete 041A generaliza la recuperacion de la latencia OData. Si termina la
+ventana inicial sin identificador, la cola conserva el mayor `Id` observado
+antes del unico envio y reserva los intentos siguientes con el indicador
+explicito de solo reconciliacion. En ese modo el adaptador consulta las salidas
+posteriores a la foto previa y no puede llamar a `RegistrarSalidaFabricacion`.
+Una unica coincidencia exacta aporta el identificador; ninguna coincidencia
+programa otra lectura acotada y varias coincidencias detienen la automatizacion
+por ambiguedad. El limite conjunto es de doce intentos y los motivos de
+truncamiento, discrepancia o identificador invalido no se reintentan.
+
 ## Segundo palet y recuperación supervisada
 
 El primer intento de la operación 32, palet 22 de `FL26-00003`, envió

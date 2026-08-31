@@ -144,8 +144,14 @@ EXEC nav.confirmar_salida_palet @nav8,N'{"simulado":true}',N'ZZTEST-NAV-SIM-ULT'
 DECLARE @job8 bigint=(SELECT t.trabajo_impresion_id FROM imp.trabajos_impresion t
  JOIN imp.etiquetas e ON e.etiqueta_id=t.etiqueta_id WHERE e.palet_id=@p8 AND t.estado=N'PENDIENTE');
 EXEC imp.confirmar_trabajo_impresion @job8,@prn,@corr;
-IF (SELECT COUNT(*) FROM nav.operaciones WHERE orden_id=@o4 AND tipo=N'CIERRE_FL')<>1
- THROW 52118,'Caso 8: CIERRE_FL ausente o duplicado.',1;
+IF EXISTS (SELECT 1 FROM nav.operaciones WHERE orden_id=@o4 AND tipo=N'CIERRE_FL')
+ THROW 52118,'Caso 8: se creo un CIERRE_FL sin consumidor.',1;
+IF NOT EXISTS
+(
+ SELECT 1 FROM prod.ordenes
+ WHERE orden_id=@o4 AND estado=N'PENDIENTE_CIERRE'
+)
+ THROW 52120,'Caso 8: la impresion altero el cierre local.',1;
 BEGIN TRY
  EXEC imp.confirmar_trabajo_impresion @job8,@prn,@corr;
  THROW 52119,'Caso 8: doble confirmacion admitida.',1;
@@ -153,6 +159,6 @@ END TRY
 BEGIN CATCH
  IF ERROR_NUMBER()<>51600 THROW;
 END CATCH;
-IF (SELECT COUNT(*) FROM nav.operaciones WHERE orden_id=@o4 AND tipo=N'CIERRE_FL')<>1
- THROW 52120,'Caso 8: idempotencia alterada.',1;
-PRINT N'OK 8 - Ultimo palet y CIERRE_FL';
+IF EXISTS (SELECT 1 FROM nav.operaciones WHERE orden_id=@o4 AND tipo=N'CIERRE_FL')
+ THROW 52121,'Caso 8: la repeticion creo un CIERRE_FL.',1;
+PRINT N'OK 8 - Ultimo palet pendiente de cierre local';

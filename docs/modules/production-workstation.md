@@ -202,6 +202,14 @@ paquete resuelve solo el piloto actual; antes de produccion debe retirarse en
 el contrato general la creacion de nuevas intenciones `CIERRE_FL` sin
 consumidor.
 
+El paquete 042A realiza esa retirada general para las ordenes futuras. La
+impresion del ultimo palet no crea ninguna operacion NAV ni cambia el estado de
+la orden: conserva `PENDIENTE_CIERRE` para `prod.finalizar_orden_produccion`.
+Mientras la sesion siga asignada, la linea muestra
+`ORDEN_PENDIENTE_CIERRE`; una impresion tardia posterior a la liberacion no
+vuelve a ocupar ni altera la linea. Las operaciones historicas `CIERRE_FL` no
+se modifican con este paquete.
+
 Cada persona visible dispone de acciones tactiles de salida, pausa `WC`, pausa
 `PAUSA_CALOR` y reanudacion segun su estado. La pantalla usa los contratos de
 sesion existentes, conserva la correlacion durante un reintento y vuelve a leer

@@ -492,6 +492,95 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_discovers_delayed_registered_output_without_posting_again()
+    {
+        var requests = new List<CapturedRequest>();
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            requests.Add(await CaptureAsync(request, cancellationToken));
+            return Json(Output(321, 20), Output(100, 10));
+        });
+        var job = Job with
+        {
+            ReconciliationOnly = true,
+            BaselineMaximumId = 100
+        };
+
+        var result = await CreateSender(handler).SendAsync(job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Single(requests);
+        Assert.Equal(HttpMethod.Get, requests[0].Method);
+        Assert.True(IsEntityRequest(requests[0], "WS_CPP_SalidasFabrica"));
+        Assert.Contains("DISCOVER_AFTER_BASELINE", result.TechnicalDataJson);
+        Assert.Contains("ReconciledRegisteredOutputAfterBaseline", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_keeps_delayed_discovery_pending_when_output_is_not_visible()
+    {
+        var requests = new List<CapturedRequest>();
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            requests.Add(await CaptureAsync(request, cancellationToken));
+            return Json(Output(100, 10));
+        });
+
+        var result = await CreateSender(handler).SendAsync(
+            Job with { ReconciliationOnly = true, BaselineMaximumId = 100 },
+            CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Null(result.ExternalIdentifier);
+        Assert.Single(requests);
+        Assert.DoesNotContain(requests, request => request.Method == HttpMethod.Post);
+        Assert.Contains("OutputNotObservedAfterBaseline", result.TechnicalDataJson);
+        Assert.Contains("\"baselineMaximumId\":100", result.TechnicalDataJson);
+        Assert.Contains("DISCOVER_AFTER_BASELINE", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_stops_delayed_discovery_when_multiple_outputs_match()
+    {
+        var posts = 0;
+        var sender = CreateSender(new StubHandler((request, _) =>
+        {
+            if (request.Method == HttpMethod.Post)
+                posts++;
+            return Task.FromResult(Json(Output(321, 20), Output(322, 20)));
+        }));
+
+        var result = await sender.SendAsync(
+            Job with { ReconciliationOnly = true, BaselineMaximumId = 100 },
+            CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Null(result.ExternalIdentifier);
+        Assert.Equal(0, posts);
+        Assert.Contains("MultipleNewOutputs", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_rejects_delayed_discovery_without_baseline_before_nav_call()
+    {
+        var calls = 0;
+        var sender = CreateSender(new StubHandler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Json());
+        }));
+
+        var result = await sender.SendAsync(
+            Job with { ReconciliationOnly = true },
+            CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal(0, calls);
+        Assert.Contains("BaselineMaximumIdMissing", result.TechnicalDataJson);
+    }
+
+    [Fact]
     public async Task SendAsync_opens_registers_and_closes_nav_pallet_in_order()
     {
         var actions = new List<string>();
@@ -795,6 +884,10 @@ public sealed class NavisionSoapPalletOutputSenderTests
         && request.RequestUri!.AbsolutePath.EndsWith(
             "/" + entity,
             StringComparison.Ordinal);
+
+    private static bool IsEntityRequest(CapturedRequest request, string entity) =>
+        request.Method == HttpMethod.Get
+        && request.Uri.AbsolutePath.EndsWith("/" + entity, StringComparison.Ordinal);
 
     private static async Task<CapturedRequest> CaptureAsync(
         HttpRequestMessage request,
