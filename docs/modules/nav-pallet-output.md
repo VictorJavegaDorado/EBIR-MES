@@ -254,6 +254,21 @@ conciliacion del identificador ya vinculado: no llamo a
 `CONFIRMADA`, la etiqueta 28 `LISTA` y creo exactamente un trabajo de impresion.
 Printing permanecio desactivado y el siguiente palet quedo desbloqueado.
 
+## Quinto palet de FL26-00004
+
+El cierre del palet final 31, numero 5, completo las 100 unidades de la orden y
+quedo autorizado por el supervisor identificado mediante el desafio RFID. La
+operacion 41 ejecuto una sola vez el ciclo NAV con impresion desactivada. El
+codeunit respondio HTTP 200, el bulto quedo cerrado y la ventana de observacion
+termino antes de que OData publicara la salida, por lo que MES conservo el
+resultado como desconocido sin identificador externo.
+
+Una observacion posterior encontro exclusivamente la fila 26846 para la orden,
+producto, cantidad 20 y tipo `Salida`, en estado `Pendiente`. El paquete 039A
+vincula solo la operacion 41 con esa fila y la mantiene en modo de
+reconciliacion. No contacta NAV, no repite `RegistrarSalidaFabricacion` y no
+habilita la etiqueta 33 ni crea un trabajo de impresion.
+
 ## Registro autonomo dentro de NAV
 
 La transicion autoritativa de una salida de fabrica desde `Pendiente` hasta
