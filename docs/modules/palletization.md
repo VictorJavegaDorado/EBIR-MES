@@ -158,3 +158,23 @@ una impresion fisica son operaciones separadas y requieren autorizacion
 expresa. Las pruebas automatizadas sustituyen la cola de Windows y nunca
 contactan una impresora real.
 
+## Reimpresion supervisada
+
+Una copia adicional de la etiqueta de palet se solicita mediante
+`POST /api/pallets/{palletId}/label-reprints`. Requiere un supervisor MES
+activo, un motivo no vacio y una correlacion. La repeticion exacta de la misma
+correlacion devuelve el mismo trabajo; reutilizarla con otros parametros se
+rechaza.
+
+Solo se admite cuando existe una impresion original completada, la etiqueta
+permanece `IMPRESA`, no hay otro trabajo abierto para ella y la linea conserva
+una impresora principal activa. La solicitud crea exactamente un trabajo con
+`es_reimpresion = 1`, una copia y auditoria del supervisor y el motivo. No crea
+ni modifica operaciones NAV.
+
+El Worker reserva una reimpresion directamente sobre una etiqueta `IMPRESA`.
+Al completarla registra `ETIQUETA_REIMPRESA`, pero no cambia la fecha ni el
+estado funcional de la etiqueta original y no repite desbloqueos de linea,
+finalizaciones de orden ni otras transiciones productivas. Un resultado
+desconocido no se reencola automaticamente.
+

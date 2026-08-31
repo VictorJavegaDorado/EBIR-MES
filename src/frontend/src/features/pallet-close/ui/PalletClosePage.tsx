@@ -12,6 +12,7 @@ import type {
   PartialReason,
 } from "../model/palletClose";
 import type { IdentifiedLine } from "../../line-identification/model/lineIdentification";
+import { PalletLabelReprint } from "../../label-reprint/ui/PalletLabelReprint";
 
 type FormValues = {
   reservationId: string;
@@ -693,10 +694,27 @@ export function PalletClosePage({
               <span aria-hidden="true">✓</span>
               <strong>Palé {viewState.pallet.id} cerrado</strong>
               <p>
-                El MES ha confirmado el cierre. NAV queda pendiente en segundo
-                plano y no se ha enviado ninguna impresión.
+                El MES ha confirmado el cierre. NAV y la impresión continúan
+                en segundo plano.
               </p>
               <code>{viewState.pallet.correlationId}</code>
+              <PalletLabelReprint
+                palletId={viewState.pallet.id}
+                supervisors={
+                  optionsState.status === "ready"
+                    ? optionsState.options.supervisors
+                    : []
+                }
+                defaultSupervisorId={
+                  selectedEmployee
+                    && optionsState.status === "ready"
+                    && optionsState.options.supervisors.some(
+                      (supervisor) => supervisor.id === selectedEmployee.id,
+                    )
+                    ? selectedEmployee.id
+                    : undefined
+                }
+              />
               <div className="pallet-result-actions">
                 {onCancel && (
                   <button

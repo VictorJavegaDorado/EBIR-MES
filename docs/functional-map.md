@@ -15,6 +15,7 @@ mantendran estables aunque la implementacion interna evolucione.
 | Scrap | `modules/scrap-replenishment.md` | `Application/Scrap` | `features/scrap-register` | `Application.Tests/Scrap` |
 | Reaprovisionamiento | `modules/scrap-replenishment.md` | `Application/Replenishment` | `features/replenishment-request` | `Application.Tests/Replenishment` |
 | Impresion | `modules/palletization.md` | `Integrations/Printing`, `Integrations.Windows/Printing`, `Worker/PrintingWorker` | Estado dentro de la feature | `Application.Tests/Printing`, `Integrations.Tests/Printing`, `Integrations.Windows.Tests/Printing`, `IntegrationTests/Printing` |
+| Reimpresion supervisada de etiqueta de palet | `modules/palletization.md` | `Application/Printing/ReprintPalletLabel`, `Infrastructure/Printing`, `Api/Endpoints/Printing`; SQL: `database/038A_reimpresion_etiqueta_palet.sql` | `features/label-reprint`, integrado en el resultado de cierre | `Application.Tests/Printing`, `IntegrationTests/Printing`, `component/features/label-reprint`, `database/label_reprint` |
 | Maestros del piloto TEST | `modules/pilot-master-data.md` | Configuracion externa; sin caso de uso runtime | No aplica | `database/pilot_master_data` |
 
 Una fila se anade cuando comienza la implementacion de la funcionalidad, no

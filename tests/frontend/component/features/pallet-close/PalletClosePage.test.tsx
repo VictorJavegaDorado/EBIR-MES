@@ -121,7 +121,10 @@ describe("PalletClosePage", () => {
     expect(screen.getByText("P_MATPRIMA")).toBeInTheDocument();
     expect(screen.getByText("27920LG")).toBeInTheDocument();
     expect(await screen.findByText("Palé 126 cerrado")).toBeInTheDocument();
-    expect(screen.getByText(/NAV queda pendiente en segundo plano/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAV y la impresión continúan/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /reimprimir etiqueta/i }),
+    ).toBeInTheDocument();
   });
 
   it("locks the close to the selected active operator and returns to the table", async () => {

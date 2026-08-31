@@ -7,6 +7,10 @@ La sintaxis, las dependencias y el orden fueron validados el 27/07/2026. Todos l
 
 Base permitida en esta fase: `EBIR_MES_TEST`.
 
+El paquete `038A_reimpresion_etiqueta_palet.sql` fue instalado y validado el
+31/08/2026 en `EBIR_MES_TEST`. Su alcance y garantias se describen en
+`038_README.md`.
+
 ## Orden
 
 1. `001_esquemas_configuracion.sql` — aplicado.

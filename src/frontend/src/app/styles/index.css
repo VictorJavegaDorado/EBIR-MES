@@ -1104,6 +1104,77 @@ h1 {
   margin-top: 20px;
 }
 
+.label-reprint {
+  width: min(100%, 360px);
+  margin-top: 20px;
+  padding-top: 18px;
+  display: grid;
+  gap: 12px;
+  text-align: left;
+  border-top: 1px solid #c8ddcd;
+}
+
+.label-reprint-heading,
+.label-reprint label,
+.label-reprint-success {
+  display: grid;
+  gap: 5px;
+}
+
+.label-reprint-heading span,
+.label-reprint label,
+.label-reprint-success span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.label-reprint select,
+.label-reprint textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+}
+
+.label-reprint textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.label-reprint .secondary-action {
+  width: 100%;
+  margin-top: 0;
+}
+
+.label-reprint-error {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  color: #8c3f26;
+  background: #fff6ef;
+  border: 1px solid #e0bca4;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.label-reprint-error code {
+  margin: 0;
+}
+
+.label-reprint-success {
+  width: min(100%, 360px);
+  margin-top: 20px;
+  padding: 14px;
+  text-align: left;
+  background: #fff;
+  border: 1px solid #b9d8c1;
+  border-radius: 6px;
+}
+
 .pallet-safeguards {
   margin-top: 22px;
   display: grid;
