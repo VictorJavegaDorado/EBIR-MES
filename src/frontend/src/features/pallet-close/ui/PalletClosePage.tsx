@@ -13,6 +13,11 @@ import type {
 } from "../model/palletClose";
 import type { IdentifiedLine } from "../../line-identification/model/lineIdentification";
 import { PalletLabelReprint } from "../../label-reprint/ui/PalletLabelReprint";
+import {
+  identifyEmployeeByRfid,
+  RfidIdentificationApiError,
+  type IdentifiedEmployee,
+} from "../../production-flow/api/identifyEmployeeByRfid";
 
 type FormValues = {
   reservationId: string;
@@ -43,6 +48,19 @@ type OptionsState =
   | { status: "ready"; options: PalletCloseOptions }
   | { status: "error"; code: string };
 
+type PendingClose = {
+  reservationId: number;
+  goodQuantity: number;
+  closedByEmployeeId: number;
+  isPartial: boolean;
+  partialReason: PartialReason | null;
+};
+
+type SupervisorChallenge =
+  | ({ status: "scanning"; credential: string; error?: string } & PendingClose)
+  | ({ status: "identifying" } & PendingClose)
+  | ({ status: "identified"; employee: IdentifiedEmployee } & PendingClose);
+
 type Props = {
   line?: IdentifiedLine;
   palletFormatCode?: string;
@@ -67,6 +85,8 @@ export function PalletClosePage({
   const [optionsState, setOptionsState] = useState<OptionsState>({
     status: "idle",
   });
+  const [supervisorChallenge, setSupervisorChallenge] =
+    useState<SupervisorChallenge | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
   const attempt = useRef<Attempt | null>(null);
   const onBusyChangeRef = useRef(onBusyChange);
@@ -219,15 +239,29 @@ export function PalletClosePage({
       });
       return;
     }
-    const requestWithoutCorrelation = {
+
+    await executeClose({
+      reservationId,
       goodQuantity,
       closedByEmployeeId,
-      authorizingSupervisorId: supervisor,
       isPartial,
       partialReason: isPartial ? form.partialReason as PartialReason : null,
+    }, supervisor);
+  }
+
+  async function executeClose(
+    pending: PendingClose,
+    supervisor: number | null,
+  ) {
+    const requestWithoutCorrelation = {
+      goodQuantity: pending.goodQuantity,
+      closedByEmployeeId: pending.closedByEmployeeId,
+      authorizingSupervisorId: supervisor,
+      isPartial: pending.isPartial,
+      partialReason: pending.partialReason,
     };
     const fingerprint = JSON.stringify({
-      reservationId,
+      reservationId: pending.reservationId,
       ...requestWithoutCorrelation,
     });
 
@@ -249,21 +283,43 @@ export function PalletClosePage({
     activeRequest.current = request;
     onBusyChangeRef.current?.(true);
     setViewState({ status: "loading", correlationId });
+    let keepOuterDialogBusy = false;
 
     try {
-      const pallet = await closePallet(reservationId, command, request.signal);
+      const pallet = await closePallet(
+        pending.reservationId,
+        command,
+        request.signal,
+      );
       if (activeRequest.current !== request) {
         return;
       }
 
+      setSupervisorChallenge(null);
       setViewState({ status: "closed", pallet });
-      onPalletClosed?.(goodQuantity);
+      onPalletClosed?.(pending.goodQuantity);
     } catch (error) {
       if (request.signal.aborted || activeRequest.current !== request) {
         return;
       }
 
       if (error instanceof PalletCloseApiError) {
+        if (
+          line
+          && supervisor === null
+          && error.code === "PALLET_CLOSE_SUPERVISOR_REQUIRED"
+        ) {
+          attempt.current = null;
+          keepOuterDialogBusy = true;
+          setViewState({ status: "idle" });
+          setSupervisorChallenge({
+            status: "scanning",
+            credential: "",
+            ...pending,
+          });
+          return;
+        }
+
         setViewState({
           status: "error",
           code: error.code,
@@ -283,11 +339,106 @@ export function PalletClosePage({
         correlationId,
       });
     } finally {
-      onBusyChangeRef.current?.(false);
+      if (!keepOuterDialogBusy) {
+        onBusyChangeRef.current?.(false);
+      }
       if (activeRequest.current === request) {
         activeRequest.current = null;
       }
     }
+  }
+
+  async function handleSupervisorScan(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!supervisorChallenge || supervisorChallenge.status !== "scanning") {
+      return;
+    }
+
+    const credential = supervisorChallenge.credential.trim();
+    if (!credential) {
+      setSupervisorChallenge({
+        ...supervisorChallenge,
+        error: "Acerca la tarjeta RFID del supervisor.",
+      });
+      return;
+    }
+
+    const pending = asPendingClose(supervisorChallenge);
+    const request = new AbortController();
+    activeRequest.current?.abort();
+    activeRequest.current = request;
+    setSupervisorChallenge({ status: "identifying", ...pending });
+
+    try {
+      const employee = await identifyEmployeeByRfid(
+        credential,
+        request.signal,
+      );
+      if (activeRequest.current !== request) {
+        return;
+      }
+
+      const isActiveSupervisor = optionsState.status === "ready"
+        && optionsState.options.supervisors.some(
+          (supervisorOption) => supervisorOption.id === employee.employeeId,
+        );
+      if (!isActiveSupervisor) {
+        setSupervisorChallenge({
+          status: "scanning",
+          credential: "",
+          error: "La tarjeta no pertenece a un supervisor activo.",
+          ...pending,
+        });
+        return;
+      }
+
+      setSupervisorChallenge({
+        status: "identified",
+        employee,
+        ...pending,
+      });
+    } catch (error) {
+      if (request.signal.aborted || activeRequest.current !== request) {
+        return;
+      }
+
+      setSupervisorChallenge({
+        status: "scanning",
+        credential: "",
+        error: error instanceof RfidIdentificationApiError
+          ? `No se ha podido validar la tarjeta. ${error.code}`
+          : "No se puede contactar con el lector RFID. Prueba de nuevo.",
+        ...pending,
+      });
+    } finally {
+      if (activeRequest.current === request) {
+        activeRequest.current = null;
+      }
+    }
+  }
+
+  function cancelSupervisorChallenge() {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setSupervisorChallenge(null);
+    setViewState({ status: "idle" });
+    onBusyChangeRef.current?.(false);
+  }
+
+  async function confirmSupervisorClose() {
+    if (!supervisorChallenge || supervisorChallenge.status !== "identified") {
+      return;
+    }
+
+    const pending = asPendingClose(supervisorChallenge);
+    const supervisorId = supervisorChallenge.employee.employeeId;
+    setForm((current) => ({
+      ...current,
+      authorizingSupervisorId: String(supervisorId),
+    }));
+    setSupervisorChallenge(null);
+    attempt.current = null;
+    await executeClose(pending, supervisorId);
   }
 
   function prepareAnotherClose() {
@@ -494,41 +645,29 @@ export function PalletClosePage({
               </small>
             </div>
 
-            {line ? <details
-              className="pallet-advanced full"
-              open={Boolean(selectedReservation && previewQuantity !== selectedReservation.reservedQuantity)}
-            >
-              <summary>Último palet o cantidad distinta</summary>
-              <div className="pallet-field">
-                <label htmlFor="supervisor-id">Supervisor autorizador</label>
-                <select
-                  id="supervisor-id"
-                  value={form.authorizingSupervisorId}
-                  onChange={(event) => updateForm({ authorizingSupervisorId: event.target.value })}
-                >
-                  <option value="">Sin supervisor</option>
-                  {optionsState.status === "ready" && optionsState.options.supervisors.map((employee) => (
-                    <option key={employee.id} value={employee.id}>{employee.name} · {employee.code}</option>
-                  ))}
-                </select>
-                <small>Solo es obligatorio cuando el servidor detecta el último palet.</small>
-              </div>
-              {selectedReservation && previewQuantity !== selectedReservation.reservedQuantity && (
-                <div className="pallet-field">
-                  <label htmlFor="partial-reason">Motivo de la cantidad distinta</label>
-                  <select
-                    id="partial-reason"
-                    value={form.partialReason}
-                    onChange={(event) => updateForm({ partialReason: event.target.value as PartialReason })}
-                  >
-                    <option value="">Selecciona un motivo</option>
-                    <option value="FIN_TURNO">Fin de turno</option>
-                    <option value="FALTA_MATERIAL">Falta de material</option>
-                    <option value="ULTIMO_PALET">Último palet</option>
-                  </select>
-                </div>
+            {line ? <>
+              {selectedReservation
+                && previewQuantity !== selectedReservation.reservedQuantity && (
+                <details className="pallet-advanced full" open>
+                  <summary>Cantidad distinta</summary>
+                  <div className="pallet-field">
+                    <label htmlFor="partial-reason">Motivo de la cantidad distinta</label>
+                    <select
+                      id="partial-reason"
+                      value={form.partialReason}
+                      onChange={(event) => updateForm({
+                        partialReason: event.target.value as PartialReason,
+                      })}
+                    >
+                      <option value="">Selecciona un motivo</option>
+                      <option value="FIN_TURNO">Fin de turno</option>
+                      <option value="FALTA_MATERIAL">Falta de material</option>
+                      <option value="ULTIMO_PALET">Último palet</option>
+                    </select>
+                  </div>
+                </details>
               )}
-            </details> : <>
+            </> : <>
             <div className="pallet-field">
               <label htmlFor="supervisor-id">Supervisor autorizador</label>
               {optionsState.status === "ready" ? (
@@ -738,6 +877,92 @@ export function PalletClosePage({
         </aside>
       </section>
 
+      {supervisorChallenge && (
+        <div className="supervisor-rfid-backdrop">
+          <section
+            className="supervisor-rfid-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="supervisor-rfid-title"
+          >
+            <header>
+              <p className="eyebrow">Autorización obligatoria</p>
+              <h2 id="supervisor-rfid-title">Último palet</h2>
+              <p>
+                Acerca la tarjeta RFID de un supervisor para autorizar el
+                cierre definitivo de la orden.
+              </p>
+            </header>
+
+            {supervisorChallenge.status === "scanning" && (
+              <form onSubmit={handleSupervisorScan}>
+                <label htmlFor="supervisor-rfid-credential">
+                  Tarjeta RFID del supervisor
+                </label>
+                <input
+                  id="supervisor-rfid-credential"
+                  type="password"
+                  autoComplete="off"
+                  autoFocus
+                  value={supervisorChallenge.credential}
+                  onChange={(event) => {
+                    const credential = event.target.value;
+                    setSupervisorChallenge((current) =>
+                      current?.status === "scanning"
+                        ? { ...current, credential, error: undefined }
+                        : current,
+                    );
+                  }}
+                />
+                <small>
+                  La credencial no se muestra ni se incluye en el cierre.
+                </small>
+                {supervisorChallenge.error && (
+                  <p className="supervisor-rfid-error" role="alert">
+                    {supervisorChallenge.error}
+                  </p>
+                )}
+                <div className="supervisor-rfid-actions">
+                  <button type="button" onClick={cancelSupervisorChallenge}>
+                    Cancelar
+                  </button>
+                  <button className="primary-action" type="submit">
+                    Validar tarjeta
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {supervisorChallenge.status === "identifying" && (
+              <div className="supervisor-rfid-status" role="status">
+                <span className="loading-mark" aria-hidden="true" />
+                <strong>Validando supervisor…</strong>
+              </div>
+            )}
+
+            {supervisorChallenge.status === "identified" && (
+              <div className="supervisor-rfid-confirmation">
+                <p>Supervisor identificado</p>
+                <strong>{supervisorChallenge.employee.fullName}</strong>
+                <span>{supervisorChallenge.employee.navEmployeeCode}</span>
+                <div className="supervisor-rfid-actions">
+                  <button type="button" onClick={cancelSupervisorChallenge}>
+                    Cancelar
+                  </button>
+                  <button
+                    className="primary-action"
+                    type="button"
+                    onClick={() => void confirmSupervisorClose()}
+                  >
+                    Autorizar y cerrar palet
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
       {!line && <section className="pallet-safeguards" aria-label="Garantías del cierre">
         <div>
           <strong>Reintento seguro</strong>
@@ -782,6 +1007,16 @@ function PalletLabelPreview({
       <small>Vista segura: no envía trabajos a la impresora.</small>
     </section>
   );
+}
+
+function asPendingClose(challenge: SupervisorChallenge): PendingClose {
+  return {
+    reservationId: challenge.reservationId,
+    goodQuantity: challenge.goodQuantity,
+    closedByEmployeeId: challenge.closedByEmployeeId,
+    isPartial: challenge.isPartial,
+    partialReason: challenge.partialReason,
+  };
 }
 
 function parsePositiveInteger(value: string): number | null {

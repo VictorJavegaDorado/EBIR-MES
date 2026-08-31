@@ -103,6 +103,18 @@ productivo activo pueda cerrar un palet ordinario desde la mesa. El servidor,
 no el navegador, determina si se trata del ultimo palet. El ultimo cierre exige
 un supervisor activo y queda auditado.
 
+La mesa no permite elegir manualmente ese supervisor. El primer intento se
+envia sin autorizador; si el servidor responde
+`PALLET_CLOSE_SUPERVISOR_REQUIRED`, la interfaz abre un desafio RFID. La tarjeta
+se identifica mediante el endpoint comun de operarios y debe coincidir con un
+supervisor activo de las opciones vigentes. La identidad se muestra antes de
+confirmar y el cierre autorizado usa una correlacion nueva. El backend vuelve a
+validar el rol dentro de la transaccion, por lo que una lista de opciones
+obsoleta nunca concede autorizacion.
+
+La credencial RFID se mantiene oculta, se descarta tras identificarla y no se
+incluye en el comando de cierre ni en la auditoria funcional.
+
 El paquete 025A implementa esta regla en el contrato SQL y agrega el grupo
 contable al JSON persistido de `imp.etiquetas`. Esta instalado y validado en
 `EBIR_MES_TEST` desde el 05/08/2026. La release activa

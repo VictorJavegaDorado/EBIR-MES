@@ -188,6 +188,135 @@ describe("PalletClosePage", () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
+  it("requests supervisor RFID after the server detects the last pallet", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        reservations: [{
+          id: 44,
+          reservedQuantity: 20,
+          orderNumber: "OT-100",
+          productNumber: "27920LG",
+          productDescription: "Producto piloto",
+          productPostingGroup: "P_ACABADO",
+          lineName: "Línea uno",
+        }],
+        employees: [{ id: 7, code: "EMP-7", name: "Operario siete" }],
+        supervisors: [{ id: 9, code: "EMP-9", name: "Supervisora nueve" }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "PALLET_CLOSE_SUPERVISOR_REQUIRED",
+      }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        employeeId: 9,
+        navEmployeeCode: "EMP-9",
+        fullName: "Supervisora nueve",
+      }), { status: 200 }))
+      .mockImplementationOnce(async (_input, init) => {
+        const body = JSON.parse(String(init?.body)) as { correlationId: string };
+        return new Response(
+          JSON.stringify({ id: 131, correlationId: body.correlationId }),
+          { status: 200 },
+        );
+      });
+
+    render(<PalletClosePage
+      line={{
+        id: 12,
+        code: "L-01",
+        name: "Línea uno",
+        workCenterCode: "CT-01",
+        workCenterName: "Centro uno",
+        operationalStatus: "PRODUCIENDO",
+      }}
+      selectedEmployee={{ id: 7, code: "EMP-7", name: "Operario siete" }}
+    />);
+
+    await screen.findByText(/POK.*20 unidades/i);
+    expect(screen.queryByRole("combobox", { name: /supervisor autorizador/i }))
+      .not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^cerrar palet$/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /último palet/i });
+    expect(dialog).toHaveTextContent(/tarjeta RFID de un supervisor/i);
+    await userEvent.type(
+      screen.getByLabelText(/tarjeta RFID del supervisor/i),
+      "credential-9",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /validar tarjeta/i }));
+
+    expect(await screen.findByText("Supervisora nueve")).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: /autorizar y cerrar palet/i }),
+    );
+
+    expect(await screen.findByText("Palé 131 cerrado")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock.mock.calls[2][0]).toBe("/api/operator-identification/rfid");
+    const firstClose = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as {
+      authorizingSupervisorId: number | null;
+      correlationId: string;
+    };
+    const authorizedClose = JSON.parse(String(fetchMock.mock.calls[3][1]?.body)) as {
+      authorizingSupervisorId: number;
+      correlationId: string;
+    };
+    expect(firstClose.authorizingSupervisorId).toBeNull();
+    expect(authorizedClose.authorizingSupervisorId).toBe(9);
+    expect(authorizedClose.correlationId).not.toBe(firstClose.correlationId);
+  });
+
+  it("rejects an RFID card that is not an active supervisor", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        reservations: [{
+          id: 44,
+          reservedQuantity: 20,
+          orderNumber: "OT-100",
+          productNumber: "27920LG",
+          productDescription: "Producto piloto",
+          productPostingGroup: "P_ACABADO",
+          lineName: "Línea uno",
+        }],
+        employees: [{ id: 7, code: "EMP-7", name: "Operario siete" }],
+        supervisors: [{ id: 9, code: "EMP-9", name: "Supervisora nueve" }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "PALLET_CLOSE_SUPERVISOR_REQUIRED",
+      }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        employeeId: 7,
+        navEmployeeCode: "EMP-7",
+        fullName: "Operario siete",
+      }), { status: 200 }));
+
+    render(<PalletClosePage
+      line={{
+        id: 12,
+        code: "L-01",
+        name: "Línea uno",
+        workCenterCode: "CT-01",
+        workCenterName: "Centro uno",
+        operationalStatus: "PRODUCIENDO",
+      }}
+      selectedEmployee={{ id: 7, code: "EMP-7", name: "Operario siete" }}
+    />);
+
+    await screen.findByText(/POK.*20 unidades/i);
+    await userEvent.click(screen.getByRole("button", { name: /^cerrar palet$/i }));
+    await userEvent.type(
+      await screen.findByLabelText(/tarjeta RFID del supervisor/i),
+      "operator-card",
+    );
+    await userEvent.click(screen.getByRole("button", { name: /validar tarjeta/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La tarjeta no pertenece a un supervisor activo",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole("button", { name: /autorizar y cerrar palet/i }))
+      .not.toBeInTheDocument();
+  });
+
   it("rejects a preselected operator missing from the active options", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(JSON.stringify({
