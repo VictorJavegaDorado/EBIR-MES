@@ -185,6 +185,23 @@ El estado visible nunca se sustituye por un `PRODUCIENDO` calculado o fijo en
 el navegador. `serverTimeUtc` se conserva para mostrar la ultima confirmacion,
 pero no es la base del cronometro animado.
 
+## Recuperacion del cierre local del piloto
+
+La impresion del ultimo palet de `FL26-00004` creo la intencion historica
+`CIERRE_FL` 42 y dejo la orden en `PENDIENTE_NAV`. El repositorio no contiene
+un adaptador ni un contrato externo para ejecutar ese tipo de operacion; la
+finalizacion vigente es el procedimiento local e idempotente
+`prod.finalizar_orden_produccion`. Por tanto, la intencion no se confirma ni se
+simula como una escritura NAV.
+
+El paquete operativo 040A anula exclusivamente la operacion 42 sin intentos,
+restaura la orden 31 a `PENDIENTE_CIERRE` y la linea sin recursos a
+`SIN_OPERARIOS`, con auditoria y sin contactar NAV ni impresion. La operacion
+heredada 39 es una precondicion inmutable y permanece fuera de alcance. Este
+paquete resuelve solo el piloto actual; antes de produccion debe retirarse en
+el contrato general la creacion de nuevas intenciones `CIERRE_FL` sin
+consumidor.
+
 Cada persona visible dispone de acciones tactiles de salida, pausa `WC`, pausa
 `PAUSA_CALOR` y reanudacion segun su estado. La pantalla usa los contratos de
 sesion existentes, conserva la correlacion durante un reintento y vuelve a leer
