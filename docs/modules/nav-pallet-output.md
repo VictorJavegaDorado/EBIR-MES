@@ -320,3 +320,9 @@ construye manualmente parametros de request page y separa la creacion detenida
 de cualquier ejecucion productiva. El ID del nuevo codeunit permanece pendiente
 de inventario y licencia. La decision se registra en
 [`../adr/0004-nav-mes-job-queue-administration.md`](../adr/0004-nav-mes-job-queue-administration.md).
+
+La recurrencia controlada de la entrada existente se prepara por separado en
+[`../../deploy/nav/NAV-001C/README.md`](../../deploy/nav/NAV-001C/README.md).
+Los exports actuales confirman que no requiere modificar Codeunit 50009 ni la
+Table 472: solo configura la fila detenida, valida un primer ciclo sin trabajo
+y conserva importacion, compilacion y ejecucion interactiva fuera de alcance.
