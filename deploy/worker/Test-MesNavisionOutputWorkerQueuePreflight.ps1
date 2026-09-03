@@ -11,13 +11,11 @@ if ($ServerInstance -ne 'SQL.EBIR.LOCAL\NAVISION2017' -or
     throw 'El prevuelo solo admite SQL.EBIR.LOCAL\NAVISION2017 / EBIR_MES_TEST.'
 }
 
-$options = [System.Data.SqlClient.SqlConnectionStringBuilder]::new()
-$options.DataSource = $ServerInstance
-$options.InitialCatalog = $Database
-$options.IntegratedSecurity = $true
-$options.Encrypt = $true
-$options.TrustServerCertificate = $true
-$options.ApplicationName = 'MES NAV Worker Queue Preflight'
+$options = [System.Data.SqlClient.SqlConnectionStringBuilder]::new(
+    "Data Source=$ServerInstance;Initial Catalog=$Database;" +
+    'Integrated Security=True;Encrypt=True;TrustServerCertificate=True;' +
+    'Application Name=MES NAV Worker Queue Preflight'
+)
 
 $connection = [System.Data.SqlClient.SqlConnection]::new($options.ConnectionString)
 try {

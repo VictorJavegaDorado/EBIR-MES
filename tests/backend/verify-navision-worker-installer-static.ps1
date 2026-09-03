@@ -32,7 +32,7 @@ foreach ($token in $required) {
 $preflightRequired = @(
     "[string]`$ServerInstance = 'SQL.EBIR.LOCAL\NAVISION2017'",
     "[string]`$Database = 'EBIR_MES_TEST'",
-    '$options.IntegratedSecurity = $true',
+    'Integrated Security=True',
     "DB_NAME() <> N'EBIR_MES_TEST'",
     'numero_intentos < 12',
     'DISCOVER_AFTER_BASELINE',
