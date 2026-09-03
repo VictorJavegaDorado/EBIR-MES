@@ -198,9 +198,13 @@ describe("ProductionFlowPage", () => {
       "/api/production-workstations/12/complete-order",
     );
     expect(screen.getByRole("heading", { name: "Escanea la orden" })).toBeInTheDocument();
-    expect(screen.getByText(
+    const completion = screen.getByText(
       /Orden FL26-00003 finalizada\. Línea LINEA-TEST-01 libre para una nueva orden/i,
-    )).toBeInTheDocument();
+    );
+    expect(completion).toBeInTheDocument();
+    const feedback = completion.closest(".flow-feedback");
+    expect(feedback).toHaveAttribute("role", "status");
+    expect(feedback?.nextElementSibling).toHaveClass("flow-progress");
   });
 
   it("keeps the completed table visible when order completion is rejected", async () => {

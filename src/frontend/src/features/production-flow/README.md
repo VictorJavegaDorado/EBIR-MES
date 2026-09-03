@@ -12,7 +12,9 @@ como un paso que haya que completar manualmente. `Nueva orden` conserva la
 línea seleccionada; si todavía hay operarios activos impide abandonar la mesa.
 Cuando la orden alcanza `PENDIENTE_CIERRE`, la misma acción se presenta como
 `Finalizar orden` y confirma expresamente que la orden quedó finalizada y la
-línea libre para escanear la siguiente.
+línea libre para escanear la siguiente. La confirmación se mantiene visible
+inmediatamente bajo la cabecera, antes del progreso y del nuevo campo de
+escaneo, para que no quede fuera de pantalla al abandonar la mesa terminada.
 
 La interfaz usa los contratos MES existentes y no simula transiciones. Las
 credenciales RFID se envían para identificación, se eliminan del campo

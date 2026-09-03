@@ -569,6 +569,17 @@ export function ProductionFlowPage() {
         )}
       </header>
 
+      {error && (
+        <div className="flow-message flow-feedback error" role="alert">
+          <strong>{error.message}</strong><code>{error.code}</code>
+        </div>
+      )}
+      {notice && !error && (
+        <div className="flow-message flow-feedback success" role="status">
+          <strong>{notice}</strong>
+        </div>
+      )}
+
       <ol className="flow-progress" aria-label="Progreso de la orden">
         {steps.map((step) => {
           const state = step.number < activeStep ? "complete" : step.number === activeStep ? "active" : "pending";
@@ -821,8 +832,6 @@ export function ProductionFlowPage() {
             </section>
           )}
 
-          {error && <div className="flow-message error" role="alert"><strong>{error.message}</strong><code>{error.code}</code></div>}
-          {notice && !error && <div className="flow-message success" role="status">{notice}</div>}
         </main>
 
         <aside className="flow-summary" aria-label="Resumen de la operación">

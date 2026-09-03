@@ -121,6 +121,7 @@
 .flow-message.success { color: var(--global-palette2); background: var(--global-palette8); border: 1px solid var(--global-palette7); }
 .flow-message.error { color: #7a3522; background: #fff2e9; border: 1px solid #e5c0aa; }
 .flow-message code { font-size: 10px; }
+.flow-feedback { min-height: 54px; margin: -8px 0 22px; align-items: center; box-shadow: 0 8px 24px rgba(26, 32, 44, 0.08); font-size: 15px; }
 .stage-intro { display: flex; align-items: flex-start; gap: 24px; }
 .stage-intro .stage-number { flex: 0 0 auto; }
 .pallet-stage { padding-bottom: 32px; }
