@@ -192,13 +192,15 @@ describe("ProductionFlowPage", () => {
 
     expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/exits");
     expect(await screen.findByText("Todavía no hay personas identificadas.")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Nueva orden" }));
+    await userEvent.click(screen.getByRole("button", { name: "Finalizar orden" }));
 
     expect(fetchMock.mock.calls[5][0]).toBe(
       "/api/production-workstations/12/complete-order",
     );
     expect(screen.getByRole("heading", { name: "Escanea la orden" })).toBeInTheDocument();
-    expect(screen.getByText(/Línea LINEA-TEST-01 conservada/i)).toBeInTheDocument();
+    expect(screen.getByText(
+      /Orden FL26-00003 finalizada\. Línea LINEA-TEST-01 libre para una nueva orden/i,
+    )).toBeInTheDocument();
   });
 
   it("keeps the completed table visible when order completion is rejected", async () => {
@@ -234,7 +236,7 @@ describe("ProductionFlowPage", () => {
     await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL26-00003{enter}");
     await screen.findByText(/Mesa pendiente de FL26-00003 recuperada/i);
 
-    await userEvent.click(screen.getByRole("button", { name: "Nueva orden" }));
+    await userEvent.click(screen.getByRole("button", { name: "Finalizar orden" }));
 
     expect(await screen.findByText("PALLET_OUTPUT_NOT_CONFIRMED")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Gestiona la producción" })).toBeInTheDocument();

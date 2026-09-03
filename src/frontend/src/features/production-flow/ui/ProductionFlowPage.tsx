@@ -458,6 +458,9 @@ export function ProductionFlowPage() {
 
   async function startNewOrder() {
     if (!line) return;
+    const completedOrderNumber = table && order?.state === "PENDIENTE_CIERRE"
+      ? order.orderNumber
+      : null;
     if (table && table.activeResources > 0) {
       setError({
         message: "Retira a los operarios antes de cargar una nueva orden.",
@@ -516,7 +519,9 @@ export function ProductionFlowPage() {
     setPalletOperator(null);
     pendingCorrelations.current.clear();
     setError(null);
-    setNotice(`Línea ${line.code} conservada. Escanea la nueva orden.`);
+    setNotice(completedOrderNumber
+      ? `Orden ${completedOrderNumber} finalizada. Línea ${line.code} libre para una nueva orden.`
+      : `Línea ${line.code} conservada. Escanea la nueva orden.`);
   }
 
   function openPalletModal(
@@ -552,7 +557,9 @@ export function ProductionFlowPage() {
                 onClick={startNewOrder}
                 disabled={busy}
               >
-                Nueva orden
+                {order.state === "PENDIENTE_CIERRE"
+                  ? "Finalizar orden"
+                  : "Nueva orden"}
               </button>
             )}
             <button className="flow-reset" type="button" onClick={resetFlow}>

@@ -154,14 +154,16 @@ Asi se puede registrar la salida de la ultima persona y, cuando la capacidad
 queda a cero, usar `Nueva orden` sin volver a abrir la orden terminada ni
 hacerla seleccionable para otras lineas.
 
-Cuando la orden recuperada esta `PENDIENTE_CIERRE`, `Nueva orden` no se limita
-a limpiar el navegador. Llama de forma idempotente a
+Cuando la orden recuperada esta `PENDIENTE_CIERRE`, la accion se muestra como
+`Finalizar orden` y no se limita a limpiar el navegador. Llama de forma idempotente a
 `POST /api/production-workstations/{lineSessionId}/complete-order`. El servidor
 solo finaliza si la cantidad buena coincide con el objetivo, no hay reservas ni
 recursos abiertos, existe un unico ultimo pale autorizado, cada pale tiene una
 unica salida NAV `CONFIRMADA` y su etiqueta esta `LISTA` o `IMPRESA`. Entonces
 marca la orden `FINALIZADA`, la sesion `ORDEN_COMPLETADA` y la linea `LIBRE`.
 Si algun invariante cambia, conserva la mesa y devuelve un conflicto seguro.
+Tras una finalizacion confirmada, la pantalla identifica la orden finalizada y
+comunica que la linea queda libre para escanear la siguiente.
 
 La impresion queda expresamente desacoplada de la liberacion de linea. Una
 etiqueta `LISTA` y su trabajo pendiente pueden imprimirse despues; no se exige

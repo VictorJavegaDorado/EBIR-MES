@@ -1,6 +1,6 @@
 # Worker continuo en TEST
 
-Este runbook prepara el Worker de salidas NAV o de impresion como servicio Windows. No
+Este runbook prepara los Workers de salidas NAV y de impresion como servicios Windows separados. No
 autoriza instalarlo, iniciarlo, configurar secretos ni contactar NAV. Esas
 acciones requieren autorización expresa y una release activable ya validada.
 
@@ -9,7 +9,7 @@ El contrato funcional e idempotente de la salida vive en
 
 ## Contrato del servicio
 
-- nombre: `MES Worker`;
+- nombres: `MES Worker` para impresion y `MES NAV Worker` para salidas NAV;
 - identidad: cuenta integrada `NetworkService`, SID `S-1-5-20`;
 - binario: ruta fija de una release validada, nunca `runtime\current`, para que
   una activación web no cambie el Worker de forma implícita;
@@ -20,7 +20,8 @@ El contrato funcional e idempotente de la salida vive en
 - línea piloto: un único mapeo explícito `LINEA-TEST-01` a `L01`;
 - SQL: cadena con autenticación integrada y base explícita `EBIR_MES_TEST`,
   suministrada fuera de Git y de la release;
-- perfiles mutuamente excluyentes: salida NAV o impresion Windows Spooler;
+- perfiles mutuamente excluyentes dentro de cada proceso: salida NAV o
+  impresion Windows Spooler;
 - perfil NAV: `NavisionOutput:Enabled=true` y `Printing:Enabled=false`;
 - perfil impresion: `NavisionOutput:Enabled=false`, `Printing:Enabled=true`,
   `Printing:Mode=WindowsSpooler` y un unico mapeo de impresora explicito;
@@ -37,7 +38,7 @@ de consola utilizado por los canarios.
 
 La configuración específica del servicio debe suministrarse como variables de
 entorno del propio servicio en el registro de Windows, bajo
-`HKLM\SYSTEM\CurrentControlSet\Services\MES Worker\Environment`. El valor de
+la clave `Environment` de `MES Worker` o `MES NAV Worker`. El valor de
 `ConnectionStrings__MesDatabase` no se muestra en terminal, comandos, logs ni
 evidencias. La escritura de esta clave es una configuración de secretos y
 requiere autorización expresa.
@@ -46,6 +47,7 @@ Las claves no secretas mínimas son:
 
 ```text
 DOTNET_ENVIRONMENT=Production
+Worker__ServiceName=MES NAV Worker
 NavisionOutput__Enabled=true
 NavisionOutput__RunOnce=false
 NavisionOutput__ServiceEndpoint=<endpoint TEST exacto admitido por el adaptador>
@@ -58,6 +60,7 @@ Para el perfil de impresion validado en EbirTest son:
 
 ```text
 DOTNET_ENVIRONMENT=Production
+Worker__ServiceName=MES Worker
 NavisionOutput__Enabled=false
 Printing__Enabled=true
 Printing__Mode=WindowsSpooler
@@ -67,10 +70,13 @@ Printing__WindowsSpooler__SubmissionTimeoutSeconds=15
 Printing__WindowsSpooler__PrinterQueues__PRN-VRETTI-01=MES-VRETTI-420B-PILOT
 ```
 
-Los dos perfiles no se habilitan simultaneamente. El instalador
-`Install-MesPrintingWorker.ps1` solo instala el perfil de impresion y recibe la
-cadena SQL como `SecureString`, de modo que no se escriba en comandos, Git ni
-evidencias. El servicio apunta siempre al directorio `worker` de una release
+Los dos perfiles no se habilitan simultaneamente dentro del mismo proceso. En
+el piloto autonomo funcionan en servicios separados para que NAV no detenga ni
+reconfigure la impresion. `Install-MesPrintingWorker.ps1` instala solo
+`MES Worker`; `Install-MesNavisionOutputWorker.ps1` exige ese servicio de
+impresion ya iniciado e instala exclusivamente `MES NAV Worker`. Ambos reciben
+la cadena SQL como `SecureString`, de modo que no se escriba en comandos, Git
+ni evidencias. Cada servicio apunta al directorio `worker` de una release
 exacta cuyo commit coincide con `HEAD == main == origin/main`.
 
 Antes de instalar se resuelve el nombre localizado de `NetworkService` desde
@@ -88,10 +94,12 @@ $networkServiceAccount = $networkServiceSid.Translate(
 2. Leer todos los `AGENTS.md` aplicables y repetir el inventario de solo
    lectura de IIS, Worker, tareas y listeners temporales.
 3. Verificar manifiesto, commit y todos los hashes de la release candidata.
-4. Exigir que no exista el servicio `MES Worker` ni otro proceso Worker.
+4. Exigir que no exista el servicio candidato. Para instalar `MES NAV Worker`,
+   comprobar que `MES Worker` conserva iniciado el perfil continuo de impresion.
 5. Confirmar que la cola seleccionada para el canario es inequívoca y que no
    puede reenviarse una salida ya existente; conciliar antes por identificador.
-6. Confirmar configuracion exacta de TEST y que solo el perfil autorizado esta activo.
+6. Confirmar la configuracion exacta de TEST y que cada servicio habilita un
+   unico perfil.
 7. Preparar un procedimiento de parada y conservar la release anterior.
 
 ## Canario NAV `RunOnce`
@@ -128,13 +136,13 @@ concilia primero con el operador y los eventos 307/842.
 
 Solo después de un canario correcto y una nueva autorización se puede:
 
-1. crear `MES Worker` apuntando al binario de la release exacta;
+1. crear `MES Worker` o `MES NAV Worker` apuntando al binario de la release exacta;
 2. asignar la cuenta resuelta desde `S-1-5-20`, sin contraseña;
 3. aplicar la configuración protegida específica del servicio;
 4. configurar inicio automático retrasado y recuperación acotada;
 5. iniciar el servicio;
 6. observar una operación conocida hasta estado terminal;
-7. comprobar que no quedan reservas y que solo el perfil autorizado esta activo.
+7. comprobar que no quedan reservas y que cada proceso conserva un unico perfil.
 
 Para el perfil de impresion, antes del primer inicio continuo se exige ademas
 que no haya trabajos pendientes no autorizados, la cola VRETTI este vacia y el

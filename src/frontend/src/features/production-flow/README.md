@@ -10,6 +10,9 @@ La paletización permanece dentro de Trabajo y las reservas técnicas no se
 presentan al operario. NAV se muestra como un estado de segundo plano, nunca
 como un paso que haya que completar manualmente. `Nueva orden` conserva la
 línea seleccionada; si todavía hay operarios activos impide abandonar la mesa.
+Cuando la orden alcanza `PENDIENTE_CIERRE`, la misma acción se presenta como
+`Finalizar orden` y confirma expresamente que la orden quedó finalizada y la
+línea libre para escanear la siguiente.
 
 La interfaz usa los contratos MES existentes y no simula transiciones. Las
 credenciales RFID se envían para identificación, se eliminan del campo

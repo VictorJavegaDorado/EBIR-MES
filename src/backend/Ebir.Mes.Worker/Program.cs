@@ -11,8 +11,11 @@ using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder(args);
 
+var serviceName = builder.Configuration["Worker:ServiceName"];
+if (string.IsNullOrWhiteSpace(serviceName))
+    serviceName = "MES Worker";
 builder.Services.AddWindowsService(options =>
-    options.ServiceName = "MES Worker");
+    options.ServiceName = serviceName);
 
 var navisionOutputEnabled =
     builder.Configuration.GetValue<bool>("NavisionOutput:Enabled");

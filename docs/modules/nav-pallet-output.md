@@ -173,6 +173,12 @@ programa otra lectura acotada y varias coincidencias detienen la automatizacion
 por ambiguedad. El limite conjunto es de doce intentos y los motivos de
 truncamiento, discrepancia o identificador invalido no se reintentan.
 
+La validacion del 3 de septiembre de 2026 confirma que 041A ya esta instalado
+en `EBIR_MES_TEST`, con permisos para `mes_runtime`, cero salidas no terminales
+y `DBCC CHECKDB` correcto. La ejecucion continua se aisla en un servicio
+`MES NAV Worker`; el servicio `MES Worker` conserva exclusivamente la
+impresion. Ningun proceso habilita ambos perfiles a la vez.
+
 ## Segundo palet y recuperación supervisada
 
 El primer intento de la operación 32, palet 22 de `FL26-00003`, envió
