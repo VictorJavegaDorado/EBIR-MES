@@ -6,6 +6,12 @@ param(
     [Parameter(Mandatory)]
     [securestring]$MesDatabaseConnectionString,
 
+    [Parameter(Mandatory)]
+    [switch]$QueuePreflightConfirmed,
+
+    [Parameter(Mandatory)]
+    [datetime]$QueuePreflightUtc,
+
     [string]$RepositoryRoot = 'C:\MES',
     [string]$ServiceName = 'MES NAV Worker',
     [string]$PrintingServiceName = 'MES Worker',
@@ -33,6 +39,13 @@ try {
     }
     if ($LineCode -ne 'LINEA-TEST-01' -or $AssemblyLine -ne 'L01') {
         throw 'El mapeo de linea debe coincidir con el piloto de EbirTest.'
+    }
+    if (-not $QueuePreflightConfirmed) {
+        throw 'Falta la confirmacion del prevuelo SQL de la cola.'
+    }
+    $preflightAge = [DateTime]::UtcNow - $QueuePreflightUtc.ToUniversalTime()
+    if ($preflightAge.TotalSeconds -lt -30 -or $preflightAge.TotalMinutes -gt 2) {
+        throw 'El prevuelo SQL de la cola no es reciente (maximo 2 minutos).'
     }
 
     $repository = (Resolve-Path -LiteralPath $RepositoryRoot).Path
@@ -98,35 +111,6 @@ try {
             $connectionOptions.DataSource -ne 'SQL.EBIR.LOCAL\NAVISION2017') {
             throw 'La conexion debe usar autenticacion integrada y EBIR_MES_TEST exacta.'
         }
-        $connection = [System.Data.SqlClient.SqlConnection]::new($plainConnection)
-        try {
-            $connection.Open()
-            $command = $connection.CreateCommand()
-            $command.CommandTimeout = 30
-            $command.CommandText = @'
-SET NOCOUNT ON;
-IF DB_NAME() <> N'EBIR_MES_TEST'
-    THROW 51000, 'Base no autorizada.', 1;
-IF OBJECT_DEFINITION(OBJECT_ID(N'nav.reservar_siguiente_salida_palet'))
-       NOT LIKE N'%numero_intentos < 12%'
- OR OBJECT_DEFINITION(OBJECT_ID(N'nav.fallar_salida_palet'))
-       NOT LIKE N'%DISCOVER_AFTER_BASELINE%'
-    THROW 51073, 'El contrato 041A no esta instalado.', 1;
-IF EXISTS
-(
-    SELECT 1 FROM nav.operaciones
-    WHERE tipo=N'SALIDA_PALET'
-      AND estado IN
-          (N'PENDIENTE',N'PROCESANDO',N'ERROR_REINTENTABLE',N'RESULTADO_DESCONOCIDO')
-)
-    THROW 51076, 'Existen salidas NAV no terminales antes de instalar el servicio.', 1;
-'@
-            $command.ExecuteNonQuery() | Out-Null
-        }
-        finally {
-            $connection.Dispose()
-        }
-
         $sid = [System.Security.Principal.SecurityIdentifier]'S-1-5-20'
         $account = $sid.Translate([System.Security.Principal.NTAccount]).Value
         if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {

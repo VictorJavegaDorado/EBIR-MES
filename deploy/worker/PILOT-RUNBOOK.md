@@ -102,6 +102,25 @@ $networkServiceAccount = $networkServiceSid.Translate(
    unico perfil.
 7. Preparar un procedimiento de parada y conservar la release anterior.
 
+La comprobacion SQL se ejecuta desde la sesion autenticada de PT-VJAVEGA, no
+dentro de WinRM, para evitar la delegacion de credenciales de Windows. El
+instalador remoto acepta solo una confirmacion positiva con menos de dos
+minutos de antiguedad:
+
+```powershell
+$preflight = .\Test-MesNavisionOutputWorkerQueuePreflight.ps1
+.\Install-MesNavisionOutputWorker.ps1 `
+    -ReleasePath <release-candidata> `
+    -MesDatabaseConnectionString <secure-string-protegido> `
+    -QueuePreflightConfirmed:$preflight.QueuePreflightConfirmed `
+    -QueuePreflightUtc $preflight.QueuePreflightUtc
+```
+
+El prevuelo es de solo lectura, exige `EBIR_MES_TEST`, valida el contrato 041A
+y rechaza la instalacion si existe cualquier salida NAV no terminal. La
+cadena protegida sigue validandose sintacticamente en el servidor antes de
+configurar el servicio.
+
 ## Canario NAV `RunOnce`
 
 El canario se ejecuta como tarea efímera bajo el SID `S-1-5-20`, con

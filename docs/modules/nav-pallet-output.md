@@ -179,6 +179,12 @@ y `DBCC CHECKDB` correcto. La ejecucion continua se aisla en un servicio
 `MES NAV Worker`; el servicio `MES Worker` conserva exclusivamente la
 impresion. Ningun proceso habilita ambos perfiles a la vez.
 
+La instalacion remota separa el prevuelo SQL del alta del servicio para no
+depender de delegacion de credenciales en WinRM. PT-VJAVEGA obtiene una prueba
+de solo lectura contra `EBIR_MES_TEST`; el instalador exige que sea positiva y
+tenga menos de dos minutos, y mantiene las guardas exactas de identidad,
+release, endpoint, linea y perfiles aislados.
+
 ## Segundo palet y recuperación supervisada
 
 El primer intento de la operación 32, palet 22 de `FL26-00003`, envió
