@@ -19,8 +19,15 @@ public sealed class GetProductionTableState(
 
         var state = await reader.ReadAsync(orderId, lineId, cancellationToken);
         if (state is null || recoveryReader is null) return state;
-        var recovery = await recoveryReader.ReadLatestAsync(
-            state.LineSessionId, cancellationToken);
-        return state with { LatestPalletRecovery = recovery };
+        try
+        {
+            var recovery = await recoveryReader.ReadLatestAsync(
+                state.LineSessionId, cancellationToken);
+            return state with { LatestPalletRecovery = recovery };
+        }
+        catch (PalletRecoveryUnavailableException)
+        {
+            return state;
+        }
     }
 }

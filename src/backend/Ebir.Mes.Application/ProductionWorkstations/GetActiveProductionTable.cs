@@ -17,11 +17,18 @@ public sealed class GetActiveProductionTable(
 
         var active = await reader.ReadActiveByLineAsync(lineId, cancellationToken);
         if (active is null || recoveryReader is null) return active;
-        var recovery = await recoveryReader.ReadLatestAsync(
-            active.Table.LineSessionId, cancellationToken);
-        return active with
+        try
         {
-            Table = active.Table with { LatestPalletRecovery = recovery }
-        };
+            var recovery = await recoveryReader.ReadLatestAsync(
+                active.Table.LineSessionId, cancellationToken);
+            return active with
+            {
+                Table = active.Table with { LatestPalletRecovery = recovery }
+            };
+        }
+        catch (PalletRecoveryUnavailableException)
+        {
+            return active;
+        }
     }
 }
