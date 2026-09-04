@@ -6,6 +6,7 @@ $required=@(
     "estado=N'PROCESANDO'",
     'n.numero_intentos BETWEEN 12 AND 23',
     '@numero_intento < 24',
+    "N'CREATE OR ALTER PROCEDURE'",
     'CREATE OR ALTER PROCEDURE nav.solicitar_reconciliacion_salida_palet',
     "@estado<>N''RESULTADO_DESCONOCIDO'' OR @intentos<>12",
     "N''RECONCILIATION_ONLY'' AS mode",
