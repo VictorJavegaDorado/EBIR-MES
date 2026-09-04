@@ -51,6 +51,7 @@ builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<ReprintPalletLabel>();
 builder.Services.AddScoped<SynchronizeProductionOrder>();
 builder.Services.AddScoped<PromoteProductionOrder>();
+builder.Services.AddScoped<PrepareProductionOrder>();
 builder.Services.AddScoped<ListSelectableProductionOrders>();
 builder.Services.AddScoped<IdentifyEmployeeByRfid>();
 builder.Services.AddScoped<StartOrJoinProductionTable>();
@@ -87,10 +88,14 @@ builder.Services.AddScoped<IProductionOrderPromotionStore>(services =>
     new SqlProductionOrderPromotionStore(
         services.GetRequiredService<IConfiguration>()
             .GetConnectionString("MesDatabase")));
-builder.Services.AddScoped<IProductionOrderSelectionReader>(services =>
+builder.Services.AddScoped<SqlProductionOrderSelectionReader>(services =>
     new SqlProductionOrderSelectionReader(
         services.GetRequiredService<IConfiguration>()
             .GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionOrderSelectionReader>(services =>
+    services.GetRequiredService<SqlProductionOrderSelectionReader>());
+builder.Services.AddScoped<IPreparedProductionOrderReader>(services =>
+    services.GetRequiredService<SqlProductionOrderSelectionReader>());
 builder.Services.AddScoped<ILineIdentificationReader>(_ =>
     new SqlLineIdentificationReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -189,6 +194,7 @@ app.MapReprintPalletLabelEndpoints();
 app.MapProductionOrderSynchronizationEndpoints();
 app.MapProductionOrderPromotionEndpoints();
 app.MapProductionOrderSelectionEndpoints();
+app.MapProductionOrderPreparationEndpoints();
 app.MapRfidIdentificationEndpoints();
 app.MapProductionWorkstationEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>

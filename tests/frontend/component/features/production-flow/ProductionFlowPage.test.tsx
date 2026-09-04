@@ -93,6 +93,72 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText("FL20-02277")).toBeInTheDocument();
   });
 
+  it("prepares an exact NAV order when it is not yet selectable", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(order), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /código de línea/i }),
+      "LINEA-TEST-01{enter}",
+    );
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /orden de fabricación/i }),
+      "fl20-02277{enter}",
+    );
+
+    expect(await screen.findByRole("heading", { name: "Gestiona la producción" }))
+      .toBeInTheDocument();
+    expect(screen.getByText(
+      "Orden FL20-02277 preparada desde NAV. Identifica el equipo.",
+    )).toBeInTheDocument();
+    expect(fetchMock.mock.calls[2][0]).toBe(
+      "/api/production-workstations/active?lineId=40",
+    );
+    const [url, request] = fetchMock.mock.calls[3];
+    expect(url).toBe("/api/production-orders/prepare");
+    expect(request).toEqual(expect.objectContaining({ method: "POST" }));
+    expect(JSON.parse(String(request?.body))).toEqual(expect.objectContaining({
+      orderNumber: "FL20-02277",
+      correlationId: expect.any(String),
+    }));
+  });
+
+  it("shows a safe preparation rejection and remains on order scan", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "NAV_PRODUCTION_ORDER_NOT_FOUND",
+        detail: "La orden lanzada no existe en NAV.",
+      }), { status: 404, headers: { "Content-Type": "application/problem+json" } }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /código de línea/i }),
+      "LINEA-TEST-01{enter}",
+    );
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(
+      screen.getByRole("textbox", { name: /orden de fabricación/i }),
+      "FL26-99999{enter}",
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "La orden lanzada no existe en NAV.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "NAV_PRODUCTION_ORDER_NOT_FOUND",
+    );
+    expect(screen.getByRole("heading", { name: "Escanea la orden" }))
+      .toBeInTheDocument();
+  });
+
   it("identifies an employee and clears the RFID credential immediately", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))

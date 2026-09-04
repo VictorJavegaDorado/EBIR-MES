@@ -28,6 +28,7 @@ public sealed class SynchronizeProductionOrderTests
 
         Assert.Equal(42, result.InboundOrderId);
         Assert.Equal(ProductionOrderSynchronizationOutcome.Created, result.Outcome);
+        Assert.Equal("010", result.PaternaOperationNumber);
         Assert.NotNull(store.Snapshot);
         Assert.Equal("EBIRTEST", store.Snapshot.EnvironmentCode);
         Assert.Equal("EBIR", store.Snapshot.CompanyCode);

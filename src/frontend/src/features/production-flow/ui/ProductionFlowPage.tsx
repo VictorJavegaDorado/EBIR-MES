@@ -11,6 +11,10 @@ import {
 } from "../../production-order-selection/api/getProductionOrders";
 import type { ProductionOrder } from "../../production-order-selection/model/productionOrder";
 import {
+  prepareProductionOrder,
+  ProductionOrderPreparationApiError,
+} from "../../production-order-selection/api/prepareProductionOrder";
+import {
   identifyEmployeeByRfid,
   RfidIdentificationApiError,
 } from "../api/identifyEmployeeByRfid";
@@ -221,6 +225,13 @@ export function ProductionFlowPage() {
   async function submitOrder(event: FormEvent) {
     event.preventDefault();
     const normalized = orderCode.trim().toUpperCase();
+    if (!normalized) {
+      setError({
+        message: "Escanea el número de la orden de fabricación.",
+        code: "PRODUCTION_ORDER_NUMBER_REQUIRED",
+      });
+      return;
+    }
     const match = orders.find(
       (candidate) => candidate.orderNumber.trim().toUpperCase() === normalized,
     );
@@ -257,17 +268,40 @@ export function ProductionFlowPage() {
           return;
         }
 
-        setError({
-          message: "La orden escaneada no está disponible para producción.",
-          code: "PRODUCTION_ORDER_NOT_AVAILABLE",
-        });
+        const operationKey = `prepare-order:${normalized}`;
+        const correlationId = pendingCorrelations.current.get(operationKey)
+          ?? createCorrelationId();
+        pendingCorrelations.current.set(operationKey, correlationId);
+        setNotice(`Preparando la orden ${normalized} desde NAV…`);
+        const prepared = await prepareProductionOrder(
+          normalized,
+          correlationId,
+          controller.signal,
+        );
+        pendingCorrelations.current.delete(operationKey);
+        setOrders((current) => [
+          prepared,
+          ...current.filter(
+            (candidate) => candidate.productionOrderId !== prepared.productionOrderId,
+          ),
+        ]);
+        setOrder(prepared);
+        setOrderCode(prepared.orderNumber);
+        setTable(null);
+        setActiveStep(3);
+        setNotice(
+          `Orden ${prepared.orderNumber} preparada desde NAV. Identifica el equipo.`,
+        );
       } catch (caught) {
         if (controller.signal.aborted) return;
         setError({
-          message: "No se puede comprobar si la línea conserva una mesa pendiente.",
+          message: caught instanceof ProductionOrderPreparationApiError
+            ? caught.message
+            : "No se puede comprobar ni preparar la orden en este momento.",
           code: caught instanceof ProductionTableApiError
+            || caught instanceof ProductionOrderPreparationApiError
             ? caught.code
-            : "PRODUCTION_TABLE_UNAVAILABLE",
+            : "PRODUCTION_ORDER_PREPARATION_UNAVAILABLE",
         });
       } finally {
         if (request.current === controller) request.current = null;

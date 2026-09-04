@@ -118,10 +118,20 @@ public sealed class SynchronizeProductionOrder(
             palletFormats[0],
             productPostingGroups[0]);
 
-        return await store.SaveAsync(
+        var result = await store.SaveAsync(
             snapshot,
             command.SynchronizationId,
             cancellationToken);
+        var paternaOperation = snapshot.Routing.Single(step =>
+            step.Type == ProductionRoutingStepType.WorkCenter &&
+            string.Equals(
+                step.CapacityNumber.Trim(),
+                PaternaCapacityNumber,
+                StringComparison.Ordinal));
+        return result with
+        {
+            PaternaOperationNumber = paternaOperation.OperationNumber.Trim()
+        };
     }
 
     private static void ValidateSnapshot(

@@ -114,6 +114,22 @@ La pantalla permite buscar por orden, producto, descripcion o lote y conserva
 el lote NAV como dato de solo lectura. Seleccionar una orden no abre una sesion
 ni cambia su estado.
 
+Si el numero exacto escaneado no esta todavia entre las ordenes operativas y la
+linea no conserva una mesa pendiente para esa orden, la pantalla puede solicitar
+su preparacion automatica. El endpoint `POST /api/production-orders/prepare`
+recibe unicamente el numero de orden y una correlacion: el servidor sincroniza
+el snapshot de EbirTest, obtiene de ese mismo snapshot la unica operacion del
+centro Paterna, la promociona de forma idempotente y devuelve la orden ya
+seleccionable. El navegador nunca elige ni envia la operacion NAV.
+
+Este camino esta deshabilitado por defecto mediante
+`Navision:ProductionOrderPreparationEnabled`. Solo puede habilitarse en la API
+TEST con el entorno `EBIRTEST`, empresa `EBIR` y la raiz exacta admitida por el
+adaptador. Una repeticion conserva la misma correlacion en el navegador; tanto
+la sincronizacion como la promocion aceptan de forma segura el reintento con el
+mismo contenido. Una promocion que requiera revision no se presenta al
+operario como orden disponible.
+
 ## Disparador administrativo controlado
 
 La API compone `IProductionOrderSource`, `IProductionOrderSnapshotStore` y

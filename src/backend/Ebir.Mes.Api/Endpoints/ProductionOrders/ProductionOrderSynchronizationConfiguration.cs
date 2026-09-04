@@ -5,6 +5,7 @@ namespace Ebir.Mes.Api.Endpoints.ProductionOrders;
 
 internal sealed record ProductionOrderSynchronizationConfiguration(
     bool Enabled,
+    bool PreparationEnabled,
     string EnvironmentCode,
     string CompanyCode,
     string ServiceRoot,
@@ -19,6 +20,7 @@ internal sealed record ProductionOrderSynchronizationConfiguration(
         var section = configuration.GetSection("Navision");
         return new(
             section.GetValue<bool>("ProductionOrderSynchronizationEnabled"),
+            section.GetValue<bool>("ProductionOrderPreparationEnabled"),
             section["Environment"]?.Trim() ?? string.Empty,
             section["Company"]?.Trim() ?? string.Empty,
             section["ServiceRoot"]?.Trim() ?? string.Empty,
@@ -28,7 +30,7 @@ internal sealed record ProductionOrderSynchronizationConfiguration(
 
     internal NavisionOptions CreateNavisionOptions()
     {
-        if (!Enabled ||
+        if ((!Enabled && !PreparationEnabled) ||
             string.IsNullOrWhiteSpace(EnvironmentCode) ||
             string.IsNullOrWhiteSpace(CompanyCode) ||
             !Uri.TryCreate(ServiceRoot, UriKind.Absolute, out var serviceRoot))

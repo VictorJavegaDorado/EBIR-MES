@@ -5,7 +5,7 @@ mantendran estables aunque la implementacion interna evolucione.
 
 | Funcionalidad | Reglas | Backend | Frontend | Pruebas |
 |---|---|---|---|---|
-| Sincronizacion de ordenes de produccion | `modules/production-order-sync.md` | `Application/ProductionOrders`, `Integrations/Navision`, `Infrastructure/ProductionOrders` | Pendiente | `Application.Tests/ProductionOrders`, `Integrations.Tests/Navision`, `IntegrationTests/ProductionOrders` |
+| Sincronizacion de ordenes de produccion | `modules/production-order-sync.md` | `Application/ProductionOrders`, `Integrations/Navision`, `Infrastructure/ProductionOrders`, `Api/Endpoints/ProductionOrders` | `features/production-order-selection`, integrada en `features/production-flow` | `Application.Tests/ProductionOrders`, `Integrations.Tests/Navision`, `IntegrationTests/ProductionOrders`, `component/features/production-flow` |
 | Seleccion de orden de produccion | `modules/production-order-sync.md` | `Application/ProductionOrders`, `Infrastructure/ProductionOrders`, `Api/Endpoints/ProductionOrders` | `features/production-order-selection` | `Application.Tests/ProductionOrders`, `IntegrationTests/ProductionOrders`, `component/features/production-order-selection` |
 | Identificacion de linea | `modules/line-identification.md` | `Application/LineIdentification` | `features/line-identification` | `Application.Tests/LineIdentification`, `IntegrationTests/LineIdentification`, `component/features/line-identification` |
 | Sesiones, turnos y fichajes | `modules/line-operations.md` | `Application/LineSessions`, `Infrastructure/LineSessions`, `Api/Endpoints/LineSessions` | `features/line-session` | `Application.Tests/LineSessions`, `IntegrationTests/LineSessions` |
