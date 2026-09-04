@@ -1,8 +1,12 @@
+using Ebir.Mes.Application.PalletRecovery;
+
 namespace Ebir.Mes.Application.ProductionWorkstations;
 
-public sealed class GetProductionTableState(IProductionTableStateReader reader)
+public sealed class GetProductionTableState(
+    IProductionTableStateReader reader,
+    IPalletRecoveryStateReader? recoveryReader = null)
 {
-    public Task<ProductionTableStateRecord?> ExecuteAsync(
+    public async Task<ProductionTableStateRecord?> ExecuteAsync(
         long orderId,
         long lineId,
         CancellationToken cancellationToken)
@@ -13,6 +17,10 @@ public sealed class GetProductionTableState(IProductionTableStateReader reader)
                 orderId <= 0 ? nameof(orderId) : nameof(lineId));
         }
 
-        return reader.ReadAsync(orderId, lineId, cancellationToken);
+        var state = await reader.ReadAsync(orderId, lineId, cancellationToken);
+        if (state is null || recoveryReader is null) return state;
+        var recovery = await recoveryReader.ReadLatestAsync(
+            state.LineSessionId, cancellationToken);
+        return state with { LatestPalletRecovery = recovery };
     }
 }

@@ -1,3 +1,5 @@
+using Ebir.Mes.Application.PalletRecovery;
+
 namespace Ebir.Mes.Application.ProductionWorkstations;
 
 public sealed record ProductionTableStateRecord(
@@ -12,4 +14,5 @@ public sealed record ProductionTableStateRecord(
     decimal CurrentTheoreticalCapacityPerHour,
     string PalletFormatCode,
     int UnitsPerPallet,
-    IReadOnlyList<ProductionTableOperatorRecord> Operators);
+    IReadOnlyList<ProductionTableOperatorRecord> Operators,
+    PalletRecoveryStateRecord? LatestPalletRecovery = null);

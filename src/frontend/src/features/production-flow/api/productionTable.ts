@@ -1,4 +1,5 @@
 import type { ProductionOrder } from "../../production-order-selection/model/productionOrder";
+import type { PalletRecoveryState } from "../../pallet-recovery/api/palletRecovery";
 
 export type ProductionTableOperator = {
   employeeId: number;
@@ -22,6 +23,7 @@ export type ProductionTableState = {
   palletFormatCode: string;
   unitsPerPallet: number;
   operators: ProductionTableOperator[];
+  latestPalletRecovery?: PalletRecoveryState | null;
 };
 
 export type ActiveProductionTable = {

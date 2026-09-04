@@ -5,6 +5,7 @@ import {
 } from "../../line-identification/api/identifyLine";
 import type { IdentifiedLine } from "../../line-identification/model/lineIdentification";
 import { PalletClosePage } from "../../pallet-close/ui/PalletClosePage";
+import { PalletRecoveryActions } from "../../pallet-recovery/ui/PalletRecoveryActions";
 import {
   getProductionOrders,
   ProductionOrderSelectionApiError,
@@ -806,6 +807,13 @@ export function ProductionFlowPage() {
                 <div className="work-pallet-empty">
                   Identifica al primer operario para preparar el palet.
                 </div>
+              )}
+
+              {table && (
+                <PalletRecoveryActions
+                  lineId={table.lineId}
+                  recovery={table.latestPalletRecovery ?? null}
+                />
               )}
 
               {palletOperator && table && (

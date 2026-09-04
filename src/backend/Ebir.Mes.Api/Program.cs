@@ -1,6 +1,7 @@
 using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
 using Ebir.Mes.Api.Endpoints.Pallets;
+using Ebir.Mes.Api.Endpoints.PalletRecovery;
 using Ebir.Mes.Api.Endpoints.Printing;
 using Ebir.Mes.Api.Endpoints.ProductionDashboard;
 using Ebir.Mes.Api.Endpoints.ProductionOrders;
@@ -12,6 +13,7 @@ using Ebir.Mes.Application.LineIdentification;
 using Ebir.Mes.Application.LineSessions;
 using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Pallets.ClosePalletOptions;
+using Ebir.Mes.Application.PalletRecovery;
 using Ebir.Mes.Application.Printing;
 using Ebir.Mes.Application.ProductionDashboard;
 using Ebir.Mes.Application.ProductionOrders;
@@ -22,6 +24,7 @@ using Ebir.Mes.Application.Scrap;
 using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
 using Ebir.Mes.Infrastructure.Pallets;
+using Ebir.Mes.Infrastructure.PalletRecovery;
 using Ebir.Mes.Infrastructure.Printing;
 using Ebir.Mes.Infrastructure.ProductionDashboard;
 using Ebir.Mes.Infrastructure.ProductionOrders;
@@ -51,6 +54,8 @@ builder.Services.AddScoped<CreateReplenishmentRequest>();
 builder.Services.AddScoped<TransitionReplenishmentRequest>();
 builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<GetPalletCloseOptions>();
+builder.Services.AddScoped<GetLatestPalletRecovery>();
+builder.Services.AddScoped<RetryPalletNavReconciliation>();
 builder.Services.AddScoped<ReprintPalletLabel>();
 builder.Services.AddScoped<SynchronizeProductionOrder>();
 builder.Services.AddScoped<PromoteProductionOrder>();
@@ -163,6 +168,12 @@ builder.Services.AddScoped<IPalletCloser>(_ =>
 builder.Services.AddScoped<IPalletCloseOptionsReader>(_ =>
     new SqlPalletCloseOptionsReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IPalletRecoveryStateReader>(_ =>
+    new SqlPalletRecoveryStateReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IPalletNavReconciliationRetrier>(_ =>
+    new SqlPalletNavReconciliationRetrier(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IPalletLabelReprinter>(_ =>
     new SqlPalletLabelReprinter(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -197,6 +208,7 @@ app.MapCreateReplenishmentRequestEndpoints();
 app.MapTransitionReplenishmentRequestEndpoints();
 app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
+app.MapPalletRecoveryEndpoints();
 app.MapReprintPalletLabelEndpoints();
 app.MapProductionOrderSynchronizationEndpoints();
 app.MapProductionOrderPromotionEndpoints();
