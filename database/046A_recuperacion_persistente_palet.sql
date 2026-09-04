@@ -87,9 +87,11 @@ BEGIN
 
     BEGIN TRY
         BEGIN TRANSACTION;
-        DECLARE @lock_result int;
+        DECLARE @lock_result int,
+                @lock_resource nvarchar(255)=CONCAT(
+                    N''nav:reconciliacion:'',CONVERT(nvarchar(36),@correlacion_id));
         EXEC @lock_result=sys.sp_getapplock
-            @Resource=CONCAT(N''nav:reconciliacion:'',CONVERT(nvarchar(36),@correlacion_id)),
+            @Resource=@lock_resource,
             @LockMode=N''Exclusive'',@LockOwner=N''Transaction'',@LockTimeout=5000;
         IF @lock_result<0
             THROW 56604, ''No se pudo asegurar la idempotencia.'', 1;
