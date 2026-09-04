@@ -36,8 +36,9 @@ BEGIN TRY
         OBJECT_DEFINITION(OBJECT_ID(N'nav.reservar_siguiente_salida_palet'));
     IF @reserva NOT LIKE N'%n.numero_intentos BETWEEN 12 AND 23%'
     BEGIN
-        SET @reserva=REPLACE(
-            @reserva,N'CREATE PROCEDURE',N'CREATE OR ALTER PROCEDURE');
+        SET @reserva=STUFF(@reserva,1,
+            CHARINDEX(N'PROCEDURE',@reserva)+LEN(N'PROCEDURE')-1,
+            N'CREATE OR ALTER PROCEDURE');
         SET @reserva=REPLACE(
             @reserva,
             N'n.numero_intentos < 12',
@@ -51,8 +52,9 @@ BEGIN TRY
         OBJECT_DEFINITION(OBJECT_ID(N'nav.fallar_salida_palet'));
     IF @fallo NOT LIKE N'%@numero_intento < 24%'
     BEGIN
-        SET @fallo=REPLACE(
-            @fallo,N'CREATE PROCEDURE',N'CREATE OR ALTER PROCEDURE');
+        SET @fallo=STUFF(@fallo,1,
+            CHARINDEX(N'PROCEDURE',@fallo)+LEN(N'PROCEDURE')-1,
+            N'CREATE OR ALTER PROCEDURE');
         SET @fallo=REPLACE(
             @fallo,
             N'@numero_intento < 12',
