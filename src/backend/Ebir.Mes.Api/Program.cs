@@ -2,6 +2,7 @@ using Ebir.Mes.Api.Endpoints.LineIdentification;
 using Ebir.Mes.Api.Endpoints.LineSessions;
 using Ebir.Mes.Api.Endpoints.Pallets;
 using Ebir.Mes.Api.Endpoints.Printing;
+using Ebir.Mes.Api.Endpoints.ProductionDashboard;
 using Ebir.Mes.Api.Endpoints.ProductionOrders;
 using Ebir.Mes.Api.Endpoints.ProductionWorkstations;
 using Ebir.Mes.Api.Endpoints.Replenishment;
@@ -12,6 +13,7 @@ using Ebir.Mes.Application.LineSessions;
 using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Pallets.ClosePalletOptions;
 using Ebir.Mes.Application.Printing;
+using Ebir.Mes.Application.ProductionDashboard;
 using Ebir.Mes.Application.ProductionOrders;
 using Ebir.Mes.Application.ProductionWorkstations;
 using Ebir.Mes.Application.Replenishment;
@@ -21,6 +23,7 @@ using Ebir.Mes.Infrastructure.LineIdentification;
 using Ebir.Mes.Infrastructure.LineSessions;
 using Ebir.Mes.Infrastructure.Pallets;
 using Ebir.Mes.Infrastructure.Printing;
+using Ebir.Mes.Infrastructure.ProductionDashboard;
 using Ebir.Mes.Infrastructure.ProductionOrders;
 using Ebir.Mes.Infrastructure.ProductionWorkstations;
 using Ebir.Mes.Infrastructure.Replenishment;
@@ -58,6 +61,7 @@ builder.Services.AddScoped<StartOrJoinProductionTable>();
 builder.Services.AddScoped<GetProductionTableState>();
 builder.Services.AddScoped<GetActiveProductionTable>();
 builder.Services.AddScoped<CompleteProductionOrder>();
+builder.Services.AddScoped<GetProductionDashboard>();
 builder.Services.AddSingleton<IRfidCredentialFingerprinter>(_ =>
     new HmacSha256RfidCredentialFingerprinter(
         builder.Configuration["Rfid:LookupKey"]));
@@ -107,6 +111,9 @@ builder.Services.AddScoped<IProductionTableStateReader>(_ =>
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IProductionOrderCompleter>(_ =>
     new SqlProductionOrderCompleter(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IProductionDashboardReader>(_ =>
+    new SqlProductionDashboardReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<ILineSessionOpener>(_ =>
     new SqlLineSessionOpener(
@@ -197,6 +204,7 @@ app.MapProductionOrderSelectionEndpoints();
 app.MapProductionOrderPreparationEndpoints();
 app.MapRfidIdentificationEndpoints();
 app.MapProductionWorkstationEndpoints();
+app.MapProductionDashboardEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
 {
     if (context.Request.Path.StartsWithSegments(
