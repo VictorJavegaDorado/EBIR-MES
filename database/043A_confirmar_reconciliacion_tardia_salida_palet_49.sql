@@ -16,7 +16,6 @@ GO
 IF OBJECT_ID(N'nav.operaciones', N'U') IS NULL
  OR OBJECT_ID(N'nav.intentos_operacion', N'U') IS NULL
  OR OBJECT_ID(N'nav.confirmar_salida_palet', N'P') IS NULL
- OR OBJECT_ID(N'aud.registrar_evento', N'P') IS NULL
  OR OBJECT_ID(N'prod.palets', N'U') IS NULL
  OR OBJECT_ID(N'prod.ordenes', N'U') IS NULL
  OR OBJECT_ID(N'prod.sesiones_linea', N'U') IS NULL
@@ -87,15 +86,6 @@ IF
     THROW 51134, 'La linea no tiene exactamente una impresora principal activa.', 1;
 GO
 
-IF EXISTS
-(
-    SELECT 1 FROM aud.eventos
-    WHERE tipo_evento=N'NAV_SALIDA_RECONCILIACION_SUPERVISADA'
-      AND entidad=N'nav.operaciones' AND entidad_id=49
-)
-    THROW 51135, 'La reconciliacion supervisada de la operacion 49 ya existe.', 1;
-GO
-
 BEGIN TRY
     BEGIN TRANSACTION;
 
@@ -155,20 +145,6 @@ BEGIN TRY
         @identificador_externo=N'26853',
         @correlacion_id=@correlacion_id;
 
-    EXEC aud.registrar_evento
-        @tipo_evento=N'NAV_SALIDA_RECONCILIACION_SUPERVISADA',
-        @cuenta_dominio=N'EBIR\MES$',
-        @rol_usado=N'SISTEMA',
-        @linea_id=@linea_id,
-        @orden_id=35,
-        @sesion_linea_id=@sesion_linea_id,
-        @entidad=N'nav.operaciones',
-        @entidad_id=49,
-        @valor_anterior=N'{"estado":"RESULTADO_DESCONOCIDO","numero_intentos":12,"identificador_externo":"26853","etiqueta":"PENDIENTE_NAV"}',
-        @valor_nuevo=N'{"estado":"CONFIRMADA","numero_intentos":13,"identificador_externo":"26853","etiqueta":"LISTA","modo":"RECONCILIACION_SUPERVISADA"}',
-        @motivo=N'NAV EbirTest observado con una unica salida 26853 ya Registrada; no se reenvia el codeunit.',
-        @correlacion_id=@correlacion_id;
-
     IF NOT EXISTS
     (
         SELECT 1 FROM nav.operaciones
@@ -185,10 +161,6 @@ BEGIN TRY
            AND tipo=N'PALET' AND estado=N'LISTA') <> 1
      OR (SELECT COUNT(*) FROM imp.trabajos_impresion
          WHERE etiqueta_id=40 AND es_reimpresion=0 AND estado=N'PENDIENTE') <> 1
-     OR (SELECT COUNT(*) FROM aud.eventos
-         WHERE tipo_evento=N'NAV_SALIDA_RECONCILIACION_SUPERVISADA'
-           AND entidad=N'nav.operaciones' AND entidad_id=49
-           AND orden_id=35 AND correlacion_id=@correlacion_id) <> 1
         THROW 51137, 'La validacion final de 043A no es correcta.', 1;
 
     COMMIT TRANSACTION;

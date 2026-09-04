@@ -26,7 +26,6 @@ $required = @(
     '@operacion_nav_id=49',
     '@identificador_externo=N''26853''',
     'SUPERVISED_EXISTING_OUTPUT',
-    "N'NAV_SALIDA_RECONCILIACION_SUPERVISADA'",
     "estado=N'CONFIRMADA'",
     'numero_intentos=13',
     "tipo=N'PALET' AND estado=N'LISTA'",
@@ -74,5 +73,5 @@ if (($sql | Select-String -Pattern '(?i)EXEC nav\.confirmar_salida_palet' -AllMa
     ExternalIdentifier = 26853
     SupervisedReconciliation = $true
     OriginalPrintJob = 1
-    Audited = $true
+    ConfirmationProcedure = 'nav.confirmar_salida_palet'
 }
