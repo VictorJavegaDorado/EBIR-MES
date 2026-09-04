@@ -20,6 +20,8 @@ misma lectura prod.obtener_estado_mesa que consume el terminal:
 - orden, artículo, descripción y lote;
 - cantidad buena, objetivo, reserva activa y scrap;
 - tiempo productivo y capacidad teórica actual;
+- productividad acumulada frente a la ruta NAV, ponderada con la capacidad
+  real de cada tramo de trabajo;
 - personas con fichaje abierto, estado y tiempo individual;
 - formato POK y unidades por palé;
 - número de palés cerrados;
@@ -29,6 +31,11 @@ misma lectura prod.obtener_estado_mesa que consume el terminal:
 El frontend no reconstruye reglas productivas. Solo proyecta los valores
 persistidos que devuelve el backend; los cronómetros avanzan localmente entre
 instantáneas con la misma regla de la mesa.
+
+La planta representa cada línea como una mesa y sitúa alrededor a las personas
+activas, con su estado y tiempo individual. El rendimiento compara unidades
+buenas confirmadas con las unidades teóricas acumuladas de todos los tramos de
+capacidad; por ello los cambios en el número de personas no falsean el indicador.
 
 ## Actualización y fallos
 

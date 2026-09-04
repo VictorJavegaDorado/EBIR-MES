@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   getProductionDashboard,
   type ProductionDashboardLine,
@@ -6,8 +6,7 @@ import {
 } from "../api/productionDashboard";
 
 const refreshMilliseconds = 5_000;
-
-const numberFormatter = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 });
+const numberFormatter = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
 const timeFormatter = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit",
   minute: "2-digit",
@@ -49,6 +48,31 @@ function integrationLabel(state: string | null, kind: "nav" | "label") {
   if (state === "PENDIENTE_NAV") return "Esperando NAV";
   if (state === "LISTA") return "Lista para imprimir";
   return displayState(state);
+}
+
+function performanceTone(performance: number | null) {
+  if (performance === null) return "neutral";
+  if (performance >= 95) return "good";
+  if (performance >= 80) return "watch";
+  return "low";
+}
+
+function signedUnits(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded >= 0 ? "+" : ""}${numberFormatter.format(rounded)} uds`;
+}
+
+function initials(fullName: string) {
+  return fullName.split(/\s+/).filter(Boolean).slice(0, 2)
+    .map(part => part[0]).join("").toLocaleUpperCase("es-ES");
+}
+
+function seatStyle(index: number, total: number): CSSProperties {
+  const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(total, 1);
+  return {
+    "--seat-x": `${50 + Math.cos(angle) * 43}%`,
+    "--seat-y": `${50 + Math.sin(angle) * 39}%`,
+  } as CSSProperties;
 }
 
 export function ProductionDashboardPage() {
@@ -101,21 +125,17 @@ export function ProductionDashboardPage() {
     <section className="production-dashboard">
       <header className="dashboard-heading">
         <div>
-          <p className="eyebrow">Control de fabricacion</p>
-          <h1>Fabricacion en tiempo real</h1>
-          <p>Estado, avance y equipo activo de todas las lineas.</p>
+          <p className="eyebrow">Control de fabricación</p>
+          <h1>Planta en tiempo real</h1>
+          <p>Mesas, personas y rendimiento frente a la ruta NAV.</p>
         </div>
         <div className="dashboard-heading-actions">
           <a href="/">Ir al terminal</a>
           <div className={`dashboard-live ${error ? "stale" : ""}`}>
             <span />
             <div>
-              <strong>{error ? "Sin conexion" : "En directo"}</strong>
-              <small>
-                {snapshot
-                  ? `Actualizado ${timeFormatter.format(new Date(snapshot.serverTimeUtc))}`
-                  : "Conectando..."}
-              </small>
+              <strong>{error ? "Sin conexión" : "En directo"}</strong>
+              <small>{snapshot ? `Actualizado ${timeFormatter.format(new Date(snapshot.serverTimeUtc))}` : "Conectando..."}</small>
             </div>
           </div>
         </div>
@@ -123,35 +143,50 @@ export function ProductionDashboardPage() {
 
       {error && (
         <div className="dashboard-alert" role="alert">
-          <strong>No se ha podido refrescar.</strong> Se conserva la ultima lectura. {error}
+          <strong>No se ha podido refrescar.</strong> Se conserva la última lectura. {error}
         </div>
       )}
 
-      <div className="dashboard-summary" aria-label="Resumen de lineas">
-        <article><span>Total</span><strong>{summary.total}</strong><small>lineas activas</small></article>
+      <div className="dashboard-summary" aria-label="Resumen de líneas">
+        <article><span>Total</span><strong>{summary.total}</strong><small>líneas activas</small></article>
         <article className="running"><span>Produciendo</span><strong>{summary.running}</strong><small>con capacidad activa</small></article>
         <article className="waiting"><span>En espera</span><strong>{summary.waiting}</strong><small>con orden cargada</small></article>
-        <article className="danger"><span>Atencion</span><strong>{summary.attention}</strong><small>bloqueos o incidencias</small></article>
+        <article className="danger"><span>Atención</span><strong>{summary.attention}</strong><small>bloqueos o incidencias</small></article>
       </div>
 
-      {!snapshot && !error && <div className="dashboard-loading">Cargando lineas de fabricacion...</div>}
-
+      {!snapshot && !error && <div className="dashboard-loading">Cargando líneas de fabricación...</div>}
       <div className="dashboard-lines">
         {snapshot?.lines.map(line => (
-          <LineCard key={line.lineId} line={line} elapsedSeconds={elapsedSeconds} />
+          <LineCard key={line.lineId} line={line} elapsedSeconds={elapsedSeconds} snapshotTimeUtc={snapshot.serverTimeUtc} />
         ))}
       </div>
     </section>
   );
 }
 
-function LineCard({ line, elapsedSeconds }: { line: ProductionDashboardLine; elapsedSeconds: number }) {
+function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
+  line: ProductionDashboardLine;
+  elapsedSeconds: number;
+  snapshotTimeUtc: string;
+}) {
   const order = line.order;
   const table = line.table;
   const progress = order && order.targetQuantity > 0
     ? Math.min(100, Math.max(0, (order.goodQuantity / order.targetQuantity) * 100))
     : 0;
   const projectedTotal = (table?.productiveSeconds ?? 0) + (isProducing(line) ? elapsedSeconds : 0);
+  const openedSeconds = table?.startedAtUtc
+    ? Math.max(0, (new Date(snapshotTimeUtc).getTime() - new Date(table.startedAtUtc).getTime()) / 1000 + elapsedSeconds)
+    : 0;
+  const theoreticalUnits = line.theoreticalUnitsToDate +
+    (isProducing(line) ? (table?.currentTheoreticalCapacityPerHour ?? 0) * elapsedSeconds / 3600 : 0);
+  const performance = order && theoreticalUnits > 0 ? order.goodQuantity / theoreticalUnits * 100 : null;
+  const performanceDisplay = performance === null ? "—" : `${Math.round(performance)}%`;
+  const performanceArc = Math.min(100, Math.max(0, performance ?? 0));
+  const theoreticalTotalSeconds = order && table && table.currentTheoreticalCapacityPerHour > 0
+    ? order.targetQuantity / table.currentTheoreticalCapacityPerHour * 3600 : null;
+  const estimatedRemainingSeconds = order && table && table.currentTheoreticalCapacityPerHour > 0
+    ? Math.max(0, order.targetQuantity - order.goodQuantity) / table.currentTheoreticalCapacityPerHour * 3600 : null;
   const navPending = line.pendingNavOutputs > 0;
   const printPending = line.pendingPrintJobs > 0;
 
@@ -163,12 +198,13 @@ function LineCard({ line, elapsedSeconds }: { line: ProductionDashboardLine; ela
           <h2>{line.lineCode}</h2>
           <p>{line.lineName}</p>
         </div>
-        <strong className="dashboard-state">{displayState(table?.state ?? line.operationalState)}</strong>
+        <strong className="dashboard-state"><i aria-hidden="true" />{displayState(table?.state ?? line.operationalState)}</strong>
       </header>
 
       {!order || !table ? (
         <div className="dashboard-empty-line">
-          <strong>Linea disponible</strong>
+          <div className="empty-table-shape"><span /></div>
+          <strong>Línea disponible</strong>
           <span>Sin orden activa</span>
         </div>
       ) : (
@@ -182,41 +218,72 @@ function LineCard({ line, elapsedSeconds }: { line: ProductionDashboardLine; ela
             <p>{order.productDescription}</p>
           </div>
 
-          <div className="dashboard-progress-copy">
-            <span>Avance</span>
-            <strong>{numberFormatter.format(order.goodQuantity)} / {numberFormatter.format(order.targetQuantity)} uds</strong>
-          </div>
-          <div className="dashboard-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
-            <span style={{ width: `${progress}%` }} />
-          </div>
-          <div className="dashboard-progress-meta">
-            <span>{progress.toFixed(0)}% completado</span>
-            <span>{order.reservedQuantity} uds en palet actual</span>
-          </div>
+          <div className="factory-table-scene" aria-label={`Mesa ${line.lineCode}`}>
+            <div className="factory-table">
+              <span className="factory-table-label">TIEMPO GLOBAL DE MESA</span>
+              <time>{formatDuration(projectedTotal)}</time>
+              <small>Abierta hace {formatDuration(openedSeconds)}</small>
+              <div className="factory-table-output">
+                <strong>{numberFormatter.format(order.goodQuantity)}</strong>
+                <span>de {numberFormatter.format(order.targetQuantity)} uds</span>
+              </div>
+              <div className="dashboard-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
+                <span style={{ width: `${progress}%` }} />
+              </div>
+              <b>{progress.toFixed(0)}% completado</b>
+            </div>
 
-          <dl className="dashboard-kpis">
-            <div><dt>Tiempo productivo</dt><dd>{formatDuration(projectedTotal)}</dd></div>
-            <div><dt>Capacidad</dt><dd>{table.activeResources} personas</dd></div>
-            <div><dt>Ritmo teorico</dt><dd>{numberFormatter.format(table.currentTheoreticalCapacityPerHour)} uds/h</dd></div>
-            <div><dt>Palets cerrados</dt><dd>{line.closedPallets}</dd></div>
-          </dl>
-
-          <div className="dashboard-operators">
-            <div className="dashboard-section-title"><span>Equipo activo</span><strong>{table.operators.length}</strong></div>
             {table.operators.length === 0 ? (
-              <p>Sin operarios fichados.</p>
-            ) : table.operators.map(operator => {
+              <div className="factory-no-operators">Sin operarios</div>
+            ) : table.operators.slice(0, 10).map((operator, index) => {
               const seconds = operator.productiveSeconds +
                 (operator.status === "PRODUCIENDO" && isProducing(line) ? elapsedSeconds : 0);
               return (
-                <div className="dashboard-operator" key={operator.employeeId}>
-                  <span aria-hidden="true">{operator.fullName.split(/\s+/).slice(0, 2).map(part => part[0]).join("")}</span>
-                  <div><strong>{operator.fullName}</strong><small>{displayState(operator.status)}</small></div>
+                <div
+                  className={`factory-person ${operator.status === "PRODUCIENDO" ? "producing" : "paused"}`}
+                  style={seatStyle(index, Math.min(table.operators.length, 10))}
+                  key={operator.employeeId}
+                  title={`${operator.fullName}: ${displayState(operator.status)}`}
+                >
+                  <div className="factory-avatar"><span aria-hidden="true">{initials(operator.fullName)}</span><i aria-hidden="true" /></div>
+                  <strong>{operator.fullName}</strong>
                   <time>{formatDuration(seconds)}</time>
+                  <small>{operator.status === "PRODUCIENDO" ? "Produciendo" : "En pausa"}</small>
                 </div>
               );
             })}
+            {table.operators.length > 10 && <div className="factory-overflow">+{table.operators.length - 10}</div>}
           </div>
+
+          <div className="dashboard-performance">
+            <div
+              className={`performance-ring ${performanceTone(performance)}`}
+              style={{ "--performance": `${performanceArc * 3.6}deg` } as CSSProperties}
+              aria-label={`Productividad frente a ruta ${performanceDisplay}`}
+            >
+              <span><strong>{performanceDisplay}</strong><small>vs. ruta</small></span>
+            </div>
+            <div className="performance-copy">
+              <span>Productividad frente al tiempo teórico NAV</span>
+              <strong>{performance === null ? "Pendiente de datos" : `${performanceDisplay} de rendimiento`}</strong>
+              <small>
+                {numberFormatter.format(order.goodQuantity)} uds reales frente a {numberFormatter.format(theoreticalUnits)} uds teóricas
+                {performance !== null && ` · ${signedUnits(order.goodQuantity - theoreticalUnits)}`}
+              </small>
+            </div>
+            <dl>
+              <div><dt>Ritmo teórico actual</dt><dd>{numberFormatter.format(table.currentTheoreticalCapacityPerHour)} uds/h</dd></div>
+              <div><dt>Tiempo teórico orden</dt><dd>{theoreticalTotalSeconds === null ? "—" : formatDuration(theoreticalTotalSeconds)}</dd></div>
+              <div><dt>Estimación restante</dt><dd>{estimatedRemainingSeconds === null ? "—" : formatDuration(estimatedRemainingSeconds)}</dd></div>
+            </dl>
+          </div>
+
+          <dl className="dashboard-kpis">
+            <div><dt>Personas activas</dt><dd>{table.activeResources}</dd></div>
+            <div><dt>Palés cerrados</dt><dd>{line.closedPallets}</dd></div>
+            <div><dt>Palé actual</dt><dd>{order.reservedQuantity} uds</dd></div>
+            <div><dt>Formato</dt><dd>{table.palletFormatCode} · {table.unitsPerPallet}</dd></div>
+          </dl>
 
           <div className="dashboard-integrations">
             <div className={line.navIssues ? "danger" : navPending ? "pending" : "ok"}>
@@ -225,7 +292,7 @@ function LineCard({ line, elapsedSeconds }: { line: ProductionDashboardLine; ela
             <div className={line.printIssues ? "danger" : printPending ? "pending" : "ok"}>
               <span>Etiqueta</span><strong>{integrationLabel(line.latestLabelState, "label")}</strong>
             </div>
-            <div><span>Formato</span><strong>{table.palletFormatCode} · {table.unitsPerPallet} uds</strong></div>
+            <div><span>Estado orden</span><strong>{displayState(order.state)}</strong></div>
           </div>
         </>
       )}

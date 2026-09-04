@@ -10,6 +10,8 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
     : IProductionDashboardReader
 {
     private const string LinesQuery = """
+        DECLARE @ahora_utc datetime2(3)=SYSUTCDATETIME();
+
         SELECT
             l.linea_id, l.codigo, l.nombre,
             c.codigo AS centro_codigo, c.nombre AS centro_nombre,
@@ -27,7 +29,8 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
             COALESCE(metricas.nav_pendientes,0) AS nav_pendientes,
             COALESCE(metricas.nav_incidencias,0) AS nav_incidencias,
             COALESCE(metricas.impresiones_pendientes,0) AS impresiones_pendientes,
-            COALESCE(metricas.impresiones_incidencia,0) AS impresiones_incidencia
+            COALESCE(metricas.impresiones_incidencia,0) AS impresiones_incidencia,
+            COALESCE(metricas.unidades_teoricas_acumuladas,0) AS unidades_teoricas_acumuladas
         FROM cfg.lineas l
         INNER JOIN cfg.centros_trabajo c
             ON c.centro_trabajo_id=l.centro_trabajo_id
@@ -54,7 +57,14 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
                 (SELECT COUNT(*) FROM imp.trabajos_impresion ti
                  JOIN imp.etiquetas e ON e.etiqueta_id=ti.etiqueta_id
                  WHERE e.orden_id=o.orden_id AND ti.es_reimpresion=0
-                   AND ti.estado=N'ERROR') AS impresiones_incidencia
+                   AND ti.estado=N'ERROR') AS impresiones_incidencia,
+                (SELECT SUM(
+                    CONVERT(decimal(38,10),tc.capacidad_teorica_hora)
+                    * CONVERT(decimal(38,10),DATEDIFF_BIG(
+                        MILLISECOND,tc.inicio_utc,COALESCE(tc.fin_utc,@ahora_utc)))
+                    / CONVERT(decimal(38,10),3600000))
+                 FROM prod.tramos_capacidad tc
+                 WHERE tc.sesion_linea_id=s.sesion_linea_id) AS unidades_teoricas_acumuladas
         ) metricas
         OUTER APPLY
         (
@@ -171,7 +181,7 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
                 reader.IsDBNull(22) ? null : reader.GetString(22),
                 reader.IsDBNull(23) ? null : reader.GetString(23),
                 reader.GetInt32(24), reader.GetInt32(25),
-                reader.GetInt32(26), reader.GetInt32(27)));
+                reader.GetInt32(26), reader.GetInt32(27), reader.GetDecimal(28)));
         }
         return lines;
     }
@@ -240,7 +250,8 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
         int PendingNavOutputs,
         int NavIssues,
         int PendingPrintJobs,
-        int PrintIssues)
+        int PrintIssues,
+        decimal TheoreticalUnitsToDate)
     {
         public ProductionTableStateRecord? Table { get; set; }
 
@@ -248,6 +259,6 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
             LineId, LineCode, LineName, WorkCenterCode, WorkCenterName,
             OperationalState, BlockReason, UpdatedAtUtc, Order, Table,
             ClosedPallets, LatestNavState, LatestLabelState, PendingNavOutputs,
-            NavIssues, PendingPrintJobs, PrintIssues);
+            NavIssues, PendingPrintJobs, PrintIssues, TheoreticalUnitsToDate);
     }
 }

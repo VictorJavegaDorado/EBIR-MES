@@ -28,10 +28,10 @@ public sealed class ProductionDashboardEndpointTests
         [
             new(1, "LINEA-01", "Linea uno", "CT-01", "Fabricacion",
                 "PRODUCIENDO", null, now, order, table, 3,
-                "CONFIRMADA", "IMPRESA", 0, 0, 0, 0),
+                "CONFIRMADA", "IMPRESA", 0, 0, 0, 0, 55m),
             new(2, "LINEA-02", "Linea dos", "CT-01", "Fabricacion",
                 "LIBRE", null, now, null, null, 0,
-                null, null, 0, 0, 0, 0)
+                null, null, 0, 0, 0, 0, 0m)
         ]);
         using var factory = CreateFactory(new StubReader(snapshot));
         using var client = factory.CreateClient();
@@ -49,6 +49,7 @@ public sealed class ProductionDashboardEndpointTests
             .GetProperty("goodQuantity").GetInt32());
         Assert.Single(lines[0].GetProperty("table")
             .GetProperty("operators").EnumerateArray());
+        Assert.Equal(55m, lines[0].GetProperty("theoreticalUnitsToDate").GetDecimal());
         Assert.Equal(JsonValueKind.Null, lines[1].GetProperty("order").ValueKind);
     }
 

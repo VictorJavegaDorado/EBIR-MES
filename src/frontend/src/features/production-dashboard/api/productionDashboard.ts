@@ -19,6 +19,7 @@ export type ProductionDashboardLine = {
   navIssues: number;
   pendingPrintJobs: number;
   printIssues: number;
+  theoreticalUnitsToDate: number;
 };
 
 export type ProductionDashboardSnapshot = {

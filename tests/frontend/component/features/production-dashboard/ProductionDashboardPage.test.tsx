@@ -61,6 +61,7 @@ const snapshot = {
       navIssues: 0,
       pendingPrintJobs: 0,
       printIssues: 0,
+      theoreticalUnitsToDate: 50,
     },
     {
       lineId: 2,
@@ -80,6 +81,7 @@ const snapshot = {
       navIssues: 0,
       pendingPrintJobs: 0,
       printIssues: 0,
+      theoreticalUnitsToDate: 0,
     },
   ],
 };
@@ -95,10 +97,12 @@ describe("ProductionDashboardPage", () => {
     expect(await screen.findByRole("heading", { name: "LINEA-01" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "LINEA-02" })).toBeInTheDocument();
     expect(screen.getByText("FL26-00008")).toBeInTheDocument();
-    expect(screen.getByText("60 / 100 uds")).toBeInTheDocument();
+    expect(screen.getByText("de 100 uds")).toBeInTheDocument();
     expect(screen.getByText("Operario piloto")).toBeInTheDocument();
-    expect(screen.getByText("Linea disponible")).toBeInTheDocument();
+    expect(screen.getByText("Línea disponible")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+    expect(screen.getByText("120% de rendimiento")).toBeInTheDocument();
+    expect(screen.getByText("TIEMPO GLOBAL DE MESA")).toBeInTheDocument();
     expect(screen.getAllByText("Registrado").length).toBeGreaterThan(0);
   });
 });

@@ -24,4 +24,5 @@ public sealed record ProductionDashboardLineRecord(
     int PendingNavOutputs,
     int NavIssues,
     int PendingPrintJobs,
-    int PrintIssues);
+    int PrintIssues,
+    decimal TheoreticalUnitsToDate);
