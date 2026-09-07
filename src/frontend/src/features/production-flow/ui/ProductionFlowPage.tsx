@@ -89,13 +89,15 @@ export function ProductionFlowPage() {
       const controller = new AbortController();
       refreshRequest.current = controller;
       try {
-        const currentTable = await getProductionTableState(
-          order.productionOrderId,
-          line.id,
-          controller.signal,
-        );
-        if (currentTable) {
-          acceptTableSnapshot(currentTable);
+        const active = await getActiveProductionTable(line.id, controller.signal);
+        if (
+          active
+          && active.order.productionOrderId === order.productionOrderId
+          && active.table.orderId === order.productionOrderId
+          && active.table.lineId === line.id
+        ) {
+          setOrder(active.order);
+          acceptTableSnapshot(active.table);
         }
       } catch {
         // Keep the last confirmed snapshot visible. The next refresh retries safely.

@@ -15,6 +15,10 @@ Cuando la orden alcanza `PENDIENTE_CIERRE`, la misma acción se presenta como
 línea libre para escanear la siguiente. La confirmación se mantiene visible
 inmediatamente bajo la cabecera, antes del progreso y del nuevo campo de
 escaneo, para que no quede fuera de pantalla al abandonar la mesa terminada.
+El refresco automático recupera conjuntamente la orden y la mesa activas de la
+línea. Así, cuando el último palé queda confirmado en NAV y su etiqueta está
+disponible, la transición a `PENDIENTE_CIERRE` cambia el botón a
+`Finalizar orden` sin recargar manualmente el navegador.
 
 Al escanear una orden que todavia no esta en la lista MES, primero se conserva
 la recuperacion de una mesa pendiente y, si no existe, se solicita al servidor

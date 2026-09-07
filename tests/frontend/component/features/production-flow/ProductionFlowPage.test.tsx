@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ProductionFlowPage } from "../../../../../src/frontend/src/features/production-flow/ui/ProductionFlowPage";
@@ -211,6 +211,53 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
     expect(screen.getByText("Operario piloto")).toBeInTheDocument();
     expect(screen.getByText(/Actualización automática cada 10 s/i)).toBeInTheDocument();
+  });
+
+  it("updates the order automatically and shows Finalizar orden after NAV confirmation", async () => {
+    let runRefresh: (() => Promise<void>) | undefined;
+    vi.spyOn(window, "setInterval").mockImplementation(((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 10_000 && typeof handler === "function") {
+        runRefresh = handler as () => Promise<void>;
+      }
+      return 1;
+    }) as typeof window.setInterval);
+
+    const pendingCloseOrder = {
+      ...order,
+      goodQuantity: order.targetQuantity,
+      state: "PENDIENTE_CIERRE",
+    };
+    const pendingCloseTable = {
+      ...tableState,
+      state: "SIN_OPERARIOS",
+      activeResources: 0,
+      operators: [],
+    };
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        order: pendingCloseOrder,
+        table: pendingCloseTable,
+      }), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+    await screen.findByText("Operario piloto");
+    await waitFor(() => expect(runRefresh).toBeDefined());
+
+    await act(async () => {
+      await runRefresh?.();
+    });
+
+    expect(fetchMock.mock.calls[3][0]).toBe(
+      "/api/production-workstations/active?lineId=40",
+    );
+    expect(screen.getByRole("button", { name: "Finalizar orden" })).toBeInTheDocument();
+    expect(screen.getByText("SIN OPERARIOS")).toBeInTheDocument();
   });
 
   it("recovers a completed order by line so the last operator can leave", async () => {

@@ -171,8 +171,11 @@ etiqueta `LISTA` y su trabajo pendiente pueden imprimirse despues; no se exige
 queda persistida y auditada en su cierre, por lo que esta transicion automatica
 no solicita de nuevo la tarjeta del supervisor.
 
-La pantalla refresca esa instantanea cada 10 segundos para recoger cambios
-realizados desde otro terminal. Un fallo puntual conserva el ultimo estado
+La pantalla refresca conjuntamente la orden y la mesa activas cada 10 segundos
+para recoger cambios realizados desde otro terminal o por los procesos de NAV
+e impresion. Cuando el ultimo pale pasa a estar disponible para el cierre de
+orden, el estado `PENDIENTE_CIERRE` y la accion `Finalizar orden` aparecen sin
+recargar manualmente el navegador. Un fallo puntual conserva el ultimo estado
 confirmado y se reintenta en el siguiente ciclo. Entre instantaneas, la
 proyeccion visual avanza cada segundo desde un ancla monotona tomada por el
 navegador al recibir la respuesta. No resta la hora del terminal a la hora UTC
