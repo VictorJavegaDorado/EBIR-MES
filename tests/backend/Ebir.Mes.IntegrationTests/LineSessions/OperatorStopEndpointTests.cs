@@ -22,7 +22,7 @@ public sealed class OperatorStopEndpointTests
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
             "/api/line-sessions/12/operator-stops",
-            new Request(7, "WC", Correlation));
+            new Request(7, "WC", Correlation, OperatorRfidTestServices.Credential));
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Equal(31, body.RootElement.GetProperty("id").GetInt64());
@@ -40,7 +40,7 @@ public sealed class OperatorStopEndpointTests
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
             $"/api/line-sessions/{sessionId}/operator-stops",
-            new Request(employeeId, reason, Correlation));
+            new Request(employeeId, reason, Correlation, OperatorRfidTestServices.Credential));
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(code, body.RootElement.GetProperty("code").GetString());
@@ -53,7 +53,7 @@ public sealed class OperatorStopEndpointTests
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
             "/api/line-sessions/12/operator-stops",
-            new Request(7, "WC", Correlation));
+            new Request(7, "WC", Correlation, OperatorRfidTestServices.Credential));
         var text = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.DoesNotContain("synthetic database detail", text);
@@ -66,7 +66,7 @@ public sealed class OperatorStopEndpointTests
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
             "/api/line-sessions/12/operator-stops",
-            new Request(7, "WC", Correlation));
+            new Request(7, "WC", Correlation, OperatorRfidTestServices.Credential));
         var text = await response.Content.ReadAsStringAsync();
         using var body = JsonDocument.Parse(text);
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
@@ -76,15 +76,37 @@ public sealed class OperatorStopEndpointTests
         Assert.DoesNotContain("52211", text);
     }
 
-    private static WebApplicationFactory<Program> Factory(IOperatorStopStarter starter) =>
+    [Fact]
+    public async Task PostOperatorStop_RejectsAnotherOperatorsRfidBeforeMutation()
+    {
+        using var factory = Factory(new MustNotRunStarter(), authorizedEmployeeId: 8);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/line-sessions/12/operator-stops",
+            new Request(7, "WC", Correlation, OperatorRfidTestServices.Credential));
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("RFID_OPERATOR_MISMATCH", body.RootElement.GetProperty("code").GetString());
+    }
+
+    private static WebApplicationFactory<Program> Factory(
+        IOperatorStopStarter starter,
+        long authorizedEmployeeId = 7) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IOperatorStopStarter>();
                 services.AddSingleton(starter);
+                services.AddAuthorizedOperatorRfid(authorizedEmployeeId);
             }));
 
-    private sealed record Request(long EmployeeId, string Reason, Guid CorrelationId);
+    private sealed record Request(
+        long EmployeeId,
+        string Reason,
+        Guid CorrelationId,
+        string Credential);
     private sealed class StubStarter : IOperatorStopStarter
     {
         public Task<OperatorStopRecord> StartAsync(
@@ -104,5 +126,11 @@ public sealed class OperatorStopEndpointTests
             throw new LineSessionRejectedException(
                 "OPERATOR_STOP_ALREADY_OPEN",
                 "El fichaje ya tiene un paro abierto.");
+    }
+    private sealed class MustNotRunStarter : IOperatorStopStarter
+    {
+        public Task<OperatorStopRecord> StartAsync(
+            StartOperatorStopCommand command, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("La mutación no debe ejecutarse.");
     }
 }

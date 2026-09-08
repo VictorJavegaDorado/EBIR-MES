@@ -48,7 +48,8 @@ public sealed class ProductiveExitEndpointTests
         using var client = factory.CreateClient();
         var request = new RegisterProductiveExitRequest(
             employeeId,
-            Guid.Parse(correlationId));
+            Guid.Parse(correlationId),
+            OperatorRfidTestServices.Credential);
 
         using var response = await client.PostAsJsonAsync(
             $"/api/line-sessions/{sessionId}/exits",
@@ -99,7 +100,7 @@ public sealed class ProductiveExitEndpointTests
     }
 
     private static RegisterProductiveExitRequest ValidRequest() =>
-        new(5, CorrelationId);
+        new(5, CorrelationId, OperatorRfidTestServices.Credential);
 
     private static WebApplicationFactory<Program> CreateFactory(
         IProductiveExitRegistrar registrar) =>
@@ -108,11 +109,13 @@ public sealed class ProductiveExitEndpointTests
             {
                 services.RemoveAll<IProductiveExitRegistrar>();
                 services.AddSingleton(registrar);
+                services.AddAuthorizedOperatorRfid(5);
             }));
 
     private sealed record RegisterProductiveExitRequest(
         long EmployeeId,
-        Guid CorrelationId);
+        Guid CorrelationId,
+        string Credential);
 
     private sealed class StubRegistrar(int activeResources)
         : IProductiveExitRegistrar

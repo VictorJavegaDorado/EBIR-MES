@@ -1,4 +1,5 @@
 using Ebir.Mes.Application.LineSessions;
+using Ebir.Mes.Application.Rfid;
 
 namespace Ebir.Mes.Api.Endpoints.LineSessions;
 
@@ -13,16 +14,35 @@ public static class FinishOperatorStopEndpoints
             .WithName("FinishOperatorStop")
             .WithSummary("Finaliza el paro abierto de un operario.")
             .Produces<FinishOperatorStopResponse>()
-            .ProducesProblem(400).ProducesProblem(409).ProducesProblem(503);
+            .ProducesProblem(400).ProducesProblem(403).ProducesProblem(409).ProducesProblem(503);
         return endpoints;
     }
 
     private static async Task<IResult> HandleAsync(
         long sessionId, FinishOperatorStopRequest request,
+        AuthorizeOperatorByRfid authorizeOperator,
         FinishOperatorStop useCase, CancellationToken cancellationToken)
     {
         try
         {
+            var authorization = await authorizeOperator.ExecuteAsync(
+                request.EmployeeId,
+                request.Credential,
+                cancellationToken);
+            if (!authorization.Authorized)
+            {
+                return Results.Problem(
+                    statusCode: authorization.ErrorCode == "EMPLOYEE_ID_INVALID"
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status403Forbidden,
+                    title: "RFID no autorizado",
+                    detail: authorization.ErrorMessage,
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["code"] = authorization.ErrorCode
+                    });
+            }
+
             var result = await useCase.ExecuteAsync(
                 new(sessionId, request.EmployeeId, request.CorrelationId),
                 cancellationToken);

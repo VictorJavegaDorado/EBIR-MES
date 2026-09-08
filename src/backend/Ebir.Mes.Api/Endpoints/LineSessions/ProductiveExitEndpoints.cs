@@ -1,4 +1,5 @@
 using Ebir.Mes.Application.LineSessions;
+using Ebir.Mes.Application.Rfid;
 
 namespace Ebir.Mes.Api.Endpoints.LineSessions;
 
@@ -14,6 +15,7 @@ public static class ProductiveExitEndpoints
             .WithSummary("Registra la salida productiva de un operario.")
             .Produces<RegisterProductiveExitResponse>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
 
@@ -23,11 +25,30 @@ public static class ProductiveExitEndpoints
     private static async Task<IResult> HandleAsync(
         long sessionId,
         RegisterProductiveExitRequest request,
+        AuthorizeOperatorByRfid authorizeOperator,
         RegisterProductiveExit registerProductiveExit,
         CancellationToken cancellationToken)
     {
         try
         {
+            var authorization = await authorizeOperator.ExecuteAsync(
+                request.EmployeeId,
+                request.Credential,
+                cancellationToken);
+            if (!authorization.Authorized)
+            {
+                return Results.Problem(
+                    statusCode: authorization.ErrorCode == "EMPLOYEE_ID_INVALID"
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status403Forbidden,
+                    title: "RFID no autorizado",
+                    detail: authorization.ErrorMessage,
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["code"] = authorization.ErrorCode
+                    });
+            }
+
             var command = new RegisterProductiveExitCommand(
                 sessionId,
                 request.EmployeeId,

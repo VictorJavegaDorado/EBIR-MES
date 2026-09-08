@@ -1,4 +1,5 @@
 using Ebir.Mes.Application.LineSessions;
+using Ebir.Mes.Application.Rfid;
 
 namespace Ebir.Mes.Api.Endpoints.LineSessions;
 
@@ -14,6 +15,7 @@ public static class OperatorStopEndpoints
             .WithSummary("Inicia un paro individual de operario.")
             .Produces<StartOperatorStopResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .ProducesProblem(StatusCodes.Status503ServiceUnavailable);
         return endpoints;
@@ -22,11 +24,30 @@ public static class OperatorStopEndpoints
     private static async Task<IResult> HandleAsync(
         long sessionId,
         StartOperatorStopRequest request,
+        AuthorizeOperatorByRfid authorizeOperator,
         StartOperatorStop startOperatorStop,
         CancellationToken cancellationToken)
     {
         try
         {
+            var authorization = await authorizeOperator.ExecuteAsync(
+                request.EmployeeId,
+                request.Credential,
+                cancellationToken);
+            if (!authorization.Authorized)
+            {
+                return Results.Problem(
+                    statusCode: authorization.ErrorCode == "EMPLOYEE_ID_INVALID"
+                        ? StatusCodes.Status400BadRequest
+                        : StatusCodes.Status403Forbidden,
+                    title: "RFID no autorizado",
+                    detail: authorization.ErrorMessage,
+                    extensions: new Dictionary<string, object?>
+                    {
+                        ["code"] = authorization.ErrorCode
+                    });
+            }
+
             var result = await startOperatorStop.ExecuteAsync(
                 new(sessionId, request.EmployeeId, request.Reason, request.CorrelationId),
                 cancellationToken);

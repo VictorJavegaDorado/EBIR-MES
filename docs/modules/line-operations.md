@@ -39,8 +39,10 @@ errores SQL no clasificados se ocultan tras `503`.
 
 ## Salida productiva
 
-`POST /api/line-sessions/{sessionId}/exits` recibe `employeeId` y
-`correlationId`, con las mismas reglas de identificadores que la entrada.
+`POST /api/line-sessions/{sessionId}/exits` recibe `employeeId`, `credential` y
+`correlationId`, con las mismas reglas de identificadores que la entrada. La
+credencial RFID debe identificar al mismo operario; una tarjeta distinta se
+rechaza sin ejecutar la salida.
 
 Una salida correcta devuelve `200`, el número de recursos productivos que
 permanecen activos en la sesión y la correlación recibida. Los rechazos
@@ -82,7 +84,8 @@ confirmadas y permite etiquetas MES listas pendientes de impresion.
 ## Inicio de paro de operario
 
 `POST /api/line-sessions/{sessionId}/operator-stops` recibe `employeeId`,
-`reason` y `correlationId`. Los motivos admitidos son `WC` y `PAUSA_CALOR`.
+`reason`, `credential` y `correlationId`. Los motivos admitidos son `WC` y
+`PAUSA_CALOR`, y la credencial debe pertenecer al operario seleccionado.
 
 Una operación correcta devuelve `201` con el identificador del paro, los
 recursos productivos que permanecen activos y la correlación. Los rechazos
@@ -92,8 +95,9 @@ los fallos no clasificados se ocultan tras `503`.
 
 ## Finalización de paro de operario
 
-`POST /api/line-sessions/{sessionId}/operator-stops/finish` recibe `employeeId`
-y `correlationId`. Una respuesta `200` incluye el paro finalizado, la
+`POST /api/line-sessions/{sessionId}/operator-stops/finish` recibe `employeeId`,
+`credential` y `correlationId`. La credencial debe pertenecer al operario
+seleccionado. Una respuesta `200` incluye el paro finalizado, la
 sustitución finalizada automáticamente —si existe— y los recursos activos.
 Los rechazos `52300–52317` se traducen a códigos funcionales seguros; las
 solicitudes inválidas devuelven `400`, los conflictos `409` y los fallos no

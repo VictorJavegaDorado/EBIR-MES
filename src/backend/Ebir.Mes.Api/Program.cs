@@ -62,6 +62,7 @@ builder.Services.AddScoped<PromoteProductionOrder>();
 builder.Services.AddScoped<PrepareProductionOrder>();
 builder.Services.AddScoped<ListSelectableProductionOrders>();
 builder.Services.AddScoped<IdentifyEmployeeByRfid>();
+builder.Services.AddScoped<AuthorizeOperatorByRfid>();
 builder.Services.AddScoped<StartOrJoinProductionTable>();
 builder.Services.AddScoped<GetProductionTableState>();
 builder.Services.AddScoped<GetActiveProductionTable>();

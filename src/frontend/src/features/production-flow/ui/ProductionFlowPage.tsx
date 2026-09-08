@@ -30,11 +30,24 @@ import {
   startOrJoinProductionTable,
   startOperatorStop,
 } from "../api/productionTable";
+import {
+  OperatorActionDialog,
+  type ActiveStopReason,
+  type OperatorActionKind,
+} from "./OperatorActionDialog";
 
-const steps = [
+const screenSteps = [
   { number: 1, short: "Línea", title: "Escanea la línea" },
   { number: 2, short: "Orden", title: "Escanea la orden" },
   { number: 3, short: "Trabajo", title: "Gestiona la producción" },
+] as const;
+
+const productionPhases = [
+  "Línea y orden",
+  "Identificación",
+  "Producción y palés",
+  "NAV e impresión",
+  "Finalización",
 ] as const;
 
 type FlowError = { message: string; code: string } | null;
@@ -52,6 +65,11 @@ export function ProductionFlowPage() {
   const [clock, setClock] = useState(() => performance.now());
   const [busy, setBusy] = useState(false);
   const [operatorAction, setOperatorAction] = useState<string | null>(null);
+  const [operatorDialog, setOperatorDialog] = useState<{
+    employee: ProductionTableState["operators"][number];
+    action: OperatorActionKind;
+  } | null>(null);
+  const operatorTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [palletOperator, setPalletOperator] = useState<
     ProductionTableState["operators"][number] | null
   >(null);
@@ -76,7 +94,7 @@ export function ProductionFlowPage() {
     refreshRequest.current?.abort();
   }, []);
   useEffect(() => {
-    if (!table || table.state !== "PRODUCIENDO" || table.activeResources === 0) return;
+    if (!table) return;
     const interval = window.setInterval(() => setClock(performance.now()), 1_000);
     return () => window.clearInterval(interval);
   }, [table]);
@@ -126,6 +144,17 @@ export function ProductionFlowPage() {
       window.setTimeout(() => palletTriggerRef.current?.focus(), 0);
     }
   }, [table, palletOperator]);
+
+  useEffect(() => {
+    if (!operatorDialog) return;
+    const currentOperator = table?.operators.find(
+      (operator) => operator.employeeId === operatorDialog.employee.employeeId,
+    );
+    if (!currentOperator) {
+      setOperatorDialog(null);
+      window.setTimeout(() => operatorTriggerRef.current?.focus(), 0);
+    }
+  }, [table, operatorDialog]);
 
   useEffect(() => {
     if (!palletOperator) return;
@@ -181,6 +210,11 @@ export function ProductionFlowPage() {
       + (table.state === "PRODUCIENDO" && table.activeResources > 0 ? elapsedSinceSnapshot : 0)
     : 0;
   const isProducing = table?.state === "PRODUCIENDO" && table.activeResources > 0;
+  const totalElapsedSeconds = table?.startedAtUtc
+    ? secondsBetween(table.startedAtUtc, table.serverTimeUtc) + elapsedSinceSnapshot
+    : 0;
+  const stoppedSeconds = Math.max(0, totalElapsedSeconds - productiveSeconds);
+  const productionPhase = getProductionPhase(activeStep, order, table);
 
   async function submitLine(event: FormEvent) {
     event.preventDefault();
@@ -411,14 +445,16 @@ export function ProductionFlowPage() {
 
   async function runOperatorAction(
     employeeId: number,
-    action: "EXIT" | "STOP_WC" | "STOP_HEAT" | "RESUME",
+    action: OperatorActionKind,
+    credential: string,
+    reason?: ActiveStopReason,
   ) {
     if (!table || !order || !line) {
       setError({ message: "No hay una mesa activa para esta acción.", code: "PRODUCTION_CONTEXT_REQUIRED" });
       return;
     }
 
-    const operationKey = `${table.lineSessionId}:${employeeId}:${action}`;
+    const operationKey = `${table.lineSessionId}:${employeeId}:${action}:${reason ?? ""}`;
     const correlationId = pendingCorrelations.current.get(operationKey) ?? createCorrelationId();
     pendingCorrelations.current.set(operationKey, correlationId);
     request.current?.abort();
@@ -433,17 +469,19 @@ export function ProductionFlowPage() {
     try {
       if (action === "EXIT") {
         await registerProductiveExit(
-          table.lineSessionId, employeeId, correlationId, controller.signal,
+          table.lineSessionId, employeeId, credential, correlationId, controller.signal,
         );
       } else if (action === "RESUME") {
         await finishOperatorStop(
-          table.lineSessionId, employeeId, correlationId, controller.signal,
+          table.lineSessionId, employeeId, credential, correlationId, controller.signal,
         );
       } else {
+        if (!reason) throw new ProductionTableApiError("STOP_REASON_REQUIRED");
         await startOperatorStop(
           table.lineSessionId,
           employeeId,
-          action === "STOP_WC" ? "WC" : "PAUSA_CALOR",
+          reason,
+          credential,
           correlationId,
           controller.signal,
         );
@@ -456,6 +494,8 @@ export function ProductionFlowPage() {
       acceptTableSnapshot(currentTable);
       pendingCorrelations.current.delete(operationKey);
       setNotice(operatorActionNotice(action));
+      setOperatorDialog(null);
+      window.setTimeout(() => operatorTriggerRef.current?.focus(), 0);
     } catch (caught) {
       if (controller.signal.aborted) return;
       setError({
@@ -486,6 +526,7 @@ export function ProductionFlowPage() {
     setRfidCredential("");
     setTable(null);
     setOperatorAction(null);
+    setOperatorDialog(null);
     palletBusyRef.current = false;
     setPalletOperator(null);
     pendingCorrelations.current.clear();
@@ -552,6 +593,7 @@ export function ProductionFlowPage() {
     setRfidCredential("");
     setTable(null);
     setOperatorAction(null);
+    setOperatorDialog(null);
     palletBusyRef.current = false;
     setPalletOperator(null);
     pendingCorrelations.current.clear();
@@ -582,21 +624,19 @@ export function ProductionFlowPage() {
       <header className="flow-heading">
         <div>
           <p className="eyebrow">Puesto de producción</p>
-          <h1>{steps[activeStep - 1].title}</h1>
+          <h1>{screenSteps[activeStep - 1].title}</h1>
           <p>Línea, orden y todo el trabajo en una única mesa.</p>
         </div>
         {line && (
           <div className="flow-heading-actions">
-            {order && (
+            {order && order.state !== "PENDIENTE_CIERRE" && (
               <button
                 className="flow-new-order"
                 type="button"
                 onClick={startNewOrder}
                 disabled={busy}
               >
-                {order.state === "PENDIENTE_CIERRE"
-                  ? "Finalizar orden"
-                  : "Nueva orden"}
+                Nueva orden
               </button>
             )}
             <button className="flow-reset" type="button" onClick={resetFlow}>
@@ -618,18 +658,21 @@ export function ProductionFlowPage() {
       )}
 
       <ol className="flow-progress" aria-label="Progreso de la orden">
-        {steps.map((step) => {
-          const state = step.number < activeStep ? "complete" : step.number === activeStep ? "active" : "pending";
+        {productionPhases.map((phase, index) => {
+          const number = index + 1;
+          const state = number < productionPhase
+            ? "complete"
+            : number === productionPhase ? "active" : "pending";
           return (
-            <li className={state} key={step.number} aria-current={state === "active" ? "step" : undefined}>
-              <span>{state === "complete" ? "✓" : step.number}</span>
-              <strong>{step.short}</strong>
+            <li className={state} key={phase} aria-current={state === "active" ? "step" : undefined}>
+              <span>{state === "complete" ? "✓" : number}</span>
+              <strong>{phase}</strong>
             </li>
           );
         })}
       </ol>
 
-      <div className="flow-layout">
+      <div className={`flow-layout${activeStep === 3 ? " working" : ""}`}>
         <main className="flow-stage">
           {activeStep === 1 && (
             <ScanStage
@@ -665,15 +708,22 @@ export function ProductionFlowPage() {
 
           {activeStep === 3 && (
             <section className="flow-card rfid-stage">
-              <div className="stage-number">03</div>
-              <div className="stage-copy">
-                <p className="eyebrow">Paso 3 de 3 · Trabajo</p>
-                <h2>Mesa de producción</h2>
-                <p>Gestiona equipo, tiempos y palés sin salir de esta pantalla.</p>
-              </div>
-              <form className="scan-form" onSubmit={submitRfid}>
-                <label htmlFor="rfid-credential">Lector RFID</label>
-                <div className="scan-control rfid-control">
+              {order && (
+                <ProductionOrderHero
+                  order={order}
+                  table={table}
+                  phase={productionPhase}
+                  onComplete={startNewOrder}
+                  busy={busy}
+                />
+              )}
+
+              <form className="operator-entry-strip" onSubmit={submitRfid}>
+                <div>
+                  <strong>Incorporar operario</strong>
+                  <small>Acerca su tarjeta RFID al lector.</small>
+                </div>
+                <div className="scan-control rfid-control compact">
                   <span aria-hidden="true">RF</span>
                   <input
                     id="rfid-credential"
@@ -682,6 +732,7 @@ export function ProductionFlowPage() {
                     value={rfidCredential}
                     onChange={(event) => setRfidCredential(event.target.value)}
                     placeholder="Esperando tarjeta…"
+                    aria-label="Lector RFID"
                     aria-describedby="rfid-privacy"
                   />
                   <button type="submit" disabled={busy}>{busy ? "Validando…" : "Identificar"}</button>
@@ -689,19 +740,15 @@ export function ProductionFlowPage() {
                 <small id="rfid-privacy">El valor de la tarjeta no aparece en pantalla ni se conserva.</small>
               </form>
 
-              <div
-                className={`production-status${isProducing ? " active" : table ? " initialized" : ""}`}
-                role="status"
-                aria-live="polite"
-              >
-                <div className="production-state">
-                  <span className="production-pulse" aria-hidden="true" />
-                  <div><small>Estado de mesa</small><strong>{table ? formatTableState(table.state) : "ESPERANDO PRIMER OPERARIO"}</strong></div>
-                </div>
-                <div className="production-metric"><small>Tiempo productivo total</small><strong>{formatDuration(productiveSeconds)}</strong></div>
-                <div className="production-metric"><small>Capacidad actual</small><strong>{table ? `${table.activeResources} pers. · ${formatCapacity(table.currentTheoreticalCapacityPerHour)} u/h` : "0 pers."}</strong></div>
-                <div className="production-metric"><small>Paletizado</small><strong>{table ? `${table.palletFormatCode} · ${table.unitsPerPallet} uds.` : "Pendiente"}</strong></div>
-              </div>
+              {order && (
+                <ProductionTimeStrip
+                  table={table}
+                  order={order}
+                  totalElapsedSeconds={totalElapsedSeconds}
+                  productiveSeconds={productiveSeconds}
+                  stoppedSeconds={stoppedSeconds}
+                />
+              )}
 
               {table && (
                 <p className="production-sync">
@@ -720,6 +767,15 @@ export function ProductionFlowPage() {
                       .slice(0, 2)
                       .map((part) => part[0]?.toUpperCase())
                       .join("");
+
+                    const currentEntrySeconds = secondsBetween(
+                      employee.entryAtUtc,
+                      table.serverTimeUtc,
+                    ) + elapsedSinceSnapshot;
+                    const visibleProductiveSeconds = employee.productiveSeconds
+                      + (employee.status === "PRODUCIENDO" && isProducing
+                        ? elapsedSinceSnapshot
+                        : 0);
 
                     return (
                       <div
@@ -742,49 +798,68 @@ export function ProductionFlowPage() {
                             </span>
                           </div>
                           <small>
-                            {employee.navEmployeeCode} · {employee.status === "EN_PAUSA" ? "En pausa" : "Produciendo"} · {formatDuration(
-                              employee.productiveSeconds
-                              + (employee.status === "PRODUCIENDO" && isProducing ? elapsedSinceSnapshot : 0),
-                            )}
+                            {employee.navEmployeeCode}
                           </small>
+                        </div>
+
+                        <div className="employee-current-state">
+                          <small>{employee.status === "EN_PAUSA" ? "Paro activo" : "Estado actual"}</small>
+                          <strong>{employee.status === "EN_PAUSA" ? "EN PARO" : "PRODUCIENDO"}</strong>
+                          <span>{formatDuration(visibleProductiveSeconds)}</span>
+                          <em>{employee.status === "EN_PAUSA" ? "Productivo acumulado" : "Tiempo productivo"}</em>
+                        </div>
+
+                        <div className="employee-time-grid">
+                          <div><small>Desde entrada</small><strong>{formatDuration(currentEntrySeconds)}</strong></div>
+                          <div><small>Productivo</small><strong>{formatDuration(visibleProductiveSeconds)}</strong></div>
+                          <div><small>Parado</small><strong>{employee.status === "EN_PAUSA" ? "En curso" : "—"}</strong></div>
                         </div>
 
                         <div className="employee-actions">
                           {employee.status === "EN_PAUSA" ? (
                             <button
                               type="button"
+                              className="employee-resume-action"
                               disabled={operatorAction !== null}
                               aria-label={`Reanudar a ${employee.fullName}`}
-                              onClick={() => runOperatorAction(employee.employeeId, "RESUME")}
+                              onClick={(event) => {
+                                operatorTriggerRef.current = event.currentTarget;
+                                setError(null);
+                                setNotice("");
+                                setOperatorDialog({ employee, action: "RESUME" });
+                              }}
                             >
-                              Reanudar
+                              Reincorporar
                             </button>
                           ) : (
                             <>
                               <button
                                 type="button"
+                                className="employee-stop-action"
                                 disabled={operatorAction !== null}
-                                aria-label={`Pausa WC de ${employee.fullName}`}
-                                onClick={() => runOperatorAction(employee.employeeId, "STOP_WC")}
+                                aria-label={`Registrar paro de ${employee.fullName}`}
+                                onClick={(event) => {
+                                  operatorTriggerRef.current = event.currentTarget;
+                                  setError(null);
+                                  setNotice("");
+                                  setOperatorDialog({ employee, action: "STOP" });
+                                }}
                               >
-                                WC
-                              </button>
-                              <button
-                                type="button"
-                                disabled={operatorAction !== null}
-                                aria-label={`Pausa calor de ${employee.fullName}`}
-                                onClick={() => runOperatorAction(employee.employeeId, "STOP_HEAT")}
-                              >
-                                Calor
+                                PARO
                               </button>
                               <button
                                 type="button"
                                 className="employee-exit-action"
                                 disabled={operatorAction !== null}
                                 aria-label={`Registrar salida de ${employee.fullName}`}
-                                onClick={() => runOperatorAction(employee.employeeId, "EXIT")}
+                                onClick={(event) => {
+                                  operatorTriggerRef.current = event.currentTarget;
+                                  setError(null);
+                                  setNotice("");
+                                  setOperatorDialog({ employee, action: "EXIT" });
+                                }}
                               >
-                                Salir
+                                Salir de la mesa
                               </button>
                               <button
                                 type="button"
@@ -812,9 +887,42 @@ export function ProductionFlowPage() {
               )}
 
               {table && (
-                <PalletRecoveryActions
-                  lineId={table.lineId}
-                  recovery={table.latestPalletRecovery ?? null}
+                <section className="production-integration-band" aria-label="Estado de NAV e impresión">
+                  <header>
+                    <div>
+                      <p className="eyebrow">Confirmación del último palé</p>
+                      <h3>NAV e impresión</h3>
+                    </div>
+                    {!table.latestPalletRecovery && <span className="integration-waiting">Sin palés cerrados</span>}
+                  </header>
+                  {table.latestPalletRecovery ? (
+                    <PalletRecoveryActions
+                      lineId={table.lineId}
+                      recovery={table.latestPalletRecovery}
+                    />
+                  ) : (
+                    <p className="integration-empty">La conciliación y la etiqueta aparecerán aquí al cerrar el primer palé.</p>
+                  )}
+                </section>
+              )}
+
+              {operatorDialog && (
+                <OperatorActionDialog
+                  action={operatorDialog.action}
+                  employee={operatorDialog.employee}
+                  busy={operatorAction !== null}
+                  serverError={error}
+                  onCancel={() => {
+                    if (operatorAction !== null) return;
+                    setOperatorDialog(null);
+                    window.setTimeout(() => operatorTriggerRef.current?.focus(), 0);
+                  }}
+                  onConfirm={(credential, reason) => runOperatorAction(
+                    operatorDialog.employee.employeeId,
+                    operatorDialog.action,
+                    credential,
+                    reason,
+                  )}
                 />
               )}
 
@@ -878,7 +986,7 @@ export function ProductionFlowPage() {
 
         </main>
 
-        <aside className="flow-summary" aria-label="Resumen de la operación">
+        {activeStep !== 3 && <aside className="flow-summary" aria-label="Resumen de la operación">
           <div className="summary-title"><span className="environment-dot" /><div><strong>Operación actual</strong><small>Actualización en tiempo real</small></div></div>
           <SummaryRow label="Línea" value={line?.code ?? "Pendiente"} complete={Boolean(line)} />
           <SummaryRow label="Orden" value={order?.orderNumber ?? "Pendiente"} complete={Boolean(order)} />
@@ -889,9 +997,101 @@ export function ProductionFlowPage() {
             <strong>{order?.productDescription ?? "Se mostrará al escanear la orden"}</strong>
             {order && <small>{order.productNumber} · Lote {order.lotNumber}</small>}
           </div>
-        </aside>
+        </aside>}
       </div>
     </div>
+  );
+}
+
+type ProductionOrderHeroProps = {
+  order: ProductionOrder;
+  table: ProductionTableState | null;
+  phase: number;
+  busy: boolean;
+  onComplete: () => void;
+};
+
+function ProductionOrderHero({
+  order,
+  table,
+  phase,
+  busy,
+  onComplete,
+}: ProductionOrderHeroProps) {
+  const remaining = Math.max(0, order.targetQuantity - order.goodQuantity);
+  const progress = order.targetQuantity > 0
+    ? Math.min(100, Math.round(order.goodQuantity * 100 / order.targetQuantity))
+    : 0;
+  const totalPallets = table?.unitsPerPallet
+    ? Math.max(1, Math.ceil(order.targetQuantity / table.unitsPerPallet))
+    : null;
+  const completedPallets = table?.latestPalletRecovery?.palletNumber ?? 0;
+  const palletLabel = totalPallets
+    ? `${Math.min(completedPallets + (remaining > 0 ? 1 : 0), totalPallets)} de ${totalPallets}`
+    : "Pendiente";
+  const instruction = getProductionInstruction(order, table, palletLabel);
+  const tone = getTableTone(order, table);
+
+  return (
+    <section className={`production-order-hero ${tone}`} aria-label="Orden activa">
+      <div className="production-order-main">
+        <div>
+          <p className="eyebrow">Orden activa · Fase {phase} de 5</p>
+          <h2>{order.orderNumber}</h2>
+          <p>{order.productNumber} · {order.productDescription} · Lote {order.lotNumber}</p>
+        </div>
+        <div className="production-order-progress" aria-label={`${progress} por ciento completado`}>
+          <strong>{order.goodQuantity}<small> / {order.targetQuantity} uds.</small></strong>
+          <span>{progress}%</span>
+        </div>
+      </div>
+
+      <div className="order-progress-track" aria-hidden="true">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className="production-order-facts">
+        <div><small>Palé actual</small><strong>{palletLabel}</strong></div>
+        <div><small>Unidades restantes</small><strong>{remaining}</strong></div>
+        <div><small>Formato</small><strong>{table ? `${table.palletFormatCode} · ${table.unitsPerPallet} uds.` : "Pendiente"}</strong></div>
+        <div><small>Línea</small><strong>{table ? formatTableState(table.state) : "Identificando equipo"}</strong></div>
+      </div>
+
+      <div className="production-next-action" role="status" aria-live="polite">
+        <span className="production-pulse" aria-hidden="true" />
+        <div><small>Estado y siguiente acción</small><strong>{instruction}</strong></div>
+        {order.state === "PENDIENTE_CIERRE" && (
+          <button type="button" onClick={onComplete} disabled={busy}>
+            {busy ? "Finalizando…" : "Finalizar orden"}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ProductionTimeStrip({
+  table,
+  order,
+  totalElapsedSeconds,
+  productiveSeconds,
+  stoppedSeconds,
+}: {
+  table: ProductionTableState | null;
+  order: ProductionOrder;
+  totalElapsedSeconds: number;
+  productiveSeconds: number;
+  stoppedSeconds: number;
+}) {
+  return (
+    <section className="production-time-strip" aria-label="Tiempos de producción">
+      <div className="primary-time"><small>Tiempo global de mesa</small><strong>{formatDuration(totalElapsedSeconds)}</strong></div>
+      <div><small>Productivo</small><strong>{formatDuration(productiveSeconds)}</strong></div>
+      <div><small>Parado</small><strong>{formatDuration(stoppedSeconds)}</strong></div>
+      <div><small>Ruta NAV</small><strong>{formatMinutes(order.runTimeMinutes)}</strong></div>
+      <div><small>Comparación</small><strong>{formatRouteComparison(productiveSeconds, order.runTimeMinutes)}</strong></div>
+      <div><small>Ritmo teórico actual</small><strong>{table ? `${formatCapacity(table.currentTheoreticalCapacityPerHour)} u/h` : "—"}</strong></div>
+    </section>
   );
 }
 
@@ -943,6 +1143,28 @@ function formatDuration(totalSeconds: number): string {
   return [hours, minutes, remainder].map((value) => String(value).padStart(2, "0")).join(":");
 }
 
+function secondsBetween(start: string, end: string): number {
+  const startMs = Date.parse(start);
+  const endMs = Date.parse(end);
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0;
+  return Math.max(0, Math.floor((endMs - startMs) / 1_000));
+}
+
+function formatMinutes(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "No disponible";
+  const totalSeconds = Math.round(value * 60);
+  const hours = Math.floor(totalSeconds / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  return hours > 0 ? `${hours} h ${String(minutes).padStart(2, "0")} min` : `${minutes} min`;
+}
+
+function formatRouteComparison(productive: number, routeMinutes: number): string {
+  const target = routeMinutes * 60;
+  if (!Number.isFinite(target) || target <= 0) return "No disponible";
+  const percentage = Math.round(productive * 100 / target);
+  return `${percentage}% del tiempo NAV`;
+}
+
 function formatCapacity(value: number): string {
   return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 }).format(value);
 }
@@ -962,10 +1184,66 @@ function formatTimestamp(value: string | null): string {
   }).format(timestamp);
 }
 
-function operatorActionNotice(action: "EXIT" | "STOP_WC" | "STOP_HEAT" | "RESUME"): string {
+function operatorActionNotice(action: OperatorActionKind): string {
   if (action === "EXIT") return "Salida registrada. Capacidad actualizada por el servidor.";
   if (action === "RESUME") return "Operario reincorporado. El tiempo individual vuelve a avanzar.";
   return "Pausa registrada. El acumulado individual queda detenido.";
+}
+
+function getProductionPhase(
+  activeStep: number,
+  order: ProductionOrder | null,
+  table: ProductionTableState | null,
+): number {
+  if (activeStep < 3) return 1;
+  if (!table) return 2;
+  if (order?.state === "PENDIENTE_CIERRE") return 5;
+  const recovery = table.latestPalletRecovery;
+  if (
+    recovery
+    && (recovery.navState !== "CONFIRMADA"
+      || !["LISTA", "IMPRESA"].includes(recovery.labelState ?? ""))
+  ) return 4;
+  return table.operators.length === 0 && order?.goodQuantity === 0 ? 2 : 3;
+}
+
+function getProductionInstruction(
+  order: ProductionOrder,
+  table: ProductionTableState | null,
+  palletLabel: string,
+): string {
+  if (order.state === "PENDIENTE_CIERRE") {
+    return "Todos los palés están completados. Finaliza la orden para liberar la línea.";
+  }
+  if (!table) return "Esperando operarios · Acerca la primera tarjeta RFID.";
+  const recovery = table.latestPalletRecovery;
+  if (recovery?.navState === "RESULTADO_DESCONOCIDO" || recovery?.labelState === "ERROR") {
+    return "El último palé necesita revisión · Utiliza las acciones de recuperación.";
+  }
+  if (recovery && recovery.navState !== "CONFIRMADA") {
+    return `Palé ${recovery.palletNumber} cerrado · Conciliando con NAV sin reenviar la salida.`;
+  }
+  if (recovery && !["LISTA", "IMPRESA"].includes(recovery.labelState ?? "")) {
+    return `NAV confirmado para el palé ${recovery.palletNumber} · Preparando la etiqueta.`;
+  }
+  if (table.activeResources === 0) {
+    return "Mesa sin operarios · Identifica un operario para continuar.";
+  }
+  return `Produciendo · El siguiente paso es cerrar el palé ${palletLabel}.`;
+}
+
+function getTableTone(
+  order: ProductionOrder,
+  table: ProductionTableState | null,
+): "green" | "amber" | "blue" | "red" | "gray" {
+  if (order.state === "PENDIENTE_CIERRE") return "amber";
+  if (!table) return "gray";
+  const recovery = table.latestPalletRecovery;
+  if (recovery?.navState === "RESULTADO_DESCONOCIDO" || recovery?.labelState === "ERROR") return "red";
+  if (recovery && (recovery.navState !== "CONFIRMADA"
+    || !["LISTA", "IMPRESA"].includes(recovery.labelState ?? ""))) return "blue";
+  if (table.activeResources === 0) return "gray";
+  return "green";
 }
 
 function PalletIcon() {

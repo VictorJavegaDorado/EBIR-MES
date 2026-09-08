@@ -112,12 +112,13 @@ export async function completeProductionOrder(
 export async function registerProductiveExit(
   lineSessionId: number,
   employeeId: number,
+  credential: string,
   correlationId: string,
   signal?: AbortSignal,
 ): Promise<void> {
   await postOperatorAction(
     `/api/line-sessions/${lineSessionId}/exits`,
-    { employeeId, correlationId },
+    { employeeId, credential, correlationId },
     signal,
   );
 }
@@ -126,12 +127,13 @@ export async function startOperatorStop(
   lineSessionId: number,
   employeeId: number,
   reason: "WC" | "PAUSA_CALOR",
+  credential: string,
   correlationId: string,
   signal?: AbortSignal,
 ): Promise<void> {
   await postOperatorAction(
     `/api/line-sessions/${lineSessionId}/operator-stops`,
-    { employeeId, reason, correlationId },
+    { employeeId, reason, credential, correlationId },
     signal,
   );
 }
@@ -139,12 +141,13 @@ export async function startOperatorStop(
 export async function finishOperatorStop(
   lineSessionId: number,
   employeeId: number,
+  credential: string,
   correlationId: string,
   signal?: AbortSignal,
 ): Promise<void> {
   await postOperatorAction(
     `/api/line-sessions/${lineSessionId}/operator-stops/finish`,
-    { employeeId, correlationId },
+    { employeeId, credential, correlationId },
     signal,
   );
 }

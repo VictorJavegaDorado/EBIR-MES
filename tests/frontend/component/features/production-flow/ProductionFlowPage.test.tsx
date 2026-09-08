@@ -55,10 +55,16 @@ afterEach(() => {
 });
 
 describe("ProductionFlowPage", () => {
-  it("shows the three operator steps without module navigation", () => {
+  it("shows the five production phases without module navigation", () => {
     render(<ProductionFlowPage />);
 
-    for (const label of ["Línea", "Orden", "Trabajo"]) {
+    for (const label of [
+      "Línea y orden",
+      "Identificación",
+      "Producción y palés",
+      "NAV e impresión",
+      "Finalización",
+    ]) {
       expect(screen.getAllByText(label).length).toBeGreaterThan(0);
     }
     expect(screen.queryByText("Equipo")).not.toBeInTheDocument();
@@ -191,8 +197,9 @@ describe("ProductionFlowPage", () => {
     const [, request] = fetchMock.mock.calls[3];
     expect(JSON.parse(String(request?.body))).toEqual({ credential: "SYNTHETIC-CARD" });
     expect(fetchMock.mock.calls[4][0]).toBe("/api/production-workstations/start-or-join");
-    expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
-    expect(screen.getByText("Tiempo productivo total").nextElementSibling?.textContent)
+    expect(screen.getAllByText("PRODUCIENDO").length).toBeGreaterThan(0);
+    const times = screen.getByRole("region", { name: /tiempos de producción/i });
+    expect(within(times).getByText("Productivo").nextElementSibling?.textContent)
       .toMatch(/^00:01:0[5-9]$/);
   });
 
@@ -208,7 +215,7 @@ describe("ProductionFlowPage", () => {
     await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
 
     expect(await screen.findByText(/recuperada desde el servidor/i)).toBeInTheDocument();
-    expect(screen.getByText("PRODUCIENDO")).toBeInTheDocument();
+    expect(screen.getAllByText("PRODUCIENDO").length).toBeGreaterThan(0);
     expect(screen.getByText("Operario piloto")).toBeInTheDocument();
     expect(screen.getByText(/Actualización automática cada 10 s/i)).toBeInTheDocument();
   });
@@ -302,8 +309,16 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText("Operario piloto")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /Registrar salida de Operario piloto/i }));
+    const exitDialog = await screen.findByRole("dialog", { name: /salir de la mesa/i });
+    await userEvent.type(
+      within(exitDialog).getByLabelText(/confirmación RFID/i),
+      "SYNTHETIC-CARD{enter}",
+    );
 
     expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/exits");
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual(
+      expect.objectContaining({ employeeId: 7, credential: "SYNTHETIC-CARD" }),
+    );
     expect(await screen.findByText("Todavía no hay personas identificadas.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Finalizar orden" }));
 
@@ -378,13 +393,16 @@ describe("ProductionFlowPage", () => {
     await screen.findByRole("heading", { name: "Escanea la orden" });
     await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
 
-    expect(await screen.findByText("00:01:05")).toBeInTheDocument();
+    expect((await screen.findAllByText("00:01:05")).length).toBeGreaterThan(0);
     monotonicTime += 1_100;
     await new Promise((resolve) => window.setTimeout(resolve, 1_100));
 
     await waitFor(() => {
-      expect(screen.getByText("00:01:06")).toBeInTheDocument();
-      expect(screen.getByText(/EMP-7.*00:01:06/)).toBeInTheDocument();
+      expect(screen.getAllByText("00:01:06").length).toBeGreaterThan(0);
+      const employeeCard = screen.getByText("Operario piloto").closest(".employee-chip");
+      expect(employeeCard).not.toBeNull();
+      expect(within(employeeCard as HTMLElement).getAllByText("00:01:06").length)
+        .toBeGreaterThan(0);
     });
   });
 
@@ -428,8 +446,11 @@ describe("ProductionFlowPage", () => {
     await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
 
     expect(await screen.findByText("SIN OPERARIOS")).toBeInTheDocument();
-    expect(screen.getByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
-    expect(screen.queryByText("PRODUCIENDO")).not.toBeInTheDocument();
+    const pausedCard = screen.getByText("Operario piloto").closest(".employee-chip");
+    expect(pausedCard).not.toBeNull();
+    expect(within(pausedCard as HTMLElement).getByText("EN PARO")).toBeInTheDocument();
+    expect(within(pausedCard as HTMLElement).getAllByText("00:01:05").length)
+      .toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: /cerrar palet como/i }))
       .not.toBeInTheDocument();
   });
@@ -453,14 +474,49 @@ describe("ProductionFlowPage", () => {
     await screen.findByRole("heading", { name: "Escanea la orden" });
     await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
     await screen.findByText("Operario piloto");
-    await userEvent.click(screen.getByRole("button", { name: /Pausa WC de Operario piloto/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Registrar paro de Operario piloto/i }));
+    const stopDialog = await screen.findByRole("dialog", { name: /registrar un paro/i });
+    expect(within(stopDialog).getAllByRole("button")).toHaveLength(11);
+    await userEvent.click(within(stopDialog).getByRole("button", { name: /^WC$/i }));
+    await userEvent.type(
+      within(stopDialog).getByLabelText(/confirmación RFID/i),
+      "SYNTHETIC-CARD{enter}",
+    );
 
     expect(fetchMock.mock.calls[3][0]).toBe("/api/line-sessions/12/operator-stops");
     expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual(
-      expect.objectContaining({ employeeId: 7, reason: "WC" }),
+      expect.objectContaining({ employeeId: 7, reason: "WC", credential: "SYNTHETIC-CARD" }),
     );
-    expect(await screen.findByText(/EMP-7 · En pausa · 00:01:05/)).toBeInTheDocument();
+    expect(await screen.findByText("EN PARO")).toBeInTheDocument();
     expect(screen.getByText(/Pausa registrada/i)).toBeInTheDocument();
+  });
+
+  it("keeps the operator action open when the RFID does not match", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableState), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        code: "RFID_OPERATOR_MISMATCH",
+        detail: "La tarjeta RFID no pertenece al operario seleccionado.",
+      }), { status: 403, headers: { "Content-Type": "application/problem+json" } }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+    await screen.findByText("Operario piloto");
+
+    await userEvent.click(screen.getByRole("button", { name: /Registrar paro de Operario piloto/i }));
+    const dialog = await screen.findByRole("dialog", { name: /registrar un paro/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /^WC$/i }));
+    const credential = within(dialog).getByLabelText(/confirmación RFID/i);
+    await userEvent.type(credential, "OTHER-CARD{enter}");
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("RFID_OPERATOR_MISMATCH");
+    expect(credential).toHaveValue("");
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(screen.getAllByText("Operario piloto").length).toBeGreaterThan(0);
   });
 
   it("keeps pallet work and NAV background status inside the production table", async () => {
@@ -527,7 +583,7 @@ describe("ProductionFlowPage", () => {
       "Palet cerrado. Esperando confirmación de NAV antes del siguiente.",
     );
     expect(screen.getAllByText("Operario piloto").length).toBeGreaterThan(0);
-    expect(screen.getByText("Tiempo productivo total")).toBeInTheDocument();
+    expect(screen.getByText("Tiempo global de mesa")).toBeInTheDocument();
     expect(screen.getByText(/NAV se procesa en segundo plano/i)).toBeInTheDocument();
 
     await userEvent.keyboard("{Escape}");

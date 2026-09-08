@@ -21,7 +21,7 @@ public sealed class FinishOperatorStopEndpointTests
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
             "/api/line-sessions/12/operator-stops/finish",
-            new Request(7, Correlation));
+            new Request(7, Correlation, OperatorRfidTestServices.Credential));
         using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal(31, body.RootElement.GetProperty("id").GetInt64());
@@ -36,7 +36,7 @@ public sealed class FinishOperatorStopEndpointTests
         using var client = factory.CreateClient();
         using var response = await client.PostAsJsonAsync(
             "/api/line-sessions/12/operator-stops/finish",
-            new Request(7, Correlation));
+            new Request(7, Correlation, OperatorRfidTestServices.Credential));
         var text = await response.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
         Assert.DoesNotContain("synthetic database detail", text);
@@ -48,8 +48,9 @@ public sealed class FinishOperatorStopEndpointTests
             {
                 services.RemoveAll<IOperatorStopFinisher>();
                 services.AddSingleton(finisher);
+                services.AddAuthorizedOperatorRfid();
             }));
-    private sealed record Request(long EmployeeId, Guid CorrelationId);
+    private sealed record Request(long EmployeeId, Guid CorrelationId, string Credential);
     private sealed class StubFinisher : IOperatorStopFinisher
     {
         public Task<FinishedOperatorStopRecord> FinishAsync(

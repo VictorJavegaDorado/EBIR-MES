@@ -120,10 +120,14 @@ permitir reintentar sin duplicar datos.
 
 ## Recorrido simplificado del terminal
 
-El piloto presenta unicamente tres pasos: `Linea`, `Orden` y `Trabajo`.
-Identificacion RFID, tiempos, paros y paletizacion conviven dentro de Trabajo;
-el operario no navega a una pantalla de pales ni a un paso NAV. La mesa sigue
-siendo recuperable desde el servidor al recargar.
+El terminal conserva tres pantallas operativas (`Linea`, `Orden` y `Trabajo`),
+pero presenta de forma persistente cinco fases visuales para que el operario
+sepa en todo momento donde esta: `Linea y orden`, `Identificacion`,
+`Produccion y pales`, `NAV e impresion` y `Finalizacion`. Estas fases son un
+indicador de estado y no una navegacion. Identificacion RFID, tiempos, paros y
+paletizacion conviven dentro de Trabajo; el operario no navega a una pantalla
+de pales ni confirma NAV manualmente. La mesa sigue siendo recuperable desde
+el servidor al recargar.
 
 Las reservas de pale permanecen como garantia tecnica de concurrencia e
 idempotencia, pero no son un concepto visible ni seleccionable. La interfaz
@@ -220,6 +224,14 @@ Cada persona visible dispone de acciones tactiles de salida, pausa `WC`, pausa
 sesion existentes, conserva la correlacion durante un reintento y vuelve a leer
 la mesa despues de cada mutacion. El resultado visual siempre procede de esa
 lectura posterior del servidor.
+
+Las acciones `PARO`, `Reincorporar` y `Salir de la mesa` exigen la credencial
+RFID del propio operario dentro de la misma solicitud que ejecuta la
+transicion. El servidor resuelve la credencial y comprueba que pertenece al
+empleado seleccionado antes de mutar el estado. El cliente borra el valor al
+enviarlo y ni la credencial ni su huella se devuelven o persisten como estado
+de pantalla. El selector reserva diez posiciones visuales; hasta definir el
+catalogo definitivo solo `WC` y `PAUSA_CALOR` estan habilitados.
 
 La tarjeta representa a la persona mediante un avatar circular con sus
 iniciales; este corte no consulta ni persiste fotografias. Cuando la persona
