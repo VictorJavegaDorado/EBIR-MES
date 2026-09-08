@@ -11,6 +11,13 @@ El paquete `038A_reimpresion_etiqueta_palet.sql` fue instalado y validado el
 31/08/2026 en `EBIR_MES_TEST`. Su alcance y garantias se describen en
 `038_README.md`.
 
+El paquete `047A_confirmar_reconciliacion_tardia_salida_palet_68.sql` fue
+instalado y validado el 08/09/2026 en `EBIR_MES_TEST`. Confirmo localmente la
+operacion 68 despues de observar en NAV EbirTest su unica salida 26872 como
+`Registrado`, sin reenviarla. La etiqueta 59 se imprimio en un unico intento y
+la orden `FL26-00014` quedo disponible para su cierre. Antes de la instalacion
+se creo y verifico un backup `COPY_ONLY`.
+
 ## Orden
 
 1. `001_esquemas_configuracion.sql` — aplicado.
