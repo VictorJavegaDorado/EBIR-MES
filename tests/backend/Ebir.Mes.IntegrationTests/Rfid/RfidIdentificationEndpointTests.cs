@@ -40,7 +40,41 @@ public sealed class RfidIdentificationEndpointTests
         Assert.DoesNotContain("04A1B2C3", content);
     }
 
-    private static WebApplicationFactory<Program> Factory(IRfidEmployeeReader reader) =>
+    [Fact]
+    public async Task SupervisorAccess_returns_authorized_active_supervisor()
+    {
+        using var factory = Factory(
+            new StubReader(null),
+            new StubSupervisorReader(new(9, "SUP-09", "Supervisor Test")));
+        using var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/supervisor-access/rfid",
+            new { credential = "SUPERVISOR-CARD" });
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("SUP-09", content);
+        Assert.DoesNotContain("SUPERVISOR-CARD", content);
+    }
+
+    [Fact]
+    public async Task SupervisorAccess_rejects_card_without_current_supervisor_role()
+    {
+        using var factory = Factory(
+            new StubReader(null),
+            new StubSupervisorReader(null));
+        using var response = await factory.CreateClient().PostAsJsonAsync(
+            "/api/supervisor-access/rfid",
+            new { credential = "OPERATOR-CARD" });
+        var content = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("RFID_SUPERVISOR_NOT_AUTHORIZED", content);
+        Assert.DoesNotContain("OPERATOR-CARD", content);
+    }
+
+    private static WebApplicationFactory<Program> Factory(
+        IRfidEmployeeReader reader,
+        ISupervisorRfidReader? supervisorReader = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
@@ -48,9 +82,11 @@ public sealed class RfidIdentificationEndpointTests
             {
                 services.RemoveAll<IRfidCredentialFingerprinter>();
                 services.RemoveAll<IRfidEmployeeReader>();
+                services.RemoveAll<ISupervisorRfidReader>();
                 services.AddSingleton<IRfidCredentialFingerprinter>(
                     new StubFingerprinter());
                 services.AddSingleton(reader);
+                services.AddSingleton(supervisorReader ?? new StubSupervisorReader(null));
             });
         });
 
@@ -60,6 +96,14 @@ public sealed class RfidIdentificationEndpointTests
     }
 
     private sealed class StubReader(RfidEmployeeRecord? employee) : IRfidEmployeeReader
+    {
+        public Task<RfidEmployeeRecord?> ReadAsync(
+            byte[] credentialFingerprint,
+            CancellationToken cancellationToken) => Task.FromResult(employee);
+    }
+
+    private sealed class StubSupervisorReader(RfidEmployeeRecord? employee)
+        : ISupervisorRfidReader
     {
         public Task<RfidEmployeeRecord?> ReadAsync(
             byte[] credentialFingerprint,

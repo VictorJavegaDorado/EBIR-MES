@@ -39,7 +39,6 @@ export function AppShell({ children, variant = "production" }: AppShellProps) {
           <nav className="topbar-nav" aria-label="Módulos MES">
             <a className={variant === "production" ? "active" : ""} href="/">Producción</a>
             <a className={variant === "labels" ? "active" : ""} href="/etiquetas">Etiquetas</a>
-            <a className={variant === "dashboard" ? "active" : ""} href="/dashboard">Dashboard</a>
           </nav>
           <div className="environment-pill">
             <span className="environment-dot" />

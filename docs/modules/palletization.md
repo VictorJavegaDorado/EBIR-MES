@@ -184,6 +184,13 @@ impresión original `COMPLETADO` y no hay un trabajo abierto. En cualquier otro
 caso se muestra el punto que necesita revisión, sin volver a enviar la salida a
 NAV ni crear automáticamente otra copia.
 
+El acceso a `/etiquetas` está moderado en cada entrada o recarga mediante RFID.
+El backend solo lo autoriza cuando la credencial, el empleado y una asignación
+vigente del rol `SUPERVISOR` están activos. La pantalla protegida y su consulta
+no se montan antes de esa validación. La credencial se elimina del campo al
+enviarla y no se conserva. El panel de fabricación mantiene su ruta directa
+`/dashboard`, pero no aparece en la navegación del terminal operativo.
+
 Una copia adicional de la etiqueta de palet se solicita mediante
 `POST /api/pallets/{palletId}/label-reprints`. Requiere un supervisor MES
 activo, un motivo no vacio y una correlacion. La repeticion exacta de la misma

@@ -4,6 +4,8 @@ import { ProductionDashboardPage } from "../features/production-dashboard/ui/Pro
 import "../features/production-dashboard/ui/productionDashboard.css";
 import { LabelControlPage } from "../features/label-control/ui/LabelControlPage";
 import "../features/label-control/ui/labelControl.css";
+import { SupervisorAccessGate } from "../features/supervisor-access/ui/SupervisorAccessGate";
+import "../features/supervisor-access/ui/supervisorAccess.css";
 import { AppShell } from "../widgets/app-shell/ui/AppShell";
 
 export function App() {
@@ -15,7 +17,9 @@ export function App() {
     <AppShell variant={variant}>
       {dashboard
         ? <ProductionDashboardPage />
-        : labels ? <LabelControlPage /> : <ProductionFlowPage />}
+        : labels
+          ? <SupervisorAccessGate><LabelControlPage /></SupervisorAccessGate>
+          : <ProductionFlowPage />}
     </AppShell>
   );
 }

@@ -1,0 +1,111 @@
+.supervisor-access-page {
+  min-height: calc(100vh - 154px);
+  display: grid;
+  place-items: center;
+  padding: 3rem;
+  background: radial-gradient(circle at 50% 15%, #e9f1ff, #f5f7fb 48%, #edf1f7);
+}
+
+.supervisor-access-card {
+  width: min(680px, 100%);
+  padding: 3rem;
+  border: 1px solid #ccd8e9;
+  border-radius: 28px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgb(21 45 82 / 16%);
+  text-align: center;
+}
+
+.supervisor-access-lock {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 1.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8f0ff;
+  color: #164fa2;
+  font-size: 1.25rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.supervisor-access-card h1 {
+  margin: .25rem 0 .75rem;
+  font-size: clamp(2rem, 4vw, 3.25rem);
+}
+
+.supervisor-access-card > p:not(.eyebrow) {
+  max-width: 540px;
+  margin: 0 auto 2rem;
+  color: #52627a;
+  font-size: 1.15rem;
+  line-height: 1.5;
+}
+
+.supervisor-access-card form {
+  display: grid;
+  gap: .8rem;
+  text-align: left;
+}
+
+.supervisor-access-card label {
+  font-weight: 800;
+  color: #263b58;
+}
+
+.supervisor-access-card input {
+  min-height: 64px;
+  border: 2px solid #b8c7dc;
+  border-radius: 14px;
+  padding: 0 1.1rem;
+  font-size: 1.4rem;
+}
+
+.supervisor-access-card input:focus {
+  border-color: #2465bd;
+  outline: 4px solid rgb(36 101 189 / 14%);
+}
+
+.supervisor-access-card small { color: #697991; }
+
+.supervisor-access-error {
+  margin: .5rem 0 0;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #fff0f0;
+  color: #a4212a;
+  font-weight: 750;
+}
+
+.supervisor-access-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.supervisor-access-actions a,
+.supervisor-access-actions button {
+  min-height: 56px;
+  padding: 0 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.supervisor-access-actions a {
+  color: #334a68;
+  text-decoration: none;
+  background: #edf1f6;
+}
+
+@media (max-width: 700px) {
+  .supervisor-access-page { padding: 1.25rem; }
+  .supervisor-access-card { padding: 2rem 1.4rem; }
+  .supervisor-access-actions { flex-direction: column-reverse; }
+  .supervisor-access-actions > * { width: 100%; }
+}

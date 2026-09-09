@@ -63,10 +63,11 @@ export function LabelControlPage() {
     (pallet) => pallet.palletId === selectedPalletId,
   ) ?? null;
 
-  useEffect(() => {
+  function selectOrder(orderId: number) {
+    setSelectedOrderId(orderId);
     setSelectedPalletId(null);
     setSupervisors([]);
-  }, [selectedOrderId]);
+  }
 
   useEffect(() => {
     if (!selectedOrder || !selectedPallet?.canReprint) return;
@@ -110,7 +111,7 @@ export function LabelControlPage() {
                 type="button"
                 key={order.orderId}
                 className={order.orderId === selectedOrderId ? "selected" : ""}
-                onClick={() => setSelectedOrderId(order.orderId)}
+                onClick={() => selectOrder(order.orderId)}
               >
                 <span>{order.lineName}</span>
                 <strong>{order.orderNumber}</strong>

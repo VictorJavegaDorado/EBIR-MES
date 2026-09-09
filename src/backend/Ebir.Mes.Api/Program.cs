@@ -65,6 +65,7 @@ builder.Services.AddScoped<PrepareProductionOrder>();
 builder.Services.AddScoped<ListSelectableProductionOrders>();
 builder.Services.AddScoped<IdentifyEmployeeByRfid>();
 builder.Services.AddScoped<AuthorizeOperatorByRfid>();
+builder.Services.AddScoped<AuthorizeSupervisorByRfid>();
 builder.Services.AddScoped<StartOrJoinProductionTable>();
 builder.Services.AddScoped<GetProductionTableState>();
 builder.Services.AddScoped<GetActiveProductionTable>();
@@ -75,6 +76,9 @@ builder.Services.AddSingleton<IRfidCredentialFingerprinter>(_ =>
         builder.Configuration["Rfid:LookupKey"]));
 builder.Services.AddScoped<IRfidEmployeeReader>(_ =>
     new SqlRfidEmployeeReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<ISupervisorRfidReader>(_ =>
+    new SqlSupervisorRfidReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddHttpClient(
         ProductionOrderSynchronizationConfiguration.HttpClientName)
@@ -222,6 +226,7 @@ app.MapProductionOrderPromotionEndpoints();
 app.MapProductionOrderSelectionEndpoints();
 app.MapProductionOrderPreparationEndpoints();
 app.MapRfidIdentificationEndpoints();
+app.MapSupervisorRfidAuthorizationEndpoints();
 app.MapProductionWorkstationEndpoints();
 app.MapProductionDashboardEndpoints();
 app.MapFallback("{*path:nonfile}", async context =>
