@@ -42,7 +42,9 @@ if (navisionOutputEnabled)
     var options = new NavisionPalletOutputOptions(
         endpoint,
         requestTimeout,
-        assemblyLineMappings);
+        assemblyLineMappings,
+        immediateRegistrationEnabled: builder.Configuration.GetValue<bool>(
+            "NavisionOutput:ImmediateRegistrationEnabled"));
     const string clientName = "NavisionPalletOutput";
     builder.Services.AddHttpClient(clientName)
         .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler

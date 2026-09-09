@@ -20,6 +20,7 @@ public sealed class NavisionSoapPalletOutputSender(
     private const string CodeunitNamespace =
         "urn:microsoft-dynamics-schemas/codeunit/WS_CPP_ControlPlanta";
     private const string PalletToggleOperation = "OpenClosePalletMES";
+    private const string ImmediateRegistrationOperation = "TriggerMesEntryNow";
 
     public async Task<NavisionPalletOutputReceipt> SendAsync(
         NavisionPalletOutputJob job,
@@ -116,7 +117,7 @@ public sealed class NavisionSoapPalletOutputSender(
                 cancellationToken);
         }
 
-        var outputReceipt = await ReconcileAsync(
+        var outputObservation = await ReconcileAsync(
             job,
             baselineMaximumId,
             attempt,
@@ -124,9 +125,10 @@ public sealed class NavisionSoapPalletOutputSender(
         return await ClosePalletAsync(
             job,
             assemblyLine!,
-            outputReceipt,
+            outputObservation.Receipt,
             baselineMaximumId,
-            cancellationToken);
+            cancellationToken,
+            attemptImmediateRegistration: outputObservation.Pending);
     }
 
     private NavisionPalletOutputReceipt? ValidateJob(
@@ -311,7 +313,11 @@ public sealed class NavisionSoapPalletOutputSender(
                 assemblyLine,
                 outputReceipt,
                 baselineMaximumId: null,
-                cancellationToken);
+                cancellationToken,
+                attemptImmediateRegistration: string.Equals(
+                    output.State,
+                    "Pendiente",
+                    StringComparison.Ordinal));
         }
         catch (NavisionReadException exception)
         {
@@ -340,6 +346,7 @@ public sealed class NavisionSoapPalletOutputSender(
         }
 
         NavisionPalletOutputReceipt outputReceipt;
+        var pendingOutputObserved = false;
         try
         {
             var outputs = await ReadOutputsAsync(job, cancellationToken);
@@ -403,6 +410,11 @@ public sealed class NavisionSoapPalletOutputSender(
                         job.BaselineMaximumId,
                         reconciliationMode)
                 };
+                pendingOutputObserved = matches.Length == 1
+                    && string.Equals(
+                        matches[0].State,
+                        "Pendiente",
+                        StringComparison.Ordinal);
             }
         }
         catch (NavisionReadException exception)
@@ -421,7 +433,8 @@ public sealed class NavisionSoapPalletOutputSender(
             outputReceipt,
             job.BaselineMaximumId,
             cancellationToken,
-            reconciliationMode);
+            reconciliationMode,
+            pendingOutputObserved);
     }
 
     private async Task<NavisionPalletOutputReceipt> ClosePalletAsync(
@@ -430,7 +443,8 @@ public sealed class NavisionSoapPalletOutputSender(
         NavisionPalletOutputReceipt outputReceipt,
         int? baselineMaximumId,
         CancellationToken cancellationToken,
-        string? reconciliationMode = null)
+        string? reconciliationMode = null,
+        bool attemptImmediateRegistration = false)
     {
         var closePallet = await EnsurePalletStateAsync(
             job,
@@ -438,7 +452,25 @@ public sealed class NavisionSoapPalletOutputSender(
             expectedOpen: false,
             cancellationToken);
         if (closePallet.Succeeded)
+        {
+            if (attemptImmediateRegistration
+                && options.ImmediateRegistrationEnabled
+                && int.TryParse(
+                    outputReceipt.ExternalIdentifier,
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture,
+                    out var externalId)
+                && externalId > 0)
+            {
+                return await TriggerMesRegistrationAndObserveAsync(
+                    job,
+                    externalId,
+                    outputReceipt,
+                    cancellationToken);
+            }
+
             return outputReceipt;
+        }
 
         return Receipt(
             NavisionPalletOutputDeliveryOutcome.UnknownResult,
@@ -636,7 +668,7 @@ public sealed class NavisionSoapPalletOutputSender(
         }
     }
 
-    private async Task<NavisionPalletOutputReceipt> ReconcileAsync(
+    private async Task<OutputObservation> ReconcileAsync(
         NavisionPalletOutputJob job,
         int baselineMaximumId,
         SoapAttempt attempt,
@@ -651,11 +683,11 @@ public sealed class NavisionSoapPalletOutputSender(
                 var outputs = await ReadOutputsAsync(job, cancellationToken);
                 if (outputs.Count >= MaximumODataRecords)
                 {
-                    return Receipt(
+                    return new(Receipt(
                         NavisionPalletOutputDeliveryOutcome.UnknownResult,
                         attempt.HttpStatusCode,
                         "ReconciliationTruncated",
-                        baselineMaximumId: baselineMaximumId);
+                        baselineMaximumId: baselineMaximumId), false);
                 }
 
                 var newMatches = outputs
@@ -674,30 +706,34 @@ public sealed class NavisionSoapPalletOutputSender(
                     var match = newMatches[0];
                     if (string.Equals(match.State, "Registrado", StringComparison.Ordinal))
                     {
-                        return Receipt(
+                        return new(Receipt(
                             NavisionPalletOutputDeliveryOutcome.Confirmed,
                             attempt.HttpStatusCode,
                             attempt.Reason,
                             match.Id.ToString(CultureInfo.InvariantCulture),
-                            baselineMaximumId);
+                            baselineMaximumId), false);
                     }
 
-                    return Receipt(
+                    var pending = string.Equals(
+                        match.State,
+                        "Pendiente",
+                        StringComparison.Ordinal);
+                    return new(Receipt(
                         NavisionPalletOutputDeliveryOutcome.UnknownResult,
                         attempt.HttpStatusCode,
-                        string.Equals(match.State, "Pendiente", StringComparison.Ordinal)
+                        pending
                             ? "OutputStillPending"
                             : "OutputStateNotRegistered",
                         match.Id.ToString(CultureInfo.InvariantCulture),
-                        baselineMaximumId);
+                        baselineMaximumId), pending);
                 }
                 if (newMatches.Length > 1)
                 {
-                    return Receipt(
+                    return new(Receipt(
                         NavisionPalletOutputDeliveryOutcome.UnknownResult,
                         attempt.HttpStatusCode,
                         "MultipleNewOutputs",
-                        baselineMaximumId: baselineMaximumId);
+                        baselineMaximumId: baselineMaximumId), false);
                 }
             }
             catch (NavisionReadException exception)
@@ -705,11 +741,11 @@ public sealed class NavisionSoapPalletOutputSender(
                 if (!exception.IsTransient
                     || readAttempt == options.ReconciliationObservationDelays.Count)
                 {
-                    return Receipt(
+                    return new(Receipt(
                         NavisionPalletOutputDeliveryOutcome.UnknownResult,
                         attempt.HttpStatusCode ?? exception.HttpStatusCode,
                         exception.Reason,
-                        baselineMaximumId: baselineMaximumId);
+                        baselineMaximumId: baselineMaximumId), false);
                 }
             }
 
@@ -719,11 +755,194 @@ public sealed class NavisionSoapPalletOutputSender(
                     cancellationToken);
         }
 
-        return Receipt(
+        return new(Receipt(
             NavisionPalletOutputDeliveryOutcome.UnknownResult,
             attempt.HttpStatusCode,
             attempt.Reason ?? "OutputNotObserved",
-            baselineMaximumId: baselineMaximumId);
+            baselineMaximumId: baselineMaximumId), false);
+    }
+
+    private async Task<NavisionPalletOutputReceipt> TriggerMesRegistrationAndObserveAsync(
+        NavisionPalletOutputJob job,
+        int externalId,
+        NavisionPalletOutputReceipt pendingReceipt,
+        CancellationToken cancellationToken)
+    {
+        var attempt = await SendImmediateQueueTriggerAsync(
+            externalId,
+            cancellationToken);
+        if (attempt.IsDefinitiveRejection)
+        {
+            return Receipt(
+                NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                attempt.HttpStatusCode ?? pendingReceipt.HttpStatusCode,
+                "ImmediateQueueTriggerRejected",
+                externalId.ToString(CultureInfo.InvariantCulture));
+        }
+
+        for (var readAttempt = 0;
+             readAttempt <= options.ImmediateRegistrationObservationDelays.Count;
+             readAttempt++)
+        {
+            try
+            {
+                var outputs = await ReadODataAsync(
+                    CreateODataEndpoint(
+                        "WS_CPP_SalidasFabrica",
+                        $"Id eq {externalId.ToString(CultureInfo.InvariantCulture)}",
+                        "Id,Orden,Producto,Cantidad_salida,Estado,Tipo",
+                        2),
+                    element => new OutputRecord(
+                        RequiredPositiveInt(element, "Id"),
+                        RequiredString(element, "Orden"),
+                        RequiredString(element, "Producto"),
+                        RequiredDecimal(element, "Cantidad_salida"),
+                        RequiredString(element, "Estado"),
+                        RequiredString(element, "Tipo")),
+                    cancellationToken);
+                if (outputs.Count != 1)
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode,
+                        "ReconciliationRowNotUnique",
+                        externalId.ToString(CultureInfo.InvariantCulture));
+                }
+
+                var output = outputs[0];
+                if (output.Id != externalId
+                    || !string.Equals(
+                        output.OrderNumber,
+                        job.OrderNumber,
+                        StringComparison.Ordinal)
+                    || !string.Equals(
+                        output.ProductNumber,
+                        job.ProductNumber,
+                        StringComparison.Ordinal)
+                    || output.Quantity != job.GoodQuantity
+                    || !string.Equals(output.Type, "Salida", StringComparison.Ordinal))
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode,
+                        "ReconciliationMismatch",
+                        externalId.ToString(CultureInfo.InvariantCulture));
+                }
+
+                if (string.Equals(
+                    output.State,
+                    "Registrado",
+                    StringComparison.Ordinal))
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.Confirmed,
+                        attempt.HttpStatusCode,
+                        "ImmediateRegistrationConfirmed",
+                        externalId.ToString(CultureInfo.InvariantCulture));
+                }
+
+                if (!string.Equals(output.State, "Pendiente", StringComparison.Ordinal)
+                    && !string.Equals(
+                        output.State,
+                        "Procesando",
+                        StringComparison.Ordinal))
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode,
+                        "OutputStateNotRegistered",
+                        externalId.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+            catch (NavisionReadException exception)
+            {
+                if (!exception.IsTransient
+                    || readAttempt
+                        == options.ImmediateRegistrationObservationDelays.Count)
+                {
+                    return Receipt(
+                        NavisionPalletOutputDeliveryOutcome.UnknownResult,
+                        attempt.HttpStatusCode ?? exception.HttpStatusCode,
+                        exception.Reason,
+                        externalId.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+
+            if (readAttempt < options.ImmediateRegistrationObservationDelays.Count)
+            {
+                await Task.Delay(
+                    options.ImmediateRegistrationObservationDelays[readAttempt],
+                    cancellationToken);
+            }
+        }
+
+        return Receipt(
+            NavisionPalletOutputDeliveryOutcome.UnknownResult,
+            attempt.HttpStatusCode,
+            attempt.Reason ?? "ImmediateRegistrationNotObserved",
+            externalId.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private async Task<SoapAttempt> SendImmediateQueueTriggerAsync(
+        int externalId,
+        CancellationToken cancellationToken)
+    {
+        using var request = CreateImmediateRegistrationRequest(externalId);
+        using var timeout =
+            CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(options.RequestTimeout);
+        try
+        {
+            using var response = await httpClient.SendAsync(
+                request,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeout.Token);
+            var status = (int)response.StatusCode;
+            if (response.StatusCode is not HttpStatusCode.OK)
+            {
+                var uncertain = response.StatusCode is HttpStatusCode.RequestTimeout
+                    or HttpStatusCode.TooManyRequests
+                    || status >= 500;
+                return new SoapAttempt(
+                    status,
+                    uncertain
+                        ? "ImmediateQueueTriggerHttpUncertain"
+                        : "ImmediateQueueTriggerHttpRejected",
+                    !uncertain);
+            }
+
+            var result = await ReadBooleanCodeunitResultAsync(
+                response,
+                ImmediateRegistrationOperation + "_Result",
+                timeout.Token);
+            return result switch
+            {
+                true => new SoapAttempt(status, null, false),
+                false => new SoapAttempt(
+                    status,
+                    "ImmediateQueueTriggerReturnedFalse",
+                    false),
+                null => new SoapAttempt(
+                    status,
+                    "InvalidImmediateQueueTriggerResponse",
+                    false)
+            };
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            return new SoapAttempt(null, exception.GetType().Name, false);
+        }
+        catch (HttpRequestException exception)
+        {
+            return new SoapAttempt(
+                exception.StatusCode is null ? null : (int)exception.StatusCode.Value,
+                exception.GetType().Name,
+                false);
+        }
     }
 
     private async Task<SoapAttempt> SendCodeunitAsync(
@@ -820,6 +1039,23 @@ public sealed class NavisionSoapPalletOutputSender(
             "SOAPAction",
             CodeunitNamespace + ":RegistrarSalidaFabricacion");
         return request;
+    }
+
+    private HttpRequestMessage CreateImmediateRegistrationRequest(int externalId)
+    {
+        XNamespace soap = SoapEnvelopeNamespace;
+        XNamespace codeunit = CodeunitNamespace;
+        var document = new XDocument(
+            new XElement(
+                soap + "Envelope",
+                new XElement(
+                    soap + "Body",
+                    new XElement(
+                        codeunit + ImmediateRegistrationOperation,
+                        new XElement(
+                            codeunit + "salidaId",
+                            externalId.ToString(CultureInfo.InvariantCulture))))));
+        return CreateSoapRequest(document, ImmediateRegistrationOperation);
     }
 
     private HttpRequestMessage CreateIsOpenPalletRequest(
@@ -1139,6 +1375,10 @@ public sealed class NavisionSoapPalletOutputSender(
         int? HttpStatusCode,
         string? Reason,
         bool IsDefinitiveRejection);
+
+    private sealed record OutputObservation(
+        NavisionPalletOutputReceipt Receipt,
+        bool Pending);
 
     private sealed record PalletStateTransition(
         bool Succeeded,

@@ -16,7 +16,8 @@ param(
     [string]$ServiceName = 'MES NAV Worker',
     [string]$PrintingServiceName = 'MES Worker',
     [string]$LineCode = 'LINEA-TEST-01',
-    [string]$AssemblyLine = 'L01'
+    [string]$AssemblyLine = 'L01',
+    [switch]$ImmediateRegistrationEnabled
 )
 
 $ErrorActionPreference = 'Stop'
@@ -133,6 +134,7 @@ try {
             'NavisionOutput__RunOnce=false',
             'NavisionOutput__PollIntervalMilliseconds=1000',
             'NavisionOutput__RequestTimeoutSeconds=10',
+            "NavisionOutput__ImmediateRegistrationEnabled=$($ImmediateRegistrationEnabled.IsPresent.ToString().ToLowerInvariant())",
             "NavisionOutput__ServiceEndpoint=$allowedEndpoint",
             "NavisionOutput__AssemblyLineMappings__$LineCode=$AssemblyLine",
             'Printing__Enabled=false',
@@ -157,6 +159,7 @@ try {
         IdentitySid = $sid.Value
         Release = $release
         NavisionOutputEnabled = $true
+        ImmediateRegistrationEnabled = $ImmediateRegistrationEnabled.IsPresent
         PrintingEnabled = $false
         EndpointEnvironment = 'EbirTest'
         Company = 'EBIR'

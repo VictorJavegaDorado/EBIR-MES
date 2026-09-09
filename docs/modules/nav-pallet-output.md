@@ -312,23 +312,26 @@ NAV no imprime salidas con `Origen MES`. La etiqueta y su trabajo de impresion
 siguen habilitandose en MES solo despues de observar `Registrado`.
 
 Los cinco objetos de `NAV-001A` estan instalados y compilados exclusivamente en
-`EbirTest` desde el 17 de agosto de 2026. La entrada historica de Job Queue
-permanece detenida y no existe todavia una entrada MES activa. El adaptador MES
-esta preparado en `main`, sin release activa. El contrato vive en
+`EbirTest` desde el 17 de agosto de 2026. El adaptador MES y los Workers
+separados de conciliacion e impresion estan activos en TEST. El contrato vive en
 [`../../deploy/nav/NAV-001A/README.md`](../../deploy/nav/NAV-001A/README.md).
 La decision estructural se registra en
 [`../adr/0003-nav-mes-output-registration.md`](../adr/0003-nav-mes-output-registration.md).
 
 La administracion por comando de la entrada Job Queue se aisla en
 [`../../deploy/nav/NAV-001B/README.md`](../../deploy/nav/NAV-001B/README.md).
-El paquete esta preparado pero no materializado: no publica la Page 672, no
-construye manualmente parametros de request page y separa la creacion detenida
-de cualquier ejecucion productiva. El ID del nuevo codeunit permanece pendiente
-de inventario y licencia. La decision se registra en
+La implementacion instalada usa el Codeunit 50009 y no publica la Page 672 ni
+construye manualmente parametros de request page. La decision se registra en
 [`../adr/0004-nav-mes-job-queue-administration.md`](../adr/0004-nav-mes-job-queue-administration.md).
 
 La recurrencia controlada de la entrada existente se prepara por separado en
 [`../../deploy/nav/NAV-001C/README.md`](../../deploy/nav/NAV-001C/README.md).
-Los exports actuales confirman que no requiere modificar Codeunit 50009 ni la
-Table 472: solo configura la fila detenida, valida un primer ciclo sin trabajo
-y conserva importacion, compilacion y ejecucion interactiva fuera de alcance.
+La entrada unica `MES-SOLO-SALIDAS-V1` se ejecuta como `EBIR\NAVEBIR` con una
+recurrencia minima de un minuto y sin impresion NAV.
+
+El disparo inmediato se especifica en
+[`../../deploy/nav/NAV-001D/README.md`](../../deploy/nav/NAV-001D/README.md).
+Cuando MES observa una salida exacta `Pendiente`, el Codeunit 82000 reprograma
+solo la entrada del Codeunit 50009 para empezar aproximadamente un segundo despues y conserva la
+recurrencia de un minuto como respaldo. El camino rapido permanece desactivado
+por defecto hasta completar compilacion, WSDL y canario en TEST.

@@ -16,6 +16,7 @@ $required = @(
     'Worker__ServiceName=$ServiceName',
     'NavisionOutput__Enabled=true',
     'NavisionOutput__RunOnce=false',
+    'NavisionOutput__ImmediateRegistrationEnabled=',
     'Printing__Enabled=false',
     'EbirTest/WS/EBIR/Codeunit/WS_CPP_ControlPlanta',
     "InitialCatalog -ne 'EBIR_MES_TEST'",

@@ -420,6 +420,118 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_registers_observed_pending_output_immediately_when_enabled()
+    {
+        var outputReads = 0;
+        var registered = false;
+        var isOpen = false;
+        var operations = new List<string>();
+        CapturedRequest? immediateRequest = null;
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                return Json(Order());
+            if (IsEntity(request, "WS_CPP_Producto"))
+                return Json(Product());
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                outputReads++;
+                return outputReads == 1
+                    ? Json()
+                    : Json(Output(
+                        321,
+                        20,
+                        registered ? "Registrado" : "Pendiente"));
+            }
+
+            var operation = SoapOperation(request);
+            operations.Add(operation);
+            if (operation == "IsOpenPallet")
+                return SoapBooleanResult(operation, isOpen);
+            if (operation == "OpenClosePalletMES")
+            {
+                isOpen = !isOpen;
+                return SoapVoidResult(operation);
+            }
+            if (operation == "TriggerMesEntryNow")
+            {
+                immediateRequest = await CaptureAsync(request, cancellationToken);
+                registered = true;
+                return SoapBooleanResult(operation, true);
+            }
+            return SoapResult(true);
+        });
+
+        var result = await CreateSender(
+                handler,
+                emulatePalletLifecycle: false,
+                immediateRegistrationEnabled: true)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Equal(
+            new[]
+            {
+                "IsOpenPallet", "OpenClosePalletMES", "IsOpenPallet",
+                "RegistrarSalidaFabricacion",
+                "IsOpenPallet", "OpenClosePalletMES", "IsOpenPallet",
+                "TriggerMesEntryNow"
+            },
+            operations);
+        Assert.False(isOpen);
+        Assert.NotNull(immediateRequest);
+        Assert.Equal(
+            CodeunitNamespace + ":TriggerMesEntryNow",
+            immediateRequest.SoapAction);
+        Assert.Equal(Endpoint, immediateRequest.Uri);
+        XNamespace codeunit = CodeunitNamespace;
+        var call = XDocument.Parse(immediateRequest.Body!)
+            .Descendants(codeunit + "TriggerMesEntryNow")
+            .Single();
+        Assert.Equal("321", call.Element(codeunit + "salidaId")!.Value);
+        Assert.Contains("ImmediateRegistrationConfirmed", result.TechnicalDataJson);
+    }
+
+    [Fact]
+    public async Task SendAsync_keeps_pending_output_for_queue_fallback_when_fast_path_rejects()
+    {
+        var outputReads = 0;
+        var immediateCalls = 0;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                return Task.FromResult(Json(Order()));
+            if (IsEntity(request, "WS_CPP_Producto"))
+                return Task.FromResult(Json(Product()));
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                outputReads++;
+                return Task.FromResult(
+                    outputReads == 1
+                        ? Json()
+                        : Json(Output(321, 20, "Pendiente")));
+            }
+
+            if (SoapOperation(request) == "TriggerMesEntryNow")
+            {
+                immediateCalls++;
+                return Task.FromResult(
+                    new HttpResponseMessage(HttpStatusCode.BadRequest));
+            }
+            return Task.FromResult(SoapResult(true));
+        });
+
+        var result = await CreateSender(handler, immediateRegistrationEnabled: true)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Equal(1, immediateCalls);
+        Assert.Contains("ImmediateQueueTriggerRejected", result.TechnicalDataJson);
+    }
+
+    [Fact]
     public async Task SendAsync_observes_output_published_after_initial_reconciliation_reads()
     {
         var posts = 0;
@@ -864,12 +976,19 @@ public sealed class NavisionSoapPalletOutputSenderTests
             options.ReconciliationObservationDelays.Aggregate(
                 TimeSpan.Zero,
                 (total, delay) => total + delay));
+        Assert.False(options.ImmediateRegistrationEnabled);
+        Assert.Equal(
+            TimeSpan.FromSeconds(5.5),
+            options.ImmediateRegistrationObservationDelays.Aggregate(
+                TimeSpan.Zero,
+                (total, delay) => total + delay));
     }
 
     private static NavisionSoapPalletOutputSender CreateSender(
         HttpMessageHandler handler,
         IReadOnlyDictionary<string, string>? mappings = null,
-        bool emulatePalletLifecycle = true) =>
+        bool emulatePalletLifecycle = true,
+        bool immediateRegistrationEnabled = false) =>
         new(
             new HttpClient(
                 emulatePalletLifecycle
@@ -879,7 +998,9 @@ public sealed class NavisionSoapPalletOutputSenderTests
                 Endpoint,
                 TimeSpan.FromSeconds(10),
                 mappings ?? LineMappings,
-                Enumerable.Repeat(TimeSpan.FromMilliseconds(1), 10).ToArray()));
+                Enumerable.Repeat(TimeSpan.FromMilliseconds(1), 10).ToArray(),
+                immediateRegistrationEnabled,
+                Enumerable.Repeat(TimeSpan.FromMilliseconds(1), 6).ToArray()));
 
     private static bool IsEntity(HttpRequestMessage request, string entity) =>
         request.Method == HttpMethod.Get

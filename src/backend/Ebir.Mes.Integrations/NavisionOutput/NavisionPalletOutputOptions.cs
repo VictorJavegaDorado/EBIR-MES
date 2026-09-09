@@ -21,13 +21,24 @@ public sealed class NavisionPalletOutputOptions
         TimeSpan.FromSeconds(5),
         TimeSpan.FromSeconds(5)
     ];
+    private static readonly TimeSpan[] DefaultImmediateRegistrationObservationDelays =
+    [
+        TimeSpan.FromMilliseconds(250),
+        TimeSpan.FromMilliseconds(500),
+        TimeSpan.FromMilliseconds(750),
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(1),
+        TimeSpan.FromSeconds(2)
+    ];
     private readonly IReadOnlyDictionary<string, string> assemblyLineMappings;
 
     public NavisionPalletOutputOptions(
         Uri serviceEndpoint,
         TimeSpan requestTimeout,
         IReadOnlyDictionary<string, string> assemblyLineMappings,
-        IReadOnlyList<TimeSpan>? reconciliationObservationDelays = null)
+        IReadOnlyList<TimeSpan>? reconciliationObservationDelays = null,
+        bool immediateRegistrationEnabled = false,
+        IReadOnlyList<TimeSpan>? immediateRegistrationObservationDelays = null)
     {
         ArgumentNullException.ThrowIfNull(serviceEndpoint);
         ArgumentNullException.ThrowIfNull(assemblyLineMappings);
@@ -77,6 +88,22 @@ public sealed class NavisionPalletOutputOptions
         }
         ReconciliationObservationDelays = Array.AsReadOnly(
             observationDelays.ToArray());
+        var immediateObservationDelays = immediateRegistrationObservationDelays
+            ?? DefaultImmediateRegistrationObservationDelays;
+        if (immediateObservationDelays.Count is < 1 or > 20
+            || immediateObservationDelays.Any(delay =>
+                delay <= TimeSpan.Zero || delay > TimeSpan.FromSeconds(10))
+            || immediateObservationDelays.Aggregate(
+                    TimeSpan.Zero,
+                    (total, delay) => total + delay)
+                > TimeSpan.FromSeconds(15))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(immediateRegistrationObservationDelays));
+        }
+        ImmediateRegistrationEnabled = immediateRegistrationEnabled;
+        ImmediateRegistrationObservationDelays = Array.AsReadOnly(
+            immediateObservationDelays.ToArray());
         this.assemblyLineMappings = assemblyLineMappings.ToDictionary(
             pair => RequiredMappingValue(pair.Key, nameof(assemblyLineMappings)),
             pair => RequiredMappingValue(pair.Value, nameof(assemblyLineMappings)),
@@ -90,6 +117,10 @@ public sealed class NavisionPalletOutputOptions
     public TimeSpan RequestTimeout { get; }
 
     public IReadOnlyList<TimeSpan> ReconciliationObservationDelays { get; }
+
+    public bool ImmediateRegistrationEnabled { get; }
+
+    public IReadOnlyList<TimeSpan> ImmediateRegistrationObservationDelays { get; }
 
     public bool TryResolveAssemblyLine(string mesLineCode, out string assemblyLine) =>
         assemblyLineMappings.TryGetValue(mesLineCode.Trim(), out assemblyLine!);
