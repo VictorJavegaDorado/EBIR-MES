@@ -4,6 +4,8 @@
 
 - baseline actual de Codeunit 82000 y Codeunit 453 identificado por SHA-256;
 - forward cambia solo Codeunit 82000 y agrega una unica funcion publica;
+- la validacion acepta la hora inicial configurada `00:00:00` y rechaza una
+  hora inicial posterior;
 - no aparecen llamadas a Report 50056, registro directo, impresion o SQL en la
   nueva funcion;
 - endpoint MES permanece fijado a `EbirTest / EBIR` y el interruptor por defecto

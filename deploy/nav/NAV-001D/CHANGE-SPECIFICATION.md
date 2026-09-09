@@ -19,7 +19,8 @@ Agregar al Codeunit 82000 `WS Control Planta` una funcion publica con un unico p
    se rechazan sin corregirlos;
 5. localiza por tipo `Codeunit`, ID `50009` y parametro exacto
    `MES-SOLO-SALIDAS-V1` y exige una sola coincidencia;
-6. valida descripcion exacta, recurrencia, todos los dias, ventana completa,
+6. valida descripcion exacta, recurrencia, todos los dias, ventana completa
+   (`00:00:00` a `23:59:59`),
    maximo de intentos 1, ausencia de impresora y request page, usuario exacto
    `EBIR\NAVEBIR` y estado `Ready` o `In Process`;
 7. si esta `In Process`, devuelve `TRUE` sin crear otra tarea;
