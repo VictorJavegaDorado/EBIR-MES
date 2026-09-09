@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 
 type AppShellProps = {
   children: ReactNode;
-  variant?: "production" | "dashboard";
+  variant?: "production" | "dashboard" | "labels";
 };
 
 const timeFormatter = new Intl.DateTimeFormat("es-ES", {
@@ -27,7 +27,7 @@ export function AppShell({ children, variant = "production" }: AppShellProps) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <a className="brand" href={variant === "dashboard" ? "/dashboard" : "/"} aria-label="EBIR MES, inicio">
+        <a className="brand" href="/" aria-label="EBIR MES, inicio">
           <span className="brand-mark" aria-hidden="true">E</span>
           <span>
             <strong>EBIR</strong>
@@ -35,9 +35,16 @@ export function AppShell({ children, variant = "production" }: AppShellProps) {
           </span>
         </a>
 
-        <div className="environment-pill">
-          <span className="environment-dot" />
-          Piloto TEST
+        <div className="topbar-center">
+          <nav className="topbar-nav" aria-label="Módulos MES">
+            <a className={variant === "production" ? "active" : ""} href="/">Producción</a>
+            <a className={variant === "labels" ? "active" : ""} href="/etiquetas">Etiquetas</a>
+            <a className={variant === "dashboard" ? "active" : ""} href="/dashboard">Dashboard</a>
+          </nav>
+          <div className="environment-pill">
+            <span className="environment-dot" />
+            Piloto TEST
+          </div>
         </div>
 
         <div className="clock" aria-label="Fecha y hora actuales">
@@ -51,10 +58,10 @@ export function AppShell({ children, variant = "production" }: AppShellProps) {
       <footer className="app-footer">
         <span>EBIR MES</span>
         <span className="footer-separator" />
-        <span>{variant === "dashboard" ? "Panel de fabricación" : "Terminal de producción"}</span>
+        <span>{variant === "dashboard" ? "Panel de fabricación" : variant === "labels" ? "Control de etiquetas" : "Terminal de producción"}</span>
         <span className="footer-status">
           <span className="environment-dot" />
-          {variant === "dashboard" ? "Actualización en tiempo real" : "Flujo operativo guiado"}
+          {variant === "dashboard" ? "Actualización en tiempo real" : variant === "labels" ? "Reimpresión supervisada" : "Flujo operativo guiado"}
         </span>
       </footer>
     </div>

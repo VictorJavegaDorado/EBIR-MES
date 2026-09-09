@@ -122,6 +122,36 @@ a {
   font-weight: 600;
 }
 
+.topbar-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.topbar-nav {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+.topbar-nav a {
+  padding: 8px 11px;
+  color: #dce7f1;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.topbar-nav a.active {
+  color: white;
+  background: var(--global-palette2);
+}
+
 .environment-dot {
   width: 8px;
   height: 8px;

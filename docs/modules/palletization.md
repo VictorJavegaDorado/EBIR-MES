@@ -172,6 +172,18 @@ contactan una impresora real.
 
 ## Reimpresion supervisada
 
+El control operativo de etiquetas vive en `/etiquetas` y consulta
+`GET /api/label-control`. La lectura agrupa los palés cerrados de las 50 órdenes
+más recientes y muestra orden, artículo, línea y los estados persistidos de NAV,
+etiqueta y último trabajo de impresión. Una incidencia actual se presenta en
+rojo; una incidencia histórica ya resuelta permanece visible como recuperada.
+
+Seleccionar una orden y un palé no cambia estado. La acción de reimpresión solo
+se muestra cuando NAV está confirmado, la etiqueta está `IMPRESA`, existe una
+impresión original `COMPLETADO` y no hay un trabajo abierto. En cualquier otro
+caso se muestra el punto que necesita revisión, sin volver a enviar la salida a
+NAV ni crear automáticamente otra copia.
+
 Una copia adicional de la etiqueta de palet se solicita mediante
 `POST /api/pallets/{palletId}/label-reprints`. Requiere un supervisor MES
 activo, un motivo no vacio y una correlacion. La repeticion exacta de la misma

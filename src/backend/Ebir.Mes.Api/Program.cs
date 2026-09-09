@@ -15,6 +15,7 @@ using Ebir.Mes.Application.Pallets.ClosePallet;
 using Ebir.Mes.Application.Pallets.ClosePalletOptions;
 using Ebir.Mes.Application.PalletRecovery;
 using Ebir.Mes.Application.Printing;
+using Ebir.Mes.Application.Printing.LabelControl;
 using Ebir.Mes.Application.ProductionDashboard;
 using Ebir.Mes.Application.ProductionOrders;
 using Ebir.Mes.Application.ProductionWorkstations;
@@ -57,6 +58,7 @@ builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<GetLatestPalletRecovery>();
 builder.Services.AddScoped<RetryPalletNavReconciliation>();
 builder.Services.AddScoped<ReprintPalletLabel>();
+builder.Services.AddScoped<GetLabelControl>();
 builder.Services.AddScoped<SynchronizeProductionOrder>();
 builder.Services.AddScoped<PromoteProductionOrder>();
 builder.Services.AddScoped<PrepareProductionOrder>();
@@ -178,6 +180,9 @@ builder.Services.AddScoped<IPalletNavReconciliationRetrier>(_ =>
 builder.Services.AddScoped<IPalletLabelReprinter>(_ =>
     new SqlPalletLabelReprinter(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<ILabelControlReader>(_ =>
+    new SqlLabelControlReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 var app = builder.Build();
 app.UseExceptionHandler();
 app.UseDefaultFiles();
@@ -211,6 +216,7 @@ app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
 app.MapPalletRecoveryEndpoints();
 app.MapReprintPalletLabelEndpoints();
+app.MapLabelControlEndpoints();
 app.MapProductionOrderSynchronizationEndpoints();
 app.MapProductionOrderPromotionEndpoints();
 app.MapProductionOrderSelectionEndpoints();
