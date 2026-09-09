@@ -18,6 +18,13 @@ operacion 68 despues de observar en NAV EbirTest su unica salida 26872 como
 la orden `FL26-00014` quedo disponible para su cierre. Antes de la instalacion
 se creo y verifico un backup `COPY_ONLY`.
 
+El paquete `048A_confirmar_reconciliacion_tardia_salida_palet_69.sql` fue
+instalado y validado el 09/09/2026 en `EBIR_MES_TEST`. Confirmo localmente la
+operacion 69 despues de observar en NAV EbirTest su unica salida 26873 como
+`Registrado`, sin reenviarla. La etiqueta 60 se imprimio en un unico intento y
+la orden `FL26-00015` quedo disponible para continuar. Antes de la instalacion
+se creo y verifico un backup `COPY_ONLY`.
+
 ## Orden
 
 1. `001_esquemas_configuracion.sql` — aplicado.
