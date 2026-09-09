@@ -19,7 +19,7 @@ public sealed record LabelControlOrderRecord(
 public sealed record LabelControlPalletRecord(
     long PalletId,
     int PalletNumber,
-    decimal GoodQuantity,
+    int GoodQuantity,
     bool IsLast,
     DateTime ClosedAtUtc,
     long? NavOperationId,

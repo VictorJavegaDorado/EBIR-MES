@@ -120,7 +120,7 @@ public sealed class SqlLabelControlReader(string? connectionString) : ILabelCont
                 }
 
                 current.Pallets.Add(new(
-                    reader.GetInt64(9), reader.GetInt32(10), reader.GetDecimal(11),
+                    reader.GetInt64(9), reader.GetInt32(10), reader.GetInt32(11),
                     reader.GetBoolean(12), reader.GetDateTime(13),
                     NullableInt64(reader, 14), NullableString(reader, 15),
                     NullableInt64(reader, 16), NullableString(reader, 17),
