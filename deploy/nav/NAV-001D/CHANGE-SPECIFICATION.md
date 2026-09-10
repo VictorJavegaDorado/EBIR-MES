@@ -60,10 +60,12 @@ Tras el disparo observa por OData durante un maximo nominal de 5,5 segundos. La
 confirmacion MES y la impresion siguen dependiendo exclusivamente de observar
 `Registrado`. Una respuesta SOAP, `Procesando` o un timeout nunca confirman la
 salida. Ante incertidumbre se conserva el identificador externo y la cola de un
-minuto reconcilia sin repetir `RegistrarSalidaFabricacion`. Una vez conservado
-el identificador, los intentos posteriores son exclusivamente de lectura y no
-vuelven a ejecutar `TriggerMesEntryNow`; reprogramar repetidamente la misma
-entrada retrasaria su inicio.
+minuto reconcilia sin repetir `RegistrarSalidaFabricacion`. Si el primer
+disparo coincidio con la entrada ya `In Process`, el segundo intento puede
+solicitarlo una unica vez mas cuando la salida siga `Pendiente`. Desde el
+tercer intento las conciliaciones son exclusivamente de lectura y no vuelven a
+ejecutar `TriggerMesEntryNow`; reprogramar repetidamente la misma entrada
+retrasaria su inicio.
 
 La configuracion `NavisionOutput:ImmediateRegistrationEnabled` nace en `false`.
 

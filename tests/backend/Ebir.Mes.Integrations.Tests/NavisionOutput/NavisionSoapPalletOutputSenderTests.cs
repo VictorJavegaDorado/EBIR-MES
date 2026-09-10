@@ -694,6 +694,41 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_retries_immediate_queue_once_on_second_pending_attempt()
+    {
+        var registered = false;
+        var immediateCalls = 0;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                return Task.FromResult(Json(Output(
+                    321,
+                    20,
+                    registered ? "Registrado" : "Pendiente")));
+            }
+
+            Assert.Equal("TriggerMesEntryNow", SoapOperation(request));
+            immediateCalls++;
+            registered = true;
+            return Task.FromResult(
+                SoapBooleanResult("TriggerMesEntryNow", true));
+        });
+
+        var result = await CreateSender(
+                handler,
+                immediateRegistrationEnabled: true)
+            .SendAsync(
+                Job with { AttemptNumber = 2, ExternalIdentifier = "321" },
+                CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Equal(1, immediateCalls);
+        Assert.Contains("ImmediateRegistrationConfirmed", result.TechnicalDataJson);
+    }
+
+    [Fact]
     public async Task SendAsync_discovers_delayed_registered_output_without_posting_again()
     {
         var requests = new List<CapturedRequest>();

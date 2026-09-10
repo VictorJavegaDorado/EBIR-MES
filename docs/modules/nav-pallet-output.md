@@ -337,7 +337,8 @@ Cuando MES observa una salida exacta `Pendiente`, el Codeunit 82000 reprograma
 solo la entrada del Codeunit 50009 para empezar aproximadamente un segundo despues y conserva la
 recurrencia de un minuto como respaldo. El camino rapido permanece desactivado
 por defecto hasta completar compilacion, WSDL y canario en TEST. Una vez que
-MES conserva el identificador externo de la salida, las conciliaciones
-posteriores son exclusivamente de lectura y no vuelven a llamar
-`TriggerMesEntryNow`; asi no cancelan ni reprograman la tarea NAV que ya fue
-solicitada.
+MES conserva el identificador externo de la salida, el segundo intento puede
+solicitar una unica repeticion si la fila sigue `Pendiente`; cubre el caso en
+que el primer disparo encontro la entrada ya en proceso. Desde el tercer
+intento las conciliaciones son exclusivamente de lectura y no vuelven a llamar
+`TriggerMesEntryNow`; asi no cancelan ni reprograman repetidamente la tarea NAV.
