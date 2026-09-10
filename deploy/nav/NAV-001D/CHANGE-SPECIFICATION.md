@@ -22,15 +22,19 @@ Agregar al Codeunit 82000 `WS Control Planta` una funcion publica con un unico p
 6. valida descripcion exacta, recurrencia, todos los dias, ventana completa
    (`00:00:00` a `23:59:59`),
    maximo de intentos 1, ausencia de impresora y request page, usuario exacto
-   `EBIR\NAVEBIR` y estado `Ready` o `In Process`;
+   `EBIR\NAVEBIR` y estado `Ready` o `In Process`. No exige el indicador
+   derivado `Scheduled`: en la entrada recurrente real puede estar a `FALSE`
+   entre ejecuciones aunque el estado sea `Ready`;
 7. si esta `In Process`, devuelve `TRUE` sin crear otra tarea;
 8. si esta `Ready`, ejecuta una sola vez Codeunit 453 `Job Queue - Enqueue`
    sobre esa misma entrada.
 
 El Codeunit 453 instalado cancela la tarea futura de esa entrada, fija un inicio
 minimo de un segundo, crea una nueva tarea y conserva en ella el `User ID` de la
-entrada. La materializacion debe comparar su baseline para demostrar este
-contrato, pero no lo modifica.
+entrada. Si no existe un identificador de tarea que cancelar, crea directamente
+la nueva; por eso `Scheduled=FALSE` no amplia la seleccion de entradas ni exige
+modificar Codeunit 453. La materializacion debe comparar su baseline para
+demostrar este contrato, pero no lo modifica.
 
 El Codeunit 82000 conserva su endpoint ya autorizado
 `WS_CPP_ControlPlanta`; no se publica un servicio adicional ni se amplian los
@@ -46,6 +50,11 @@ El adaptador llama `TriggerMesEntryNow(SalidaId)` solo despues de:
 - comprobar orden, producto, cantidad y tipo exactos;
 - observar estado `Pendiente`;
 - cerrar y verificar el bulto NAV.
+
+Tras la unica llamada a `RegistrarSalidaFabricacion`, MES cierra y verifica el
+bulto antes de iniciar la ventana OData. En TEST la salida puede no publicarse
+mientras el bulto permanece abierto; invertir esos pasos evita agotar treinta
+segundos y entrar en un segundo intento solo para descubrir su identificador.
 
 Tras el disparo observa por OData durante un maximo nominal de 5,5 segundos. La
 confirmacion MES y la impresion siguen dependiendo exclusivamente de observar

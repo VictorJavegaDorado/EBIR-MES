@@ -6,6 +6,10 @@
 - forward cambia solo Codeunit 82000 y agrega una unica funcion publica;
 - la validacion acepta la hora inicial configurada `00:00:00` y rechaza una
   hora inicial posterior;
+- una entrada exacta en `Ready` puede reprogramarse con `Scheduled=FALSE`; una
+  entrada en espera o con contrato distinto sigue bloqueada;
+- MES cierra y verifica el bulto antes de observar la salida posterior al unico
+  envio, y conserva el identificador aunque el cierre quede incierto;
 - no aparecen llamadas a Report 50056, registro directo, impresion o SQL en la
   nueva funcion;
 - endpoint MES permanece fijado a `EbirTest / EBIR` y el interruptor por defecto

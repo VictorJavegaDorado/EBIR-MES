@@ -82,8 +82,10 @@ su identificador como `RESULTADO_DESCONOCIDO`; cero filas, más de una fila,
 bulto con estado incierto, truncamiento o fallo de lectura producen igualmente
 `RESULTADO_DESCONOCIDO` y mantienen bloqueadas etiqueta e impresión.
 
-La publicación OData posterior al codeunit puede demorarse. MES realiza una
-ventana acotada de once observaciones durante aproximadamente treinta segundos,
+La publicación OData posterior al codeunit puede demorarse. MES cierra y
+verifica primero el bulto exacto, porque en TEST la fila nueva puede no hacerse
+visible mientras el bulto permanece abierto. Después realiza una ventana
+acotada de once observaciones durante aproximadamente treinta segundos,
 sin repetir la escritura. En cuanto aparece una única fila exacta `Pendiente`,
 conserva inmediatamente su identificador para las conciliaciones posteriores;
 no espera a que NAV la registre dentro del mismo intento.

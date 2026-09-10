@@ -117,16 +117,21 @@ public sealed class NavisionSoapPalletOutputSender(
                 cancellationToken);
         }
 
+        var closePallet = await EnsurePalletStateAsync(
+            job,
+            assemblyLine!,
+            expectedOpen: false,
+            cancellationToken);
         var outputObservation = await ReconcileAsync(
             job,
             baselineMaximumId,
             attempt,
             cancellationToken);
-        return await ClosePalletAsync(
+        return await CompletePalletOutputAsync(
             job,
-            assemblyLine!,
             outputObservation.Receipt,
             baselineMaximumId,
+            closePallet,
             cancellationToken,
             attemptImmediateRegistration: outputObservation.Pending);
     }
@@ -451,6 +456,25 @@ public sealed class NavisionSoapPalletOutputSender(
             assemblyLine,
             expectedOpen: false,
             cancellationToken);
+        return await CompletePalletOutputAsync(
+            job,
+            outputReceipt,
+            baselineMaximumId,
+            closePallet,
+            cancellationToken,
+            reconciliationMode,
+            attemptImmediateRegistration);
+    }
+
+    private async Task<NavisionPalletOutputReceipt> CompletePalletOutputAsync(
+        NavisionPalletOutputJob job,
+        NavisionPalletOutputReceipt outputReceipt,
+        int? baselineMaximumId,
+        PalletStateTransition closePallet,
+        CancellationToken cancellationToken,
+        string? reconciliationMode = null,
+        bool attemptImmediateRegistration = false)
+    {
         if (closePallet.Succeeded)
         {
             if (attemptImmediateRegistration

@@ -494,6 +494,65 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_closes_pallet_before_observing_and_triggering_delayed_output()
+    {
+        var outputReads = 0;
+        var registrarCalls = 0;
+        var immediateCalls = 0;
+        var registered = false;
+        var isOpen = false;
+        var handler = new StubHandler((request, _) =>
+        {
+            if (IsEntity(request, "WS_CPP_OPLanzadas"))
+                return Task.FromResult(Json(Order()));
+            if (IsEntity(request, "WS_CPP_Producto"))
+                return Task.FromResult(Json(Product()));
+            if (IsEntity(request, "WS_CPP_SalidasFabrica"))
+            {
+                outputReads++;
+                if (outputReads == 1 || isOpen)
+                    return Task.FromResult(Json());
+                return Task.FromResult(Json(Output(
+                    321,
+                    20,
+                    registered ? "Registrado" : "Pendiente")));
+            }
+
+            var operation = SoapOperation(request);
+            if (operation == "IsOpenPallet")
+                return Task.FromResult(SoapBooleanResult(operation, isOpen));
+            if (operation == "OpenClosePalletMES")
+            {
+                isOpen = !isOpen;
+                return Task.FromResult(SoapVoidResult(operation));
+            }
+            if (operation == "TriggerMesEntryNow")
+            {
+                immediateCalls++;
+                registered = true;
+                return Task.FromResult(SoapBooleanResult(operation, true));
+            }
+
+            registrarCalls++;
+            return Task.FromResult(SoapResult(false));
+        });
+
+        var result = await CreateSender(
+                handler,
+                emulatePalletLifecycle: false,
+                immediateRegistrationEnabled: true)
+            .SendAsync(Job, CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.Confirmed, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.False(isOpen);
+        Assert.Equal(1, registrarCalls);
+        Assert.Equal(1, immediateCalls);
+        Assert.Equal(3, outputReads);
+        Assert.Contains("ImmediateRegistrationConfirmed", result.TechnicalDataJson);
+    }
+
+    [Fact]
     public async Task SendAsync_keeps_pending_output_for_queue_fallback_when_fast_path_rejects()
     {
         var outputReads = 0;

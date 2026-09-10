@@ -20,6 +20,8 @@ foreach ($token in @(
     'Job Queue - Enqueue',
     '00:00:00',
     '23:59:59',
+    'Scheduled=FALSE',
+    'Tras la unica llamada',
     '5,5 segundos')) {
     if (-not (($readme + $spec).Contains($token))) {
         throw "Falta el contrato NAV-001D: $token"
