@@ -336,4 +336,8 @@ El disparo inmediato se especifica en
 Cuando MES observa una salida exacta `Pendiente`, el Codeunit 82000 reprograma
 solo la entrada del Codeunit 50009 para empezar aproximadamente un segundo despues y conserva la
 recurrencia de un minuto como respaldo. El camino rapido permanece desactivado
-por defecto hasta completar compilacion, WSDL y canario en TEST.
+por defecto hasta completar compilacion, WSDL y canario en TEST. Una vez que
+MES conserva el identificador externo de la salida, las conciliaciones
+posteriores son exclusivamente de lectura y no vuelven a llamar
+`TriggerMesEntryNow`; asi no cancelan ni reprograman la tarea NAV que ya fue
+solicitada.

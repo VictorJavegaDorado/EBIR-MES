@@ -318,11 +318,7 @@ public sealed class NavisionSoapPalletOutputSender(
                 assemblyLine,
                 outputReceipt,
                 baselineMaximumId: null,
-                cancellationToken,
-                attemptImmediateRegistration: string.Equals(
-                    output.State,
-                    "Pendiente",
-                    StringComparison.Ordinal));
+                cancellationToken);
         }
         catch (NavisionReadException exception)
         {

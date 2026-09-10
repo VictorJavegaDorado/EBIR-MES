@@ -663,6 +663,37 @@ public sealed class NavisionSoapPalletOutputSenderTests
     }
 
     [Fact]
+    public async Task SendAsync_does_not_retrigger_queue_for_known_pending_identifier()
+    {
+        var requests = new List<CapturedRequest>();
+        var handler = new StubHandler(async (request, cancellationToken) =>
+        {
+            requests.Add(await CaptureAsync(request, cancellationToken));
+            return Json(Output(321, 20, "Pendiente"));
+        });
+
+        var result = await CreateSender(
+                handler,
+                immediateRegistrationEnabled: true)
+            .SendAsync(
+                Job with { AttemptNumber = 4, ExternalIdentifier = "321" },
+                CancellationToken.None);
+
+        Assert.Equal(NavisionPalletOutputDeliveryOutcome.UnknownResult, result.Outcome);
+        Assert.Equal("321", result.ExternalIdentifier);
+        Assert.Single(requests);
+        Assert.Equal(HttpMethod.Get, requests[0].Method);
+        Assert.True(IsEntityRequest(requests[0], "WS_CPP_SalidasFabrica"));
+        Assert.DoesNotContain(
+            requests,
+            request => string.Equals(
+                request.SoapAction,
+                CodeunitNamespace + ":TriggerMesEntryNow",
+                StringComparison.Ordinal));
+        Assert.Contains("OutputStillPending", result.TechnicalDataJson);
+    }
+
+    [Fact]
     public async Task SendAsync_discovers_delayed_registered_output_without_posting_again()
     {
         var requests = new List<CapturedRequest>();
