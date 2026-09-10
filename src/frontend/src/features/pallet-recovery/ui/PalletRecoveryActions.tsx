@@ -8,10 +8,15 @@ import {
   type PalletRecoveryState,
 } from "../api/palletRecovery";
 
-type Props = { lineId: number; recovery: PalletRecoveryState | null };
+type Props = {
+  lineId: number;
+  recovery: PalletRecoveryState | null;
+  elapsedSeconds: number;
+  refreshFailed: boolean;
+};
 type OpenAction = "nav" | "print" | null;
 
-export function PalletRecoveryActions({ lineId, recovery }: Props) {
+export function PalletRecoveryActions({ lineId, recovery, elapsedSeconds, refreshFailed }: Props) {
   const [openAction, setOpenAction] = useState<OpenAction>(null);
   const [supervisors, setSupervisors] = useState<PalletEmployeeOption[]>([]);
   const [supervisorId, setSupervisorId] = useState("");
@@ -82,17 +87,49 @@ export function PalletRecoveryActions({ lineId, recovery }: Props) {
   }
 
   if (!recovery) return null;
-  const navNeedsAttention = recovery.navState === "RESULTADO_DESCONOCIDO";
+  const navConfirmed = recovery.navState === "CONFIRMADA";
+  const labelReady = ["LISTA", "IMPRESA"].includes(recovery.labelState ?? "");
+  const navNeedsAttention = recovery.navState === "ERROR_DEFINITIVO"
+    || recovery.navReconciliationRetryAvailable;
+  const labelNeedsAttention = recovery.labelState === "ERROR"
+    || recovery.labelState === "RESULTADO_DESCONOCIDO";
+  const needsAttention = navNeedsAttention || labelNeedsAttention;
+  const completed = navConfirmed && labelReady;
+  const headline = needsAttention
+    ? "El palé necesita revisión"
+    : !navConfirmed
+      ? "Registrando el palé en NAV"
+      : !labelReady
+        ? "NAV confirmado · Preparando la etiqueta"
+        : recovery.labelState === "IMPRESA"
+          ? "Palé completado · Etiqueta impresa"
+          : "Etiqueta enviada a impresión";
 
   return (
-    <section className="pallet-recovery" aria-label="Acciones del último palet">
+    <section className={`pallet-recovery ${needsAttention ? "has-error" : completed ? "is-complete" : "is-working"}`} aria-label="Seguimiento del último palé">
       <header>
-        <div><p className="eyebrow">Último palet · {recovery.palletNumber}</p><h3>Seguimiento y recuperación</h3></div>
+        <div><p className="eyebrow">Último palé · {recovery.palletNumber}</p><h3>{headline}</h3></div>
         <div className="pallet-recovery-statuses">
-          <span className={navNeedsAttention ? "attention" : "ok"}>NAV: {formatState(recovery.navState)}</span>
-          <span className={recovery.labelState === "IMPRESA" ? "ok" : "attention"}>Etiqueta: {formatState(recovery.labelState)}</span>
+          <span className={navNeedsAttention ? "attention" : navConfirmed ? "ok" : "working"}>NAV: {formatNavState(recovery.navState)}</span>
+          <span className={labelNeedsAttention ? "attention" : labelReady ? "ok" : "working"}>Etiqueta: {formatLabelState(recovery.labelState)}</span>
         </div>
       </header>
+
+      <ol className="pallet-progress" aria-label="Progreso del palé">
+        <ProgressStep label="Palé cerrado" state="complete" />
+        <ProgressStep label="Registro NAV" state={navNeedsAttention ? "error" : navConfirmed ? "complete" : "active"} />
+        <ProgressStep label="Etiqueta" state={labelNeedsAttention ? "error" : labelReady ? "complete" : navConfirmed ? "active" : "pending"} />
+      </ol>
+
+      <div className="pallet-live-feedback" role="status" aria-live="polite">
+        {!completed && !needsAttention && <span className="pallet-spinner" aria-hidden="true" />}
+        <div>
+          <strong>{headline}</strong>
+          <small>Tiempo desde el cierre: {formatDuration(elapsedSeconds)} · Comprobaciones: {recovery.navAttempts}</small>
+          {!completed && !needsAttention && <small>MES comprueba la misma salida; no se registra ni imprime por duplicado.</small>}
+          {refreshFailed && <small className="refresh-warning">Última lectura conservada. Reintentando automáticamente…</small>}
+        </div>
+      </div>
 
       <div className="pallet-recovery-buttons">
         {recovery.navReconciliationRetryAvailable && (
@@ -141,8 +178,32 @@ export function PalletRecoveryActions({ lineId, recovery }: Props) {
   );
 }
 
-function formatState(state: string | null) {
+function formatNavState(state: string | null) {
+  if (state === "CONFIRMADA") return "confirmado";
+  if (state === "RESULTADO_DESCONOCIDO") return "comprobando";
+  if (state === "ERROR_REINTENTABLE") return "reintentando";
+  if (state === "ERROR_DEFINITIVO") return "requiere revisión";
   return state ? state.toLowerCase().replaceAll("_", " ") : "pendiente";
+}
+
+function formatLabelState(state: string | null) {
+  if (state === "PENDIENTE_NAV") return "esperando NAV";
+  if (state === "LISTA") return "enviada";
+  if (state === "IMPRESA") return "impresa";
+  if (state === "ERROR" || state === "RESULTADO_DESCONOCIDO") return "requiere revisión";
+  return state ? state.toLowerCase().replaceAll("_", " ") : "pendiente";
+}
+
+function formatDuration(totalSeconds: number) {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(safe / 3_600);
+  const minutes = Math.floor((safe % 3_600) / 60);
+  const seconds = safe % 60;
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function ProgressStep({ label, state }: { label: string; state: "pending" | "active" | "complete" | "error" }) {
+  return <li className={state}><span>{state === "complete" ? "✓" : state === "error" ? "!" : ""}</span><strong>{label}</strong></li>;
 }
 
 function createCorrelationId(): string {

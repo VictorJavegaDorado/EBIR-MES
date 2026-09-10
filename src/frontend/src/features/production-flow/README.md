@@ -22,6 +22,10 @@ El refresco automático recupera conjuntamente la orden y la mesa activas de la
 línea. Así, cuando el último palé queda confirmado en NAV y su etiqueta está
 disponible, la transición a `PENDIENTE_CIERRE` cambia el botón a
 `Finalizar orden` sin recargar manualmente el navegador.
+Durante ese tránsito el refresco pasa de 10 a 2 segundos y la pantalla muestra
+el progreso `Palé cerrado > Registro NAV > Etiqueta`, el tiempo transcurrido y
+las comprobaciones realizadas. Una conciliación aún en curso se distingue de
+una incidencia que realmente requiere una acción de recuperación.
 
 Al escanear una orden que todavia no esta en la lista MES, primero se conserva
 la recuperacion de una mesa pendiente y, si no existe, se solicita al servidor

@@ -11,6 +11,7 @@ public sealed class SqlPalletRecoveryStateReader(string? connectionString)
         SELECT TOP (1)
             p.palet_id,
             p.numero_palet,
+            p.cerrado_utc,
             n.operacion_nav_id,
             n.estado,
             COALESCE(n.numero_intentos, 0),
@@ -75,10 +76,11 @@ public sealed class SqlPalletRecoveryStateReader(string? connectionString)
             if (!await reader.ReadAsync(cancellationToken)) return null;
             return new(
                 reader.GetInt64(0), reader.GetInt32(1),
-                reader.IsDBNull(2) ? null : reader.GetInt64(2),
-                reader.IsDBNull(3) ? null : reader.GetString(3), reader.GetInt32(4),
-                reader.GetBoolean(5), reader.IsDBNull(6) ? null : reader.GetString(6),
-                reader.GetBoolean(7));
+                new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(2), DateTimeKind.Utc)),
+                reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4), reader.GetInt32(5),
+                reader.GetBoolean(6), reader.IsDBNull(7) ? null : reader.GetString(7),
+                reader.GetBoolean(8));
         }
         catch (OperationCanceledException) { throw; }
         catch (SqlException exception)

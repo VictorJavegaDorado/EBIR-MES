@@ -1,6 +1,7 @@
 export type PalletRecoveryState = {
   palletId: number;
   palletNumber: number;
+  closedAtUtc: string;
   navOperationId: number | null;
   navState: string | null;
   navAttempts: number;

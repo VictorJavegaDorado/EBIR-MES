@@ -176,11 +176,16 @@ queda persistida y auditada en su cierre, por lo que esta transicion automatica
 no solicita de nuevo la tarjeta del supervisor.
 
 La pantalla refresca conjuntamente la orden y la mesa activas cada 10 segundos
-para recoger cambios realizados desde otro terminal o por los procesos de NAV
-e impresion. Cuando el ultimo pale pasa a estar disponible para el cierre de
+en estado estable y cada 2 segundos mientras el ultimo pale espera confirmacion
+de NAV o de impresion. El primer refresco se solicita inmediatamente despues
+del cierre del pale. Cuando el ultimo pale pasa a estar disponible para el cierre de
 orden, el estado `PENDIENTE_CIERRE` y la accion `Finalizar orden` aparecen sin
 recargar manualmente el navegador. Un fallo puntual conserva el ultimo estado
-confirmado y se reintenta en el siguiente ciclo. Entre instantaneas, la
+confirmado, se muestra como tal y se reintenta en el siguiente ciclo. La fase
+de integracion presenta `Pale cerrado`, `Registro NAV` y `Etiqueta`, el tiempo
+desde el cierre y el numero de comprobaciones. `RESULTADO_DESCONOCIDO` se trata
+como trabajo en curso mientras no exista una recuperacion supervisada
+disponible; no se presenta como error ni implica un nuevo envio. Entre instantaneas, la
 proyeccion visual avanza cada segundo desde un ancla monotona tomada por el
 navegador al recibir la respuesta. No resta la hora del terminal a la hora UTC
 del servidor, por lo que un desfase entre ambos relojes no produce saltos de 10

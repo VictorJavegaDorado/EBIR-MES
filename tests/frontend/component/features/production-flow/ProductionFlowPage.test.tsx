@@ -267,6 +267,45 @@ describe("ProductionFlowPage", () => {
     expect(screen.getByText("SIN OPERARIOS")).toBeInTheDocument();
   });
 
+  it("shows live pallet progress without presenting normal NAV reconciliation as an error", async () => {
+    const intervals: number[] = [];
+    vi.spyOn(window, "setInterval").mockImplementation(((handler: TimerHandler, timeout?: number) => {
+      intervals.push(timeout ?? 0);
+      return 1;
+    }) as typeof window.setInterval);
+    const tableReconciling = {
+      ...tableState,
+      latestPalletRecovery: {
+        palletId: 88,
+        palletNumber: 5,
+        closedAtUtc: new Date(Date.now() - 12_000).toISOString(),
+        navOperationId: 91,
+        navState: "RESULTADO_DESCONOCIDO",
+        navAttempts: 2,
+        navReconciliationRetryAvailable: false,
+        labelState: "PENDIENTE_NAV",
+        labelReprintAvailable: false,
+      },
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([order]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(tableReconciling), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+
+    expect(await screen.findAllByText("Registrando el palé en NAV")).not.toHaveLength(0);
+    expect(screen.getByText("NAV: comprobando")).toBeInTheDocument();
+    expect(screen.getByText(/Tiempo desde el cierre: \d{2}:\d{2}:\d{2} · Comprobaciones: 2/)).toBeInTheDocument();
+    expect(screen.getByText(/no se registra ni imprime por duplicado/i)).toBeInTheDocument();
+    expect(screen.queryByText(/necesita revisión/i)).not.toBeInTheDocument();
+    expect(intervals).toContain(2_000);
+    expect(screen.getByText(/Actualización automática cada 2 s/i)).toBeInTheDocument();
+  });
+
   it("recovers a completed order by line so the last operator can leave", async () => {
     const completedOrder = {
       ...order,

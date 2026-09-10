@@ -78,6 +78,8 @@ export function ProductionFlowPage() {
   const palletBusyRef = useRef(false);
   const [error, setError] = useState<FlowError>(null);
   const [notice, setNotice] = useState("");
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const [refreshSequence, setRefreshSequence] = useState(0);
   const request = useRef<AbortController | null>(null);
   const refreshRequest = useRef<AbortController | null>(null);
   const pendingCorrelations = useRef(new Map<string, string>());
@@ -102,12 +104,19 @@ export function ProductionFlowPage() {
   useEffect(() => {
     if (!table || !order || !line) return;
 
+    const recovery = table.latestPalletRecovery;
+    const integrationPending = Boolean(recovery
+      && (recovery.navState !== "CONFIRMADA"
+        || !["LISTA", "IMPRESA"].includes(recovery.labelState ?? "")));
+    const refreshInterval = integrationPending ? 2_000 : 10_000;
+
     const refresh = async () => {
       refreshRequest.current?.abort();
       const controller = new AbortController();
       refreshRequest.current = controller;
       try {
         const active = await getActiveProductionTable(line.id, controller.signal);
+        setRefreshFailed(false);
         if (
           active
           && active.order.productionOrderId === order.productionOrderId
@@ -117,20 +126,31 @@ export function ProductionFlowPage() {
           setOrder(active.order);
           acceptTableSnapshot(active.table);
         }
-      } catch {
+      } catch (refreshError) {
         // Keep the last confirmed snapshot visible. The next refresh retries safely.
+        if (!(refreshError instanceof DOMException && refreshError.name === "AbortError")) {
+          setRefreshFailed(true);
+        }
       } finally {
         if (refreshRequest.current === controller) refreshRequest.current = null;
       }
     };
 
-    const interval = window.setInterval(refresh, 10_000);
+    if (refreshSequence > 0) void refresh();
+    const interval = window.setInterval(refresh, refreshInterval);
     return () => {
       window.clearInterval(interval);
       refreshRequest.current?.abort();
       refreshRequest.current = null;
     };
-  }, [table?.lineSessionId, order?.productionOrderId, line?.id]);
+  }, [
+    table?.lineSessionId,
+    table?.latestPalletRecovery?.navState,
+    table?.latestPalletRecovery?.labelState,
+    order?.productionOrderId,
+    line?.id,
+    refreshSequence,
+  ]);
 
   useEffect(() => {
     if (!palletOperator) return;
@@ -214,6 +234,10 @@ export function ProductionFlowPage() {
     ? secondsBetween(table.startedAtUtc, table.serverTimeUtc) + elapsedSinceSnapshot
     : 0;
   const stoppedSeconds = Math.max(0, totalElapsedSeconds - productiveSeconds);
+  const palletElapsedSeconds = table?.latestPalletRecovery
+    ? secondsBetween(table.latestPalletRecovery.closedAtUtc, table.serverTimeUtc)
+      + elapsedSinceSnapshot
+    : 0;
   const productionPhase = getProductionPhase(activeStep, order, table);
 
   async function submitLine(event: FormEvent) {
@@ -713,6 +737,7 @@ export function ProductionFlowPage() {
                   order={order}
                   table={table}
                   phase={productionPhase}
+                  palletElapsedSeconds={palletElapsedSeconds}
                   onComplete={startNewOrder}
                   busy={busy}
                 />
@@ -752,7 +777,7 @@ export function ProductionFlowPage() {
 
               {table && (
                 <p className="production-sync">
-                  Inicio {formatTimestamp(table.startedAtUtc)} · Última confirmación del servidor {formatTimestamp(table.serverTimeUtc)} · Actualización automática cada 10 s
+                  Inicio {formatTimestamp(table.startedAtUtc)} · Última confirmación del servidor {formatTimestamp(table.serverTimeUtc)} · Actualización automática cada {table.latestPalletRecovery && (table.latestPalletRecovery.navState !== "CONFIRMADA" || !["LISTA", "IMPRESA"].includes(table.latestPalletRecovery.labelState ?? "")) ? "2" : "10"} s
                 </p>
               )}
 
@@ -899,6 +924,8 @@ export function ProductionFlowPage() {
                     <PalletRecoveryActions
                       lineId={table.lineId}
                       recovery={table.latestPalletRecovery}
+                      elapsedSeconds={palletElapsedSeconds}
+                      refreshFailed={refreshFailed}
                     />
                   ) : (
                     <p className="integration-empty">La conciliación y la etiqueta aparecerán aquí al cerrar el primer palé.</p>
@@ -976,6 +1003,7 @@ export function ProductionFlowPage() {
                       }}
                       onPalletClosed={(quantity) => {
                         setNotice(`Palet cerrado con ${quantity} unidades por ${palletOperator.fullName}. NAV queda pendiente en segundo plano.`);
+                        setRefreshSequence((current) => current + 1);
                       }}
                     />
                   </section>
@@ -1007,6 +1035,7 @@ type ProductionOrderHeroProps = {
   order: ProductionOrder;
   table: ProductionTableState | null;
   phase: number;
+  palletElapsedSeconds: number;
   busy: boolean;
   onComplete: () => void;
 };
@@ -1015,6 +1044,7 @@ function ProductionOrderHero({
   order,
   table,
   phase,
+  palletElapsedSeconds,
   busy,
   onComplete,
 }: ProductionOrderHeroProps) {
@@ -1029,7 +1059,7 @@ function ProductionOrderHero({
   const palletLabel = totalPallets
     ? `${Math.min(completedPallets + (remaining > 0 ? 1 : 0), totalPallets)} de ${totalPallets}`
     : "Pendiente";
-  const instruction = getProductionInstruction(order, table, palletLabel);
+  const instruction = getProductionInstruction(order, table, palletLabel, palletElapsedSeconds);
   const tone = getTableTone(order, table);
 
   return (
@@ -1211,17 +1241,20 @@ function getProductionInstruction(
   order: ProductionOrder,
   table: ProductionTableState | null,
   palletLabel: string,
+  palletElapsedSeconds: number,
 ): string {
   if (order.state === "PENDIENTE_CIERRE") {
     return "Todos los palés están completados. Finaliza la orden para liberar la línea.";
   }
   if (!table) return "Esperando operarios · Acerca la primera tarjeta RFID.";
   const recovery = table.latestPalletRecovery;
-  if (recovery?.navState === "RESULTADO_DESCONOCIDO" || recovery?.labelState === "ERROR") {
+  if (recovery && (recovery.navState === "ERROR_DEFINITIVO"
+    || recovery.navReconciliationRetryAvailable
+    || ["ERROR", "RESULTADO_DESCONOCIDO"].includes(recovery.labelState ?? ""))) {
     return "El último palé necesita revisión · Utiliza las acciones de recuperación.";
   }
   if (recovery && recovery.navState !== "CONFIRMADA") {
-    return `Palé ${recovery.palletNumber} cerrado · Conciliando con NAV sin reenviar la salida.`;
+    return `Palé ${recovery.palletNumber} cerrado · Registrando en NAV (${formatDuration(palletElapsedSeconds)}).`;
   }
   if (recovery && !["LISTA", "IMPRESA"].includes(recovery.labelState ?? "")) {
     return `NAV confirmado para el palé ${recovery.palletNumber} · Preparando la etiqueta.`;
@@ -1239,7 +1272,9 @@ function getTableTone(
   if (order.state === "PENDIENTE_CIERRE") return "amber";
   if (!table) return "gray";
   const recovery = table.latestPalletRecovery;
-  if (recovery?.navState === "RESULTADO_DESCONOCIDO" || recovery?.labelState === "ERROR") return "red";
+  if (recovery && (recovery.navState === "ERROR_DEFINITIVO"
+    || recovery.navReconciliationRetryAvailable
+    || ["ERROR", "RESULTADO_DESCONOCIDO"].includes(recovery.labelState ?? ""))) return "red";
   if (recovery && (recovery.navState !== "CONFIRMADA"
     || !["LISTA", "IMPRESA"].includes(recovery.labelState ?? ""))) return "blue";
   if (table.activeResources === 0) return "gray";
