@@ -59,7 +59,7 @@ type PendingClose = {
 type SupervisorChallenge =
   | ({ status: "scanning"; credential: string; error?: string } & PendingClose)
   | ({ status: "identifying" } & PendingClose)
-  | ({ status: "identified"; employee: IdentifiedEmployee } & PendingClose);
+  | ({ status: "closing"; employee: IdentifiedEmployee } & PendingClose);
 
 type Props = {
   line?: IdentifiedLine;
@@ -320,6 +320,7 @@ export function PalletClosePage({
           return;
         }
 
+        setSupervisorChallenge(null);
         setViewState({
           status: "error",
           code: error.code,
@@ -330,6 +331,7 @@ export function PalletClosePage({
         return;
       }
 
+      setSupervisorChallenge(null);
       setViewState({
         status: "error",
         code: "PALLET_CLOSE_UNAVAILABLE",
@@ -392,11 +394,13 @@ export function PalletClosePage({
         return;
       }
 
-      setSupervisorChallenge({
-        status: "identified",
-        employee,
-        ...pending,
-      });
+      setForm((current) => ({
+        ...current,
+        authorizingSupervisorId: String(employee.employeeId),
+      }));
+      setSupervisorChallenge({ status: "closing", employee, ...pending });
+      attempt.current = null;
+      await executeClose(pending, employee.employeeId);
     } catch (error) {
       if (request.signal.aborted || activeRequest.current !== request) {
         return;
@@ -423,22 +427,6 @@ export function PalletClosePage({
     setSupervisorChallenge(null);
     setViewState({ status: "idle" });
     onBusyChangeRef.current?.(false);
-  }
-
-  async function confirmSupervisorClose() {
-    if (!supervisorChallenge || supervisorChallenge.status !== "identified") {
-      return;
-    }
-
-    const pending = asPendingClose(supervisorChallenge);
-    const supervisorId = supervisorChallenge.employee.employeeId;
-    setForm((current) => ({
-      ...current,
-      authorizingSupervisorId: String(supervisorId),
-    }));
-    setSupervisorChallenge(null);
-    attempt.current = null;
-    await executeClose(pending, supervisorId);
   }
 
   function prepareAnotherClose() {
@@ -940,23 +928,12 @@ export function PalletClosePage({
               </div>
             )}
 
-            {supervisorChallenge.status === "identified" && (
-              <div className="supervisor-rfid-confirmation">
-                <p>Supervisor identificado</p>
+            {supervisorChallenge.status === "closing" && (
+              <div className="supervisor-rfid-confirmation" role="status" aria-live="polite">
+                <span className="loading-mark" aria-hidden="true" />
+                <p>Supervisor validado · Cerrando el último palet…</p>
                 <strong>{supervisorChallenge.employee.fullName}</strong>
                 <span>{supervisorChallenge.employee.navEmployeeCode}</span>
-                <div className="supervisor-rfid-actions">
-                  <button type="button" onClick={cancelSupervisorChallenge}>
-                    Cancelar
-                  </button>
-                  <button
-                    className="primary-action"
-                    type="button"
-                    onClick={() => void confirmSupervisorClose()}
-                  >
-                    Autorizar y cerrar palet
-                  </button>
-                </div>
               </div>
             )}
           </section>

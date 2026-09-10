@@ -21,3 +21,8 @@ propone su cantidad POK y oculta al operario el concepto de reserva. Una
 cantidad distinta exige indicar el motivo. El resultado muestra NAV como estado
 pendiente de segundo plano y permite preparar el siguiente palet sin abandonar
 Trabajo.
+
+Cuando el servidor detecta el último palet, conserva el cierre preparado y
+solicita un RFID de supervisor. Una tarjeta vigente autoriza y ejecuta ese mismo
+cierre automáticamente: no existe un segundo botón de confirmación ni se obliga
+al operario a repetir la acción `Cerrar palet`.

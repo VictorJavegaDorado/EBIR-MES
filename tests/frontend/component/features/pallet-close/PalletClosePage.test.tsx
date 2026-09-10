@@ -244,12 +244,9 @@ describe("PalletClosePage", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /validar tarjeta/i }));
 
-    expect(await screen.findByText("Supervisora nueve")).toBeInTheDocument();
-    await userEvent.click(
-      screen.getByRole("button", { name: /autorizar y cerrar palet/i }),
-    );
-
     expect(await screen.findByText("Palé 131 cerrado")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /autorizar y cerrar palet/i }))
+      .not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(fetchMock.mock.calls[2][0]).toBe("/api/operator-identification/rfid");
     const firstClose = JSON.parse(String(fetchMock.mock.calls[1][1]?.body)) as {
