@@ -278,9 +278,10 @@
 .production-order-facts > div { padding: 12px 20px; border-right: 1px solid var(--border); }
 .production-order-facts > div:last-child { border-right: 0; }
 .production-order-facts small, .production-order-facts strong { display: block; }
-.production-order-facts small { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.production-order-facts small { color: var(--muted); font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .production-order-facts strong { margin-top: 3px; color: var(--forest-deep); font-size: 18px; }
 .production-next-action { min-height: 74px; display: flex; align-items: center; gap: 14px; padding: 13px 20px; color: var(--forest-deep); background: #edf8ef; border-top: 1px solid #b9dfc1; }
+.production-next-action .tone-icon { width: 26px; height: 26px; flex: 0 0 auto; }
 .production-next-action > div { min-width: 0; flex: 1; }
 .production-next-action small, .production-next-action strong { display: block; }
 .production-next-action small { margin-bottom: 3px; font-size: 10px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
@@ -324,7 +325,7 @@
 .employee-time-grid > div { padding: 8px 9px; border-right: 1px solid var(--border); }
 .employee-time-grid > div:last-child { border-right: 0; }
 .employee-time-grid small, .employee-time-grid strong { display: block; }
-.employee-time-grid small { margin: 0; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.employee-time-grid small { margin: 0; font-size: 13px; font-weight: 800; text-transform: uppercase; }
 .employee-time-grid strong { margin-top: 3px; font-size: 14px; }
 .employee-actions button.employee-stop-action { color: #704b11; border-color: #e4c26d; background: #fff9e8; }
 .employee-actions button.employee-resume-action { grid-column: 1 / -1; min-height: 66px; color: white; background: var(--forest-deep); border-color: var(--forest-deep); font-size: 17px; }
@@ -350,6 +351,7 @@
 .stop-reason-grid button small { margin-top: 3px; color: var(--muted); font-size: 11px; }
 .stop-reason-grid button.selected { background: #fff6db; border-color: #e6ae24; box-shadow: 0 0 0 3px rgba(230, 174, 36, .15); }
 .stop-reason-grid button:disabled { cursor: not-allowed; opacity: .48; }
+.stop-reason-pending { margin: 0 24px 22px; color: var(--muted); font-size: 12px; font-style: italic; }
 .operator-rfid-confirmation { padding: 20px 24px 24px; border-top: 1px solid var(--border); }
 .operator-rfid-confirmation > label { display: block; margin-bottom: 8px; color: var(--forest-deep); font-size: 12px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase; }
 .operator-rfid-control { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 9px 8px 15px; background: white; border: 2px solid var(--forest); border-radius: 9px; }

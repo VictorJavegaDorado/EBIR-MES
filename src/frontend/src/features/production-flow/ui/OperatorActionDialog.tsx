@@ -139,22 +139,25 @@ export function OperatorActionDialog({
         </header>
 
         {requiresReason && (
-          <div className="stop-reason-grid" aria-label="Motivo del paro">
-            {stopReasons.map((item) => (
-              <button
-                key={item.code}
-                type="button"
-                className={reason === item.code ? "selected" : ""}
-                disabled={!item.enabled || busy}
-                aria-pressed={reason === item.code}
-                title={item.enabled ? undefined : "Pendiente de definir"}
-                onClick={() => setReason(item.code as ActiveStopReason)}
-              >
-                <strong>{item.label}</strong>
-                {!item.enabled && <small>Pendiente de definir</small>}
-              </button>
-            ))}
-          </div>
+          <>
+            <div className="stop-reason-grid" aria-label="Motivo del paro">
+              {stopReasons.filter((item) => item.enabled).map((item) => (
+                <button
+                  key={item.code}
+                  type="button"
+                  className={reason === item.code ? "selected" : ""}
+                  disabled={busy}
+                  aria-pressed={reason === item.code}
+                  onClick={() => setReason(item.code as ActiveStopReason)}
+                >
+                  <strong>{item.label}</strong>
+                </button>
+              ))}
+            </div>
+            <p className="stop-reason-pending">
+              +{stopReasons.filter((item) => !item.enabled).length} motivos pendientes de definir
+            </p>
+          </>
         )}
 
         {asksForCredential && (
