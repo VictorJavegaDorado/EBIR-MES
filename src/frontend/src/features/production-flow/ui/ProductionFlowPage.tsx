@@ -239,6 +239,19 @@ export function ProductionFlowPage() {
       + elapsedSinceSnapshot
     : 0;
   const productionPhase = getProductionPhase(activeStep, order, table);
+  const working = activeStep === 3;
+  const theoreticalUnitsToDate = table
+    ? table.theoreticalUnitsToDate
+      + (isProducing ? table.currentTheoreticalCapacityPerHour * elapsedSinceSnapshot / 3_600 : 0)
+    : 0;
+  const resourceSeconds = table
+    ? table.resourceSeconds + (isProducing ? table.activeResources * elapsedSinceSnapshot : 0)
+    : 0;
+  const compliance = order && table && order.goodQuantity > 0 && theoreticalUnitsToDate > 0
+    ? order.goodQuantity / theoreticalUnitsToDate * 100
+    : null;
+  const complianceTone = getComplianceTone(compliance, order, table);
+  const averageOperators = totalElapsedSeconds > 0 ? resourceSeconds / totalElapsedSeconds : null;
 
   async function submitLine(event: FormEvent) {
     event.preventDefault();
@@ -643,31 +656,50 @@ export function ProductionFlowPage() {
     window.setTimeout(() => palletTriggerRef.current?.focus(), 0);
   }
 
+  const headingActions = line ? (
+    <div className="flow-heading-actions">
+      {order && order.state !== "PENDIENTE_CIERRE" && (
+        <button
+          className="flow-new-order"
+          type="button"
+          onClick={startNewOrder}
+          disabled={busy}
+        >
+          Nueva orden
+        </button>
+      )}
+      <button className="flow-reset" type="button" onClick={resetFlow}>
+        Cambiar de línea
+      </button>
+    </div>
+  ) : null;
+
+  const progress = (
+    <ol className="flow-progress" aria-label="Progreso de la orden">
+      {productionPhases.map((phase, index) => {
+        const number = index + 1;
+        const state = number < productionPhase
+          ? "complete"
+          : number === productionPhase ? "active" : "pending";
+        return (
+          <li className={state} key={phase} aria-current={state === "active" ? "step" : undefined}>
+            <span>{state === "complete" ? "✓" : number}</span>
+            <strong>{phase}</strong>
+          </li>
+        );
+      })}
+    </ol>
+  );
+
   return (
-    <div className="production-flow">
+    <div className={`production-flow${working ? " working" : ""}`}>
       <header className="flow-heading">
-        <div>
+        <div className={working ? "sr-only" : undefined}>
           <p className="eyebrow">Puesto de producción</p>
           <h1>{screenSteps[activeStep - 1].title}</h1>
           <p>Línea, orden y todo el trabajo en una única mesa.</p>
         </div>
-        {line && (
-          <div className="flow-heading-actions">
-            {order && order.state !== "PENDIENTE_CIERRE" && (
-              <button
-                className="flow-new-order"
-                type="button"
-                onClick={startNewOrder}
-                disabled={busy}
-              >
-                Nueva orden
-              </button>
-            )}
-            <button className="flow-reset" type="button" onClick={resetFlow}>
-              Cambiar de línea
-            </button>
-          </div>
-        )}
+        {!working && headingActions}
       </header>
 
       {error && (
@@ -681,20 +713,12 @@ export function ProductionFlowPage() {
         </div>
       )}
 
-      <ol className="flow-progress" aria-label="Progreso de la orden">
-        {productionPhases.map((phase, index) => {
-          const number = index + 1;
-          const state = number < productionPhase
-            ? "complete"
-            : number === productionPhase ? "active" : "pending";
-          return (
-            <li className={state} key={phase} aria-current={state === "active" ? "step" : undefined}>
-              <span>{state === "complete" ? "✓" : number}</span>
-              <strong>{phase}</strong>
-            </li>
-          );
-        })}
-      </ol>
+      {working ? (
+        <div className="flow-topline">
+          {progress}
+          {headingActions}
+        </div>
+      ) : progress}
 
       <div className={`flow-layout${activeStep === 3 ? " working" : ""}`}>
         <main className="flow-stage">
@@ -732,6 +756,7 @@ export function ProductionFlowPage() {
 
           {activeStep === 3 && (
             <section className="flow-card rfid-stage">
+              <div className="work-main">
               {order && (
                 <ProductionOrderHero
                   order={order}
@@ -743,50 +768,8 @@ export function ProductionFlowPage() {
                 />
               )}
 
-              <form className="operator-entry-strip" onSubmit={submitRfid}>
-                <div>
-                  <strong>Incorporar operario</strong>
-                  <small>Acerca su tarjeta RFID al lector.</small>
-                </div>
-                <div className="scan-control rfid-control compact">
-                  <span aria-hidden="true">RF</span>
-                  <input
-                    id="rfid-credential"
-                    type="password"
-                    autoComplete="off"
-                    autoFocus
-                    value={rfidCredential}
-                    onChange={(event) => setRfidCredential(event.target.value)}
-                    placeholder="Esperando tarjeta…"
-                    aria-label="Lector RFID"
-                    aria-describedby="rfid-privacy"
-                  />
-                  <button type="submit" disabled={busy}>{busy ? "Validando…" : "Identificar"}</button>
-                </div>
-                <small id="rfid-privacy">El valor de la tarjeta no aparece en pantalla ni se conserva.</small>
-              </form>
-
-              {order && (
-                <ProductionTimeStrip
-                  table={table}
-                  order={order}
-                  totalElapsedSeconds={totalElapsedSeconds}
-                  productiveSeconds={productiveSeconds}
-                  stoppedSeconds={stoppedSeconds}
-                />
-              )}
-
-              {table && (
-                <p className="production-sync">
-                  Inicio {formatTimestamp(table.startedAtUtc)} · Última confirmación del servidor {formatTimestamp(table.serverTimeUtc)} · Actualización automática cada {table.latestPalletRecovery && (table.latestPalletRecovery.navState !== "CONFIRMADA" || !["LISTA", "IMPRESA"].includes(table.latestPalletRecovery.labelState ?? "")) ? "2" : "10"} s
-                </p>
-              )}
-
               <div className="employee-list" aria-live="polite">
-                {!table || table.operators.length === 0 ? (
-                  <div className="empty-team">Todavía no hay personas identificadas.</div>
-                ) : (
-                  table.operators.map((employee) => {
+                {table?.operators.map((employee) => {
                     const initials = employee.fullName
                       .split(/\s+/)
                       .filter(Boolean)
@@ -902,37 +885,87 @@ export function ProductionFlowPage() {
                         </div>
                       </div>
                     );
-                  })
+                  })}
+
+                {(!table || table.operators.length < maxOperators) && (
+                  <form className="operator-entry-strip employee-slot" onSubmit={submitRfid}>
+                    <div>
+                      <strong>Incorporar operario</strong>
+                      <small>Acerca su tarjeta RFID al lector.</small>
+                    </div>
+                    <div className="scan-control rfid-control compact">
+                      <span aria-hidden="true">RF</span>
+                      <input
+                        id="rfid-credential"
+                        type="password"
+                        autoComplete="off"
+                        autoFocus
+                        value={rfidCredential}
+                        onChange={(event) => setRfidCredential(event.target.value)}
+                        placeholder="Esperando tarjeta…"
+                        aria-label="Lector RFID"
+                        aria-describedby="rfid-privacy"
+                      />
+                      <button type="submit" disabled={busy}>{busy ? "Validando…" : "Identificar"}</button>
+                    </div>
+                    <small id="rfid-privacy">El valor de la tarjeta no aparece en pantalla ni se conserva.</small>
+                    {(!table || table.operators.length === 0) && (
+                      <div className="empty-team">Todavía no hay personas identificadas.</div>
+                    )}
+                  </form>
                 )}
               </div>
+              </div>
 
-              {!table && (
-                <div className="work-pallet-empty">
-                  Identifica al primer operario para preparar el palet.
-                </div>
-              )}
+              <aside className="work-side" aria-label="Estado de la mesa">
+                {order && (
+                  <ProductionTimePanel
+                    table={table}
+                    order={order}
+                    totalElapsedSeconds={totalElapsedSeconds}
+                    productiveSeconds={productiveSeconds}
+                    stoppedSeconds={stoppedSeconds}
+                    compliance={compliance}
+                    complianceTone={complianceTone}
+                    averageOperators={averageOperators}
+                    resourceSeconds={resourceSeconds}
+                  />
+                )}
 
-              {table && (
-                <section className="production-integration-band" aria-label="Estado de NAV e impresión">
-                  <header>
-                    <div>
-                      <p className="eyebrow">Confirmación del último palé</p>
-                      <h3>NAV e impresión</h3>
-                    </div>
-                    {!table.latestPalletRecovery && <span className="integration-waiting">Sin palés cerrados</span>}
-                  </header>
-                  {table.latestPalletRecovery ? (
-                    <PalletRecoveryActions
-                      lineId={table.lineId}
-                      recovery={table.latestPalletRecovery}
-                      elapsedSeconds={palletElapsedSeconds}
-                      refreshFailed={refreshFailed}
-                    />
-                  ) : (
-                    <p className="integration-empty">La conciliación y la etiqueta aparecerán aquí al cerrar el primer palé.</p>
-                  )}
-                </section>
-              )}
+                {!table && (
+                  <div className="work-pallet-empty">
+                    Identifica al primer operario para preparar el palet.
+                  </div>
+                )}
+
+                {table && (
+                  <section className="production-integration-band" aria-label="Estado de NAV e impresión">
+                    <header>
+                      <div>
+                        <p className="eyebrow">Confirmación del último palé</p>
+                        <h3>NAV e impresión</h3>
+                      </div>
+                      {!table.latestPalletRecovery && <span className="integration-waiting">Sin palés cerrados</span>}
+                    </header>
+                    {table.latestPalletRecovery ? (
+                      <PalletRecoveryActions
+                        lineId={table.lineId}
+                        recovery={table.latestPalletRecovery}
+                        elapsedSeconds={palletElapsedSeconds}
+                        refreshFailed={refreshFailed}
+                      />
+                    ) : (
+                      <p className="integration-empty">La conciliación y la etiqueta aparecerán aquí al cerrar el primer palé.</p>
+                    )}
+                  </section>
+                )}
+
+                {table && (
+                  <p className="production-sync">
+                    Inicio {formatTimestamp(table.startedAtUtc)} · Última confirmación del servidor {formatTimestamp(table.serverTimeUtc)} · Actualización automática cada {table.latestPalletRecovery && (table.latestPalletRecovery.navState !== "CONFIRMADA" || !["LISTA", "IMPRESA"].includes(table.latestPalletRecovery.labelState ?? "")) ? "2" : "10"} s
+                  </p>
+                )}
+              </aside>
 
               {operatorDialog && (
                 <OperatorActionDialog
@@ -1102,29 +1135,89 @@ function ProductionOrderHero({
   );
 }
 
-function ProductionTimeStrip({
+const maxOperators = 6;
+
+type ComplianceTone = "gray" | "green" | "amber" | "red";
+
+const complianceToneLabels: Record<ComplianceTone, string> = {
+  gray: "sin datos",
+  green: "verde",
+  amber: "ámbar",
+  red: "rojo",
+};
+
+function ProductionTimePanel({
   table,
   order,
   totalElapsedSeconds,
   productiveSeconds,
   stoppedSeconds,
+  compliance,
+  complianceTone,
+  averageOperators,
+  resourceSeconds,
 }: {
   table: ProductionTableState | null;
   order: ProductionOrder;
   totalElapsedSeconds: number;
   productiveSeconds: number;
   stoppedSeconds: number;
+  compliance: number | null;
+  complianceTone: ComplianceTone;
+  averageOperators: number | null;
+  resourceSeconds: number;
 }) {
   return (
     <section className="production-time-strip" aria-label="Tiempos de producción">
-      <div className="primary-time"><small>Tiempo global de mesa</small><strong>{formatDuration(totalElapsedSeconds)}</strong></div>
-      <div><small>Productivo</small><strong>{formatDuration(productiveSeconds)}</strong></div>
-      <div><small>Parado</small><strong>{formatDuration(stoppedSeconds)}</strong></div>
-      <div><small>Ruta NAV</small><strong>{formatMinutes(order.runTimeMinutes)}</strong></div>
-      <div><small>Comparación</small><strong>{formatRouteComparison(productiveSeconds, order.runTimeMinutes)}</strong></div>
-      <div><small>Ritmo teórico actual</small><strong>{table ? `${formatCapacity(table.currentTheoreticalCapacityPerHour)} u/h` : "—"}</strong></div>
+      <div className="time-panel-head">
+        <span
+          className={`traffic-light ${complianceTone}`}
+          role="img"
+          aria-label={`Semáforo de productividad: ${complianceToneLabels[complianceTone]}`}
+        >
+          <i /><i /><i />
+        </span>
+        <div className="primary-time"><small>Tiempo global de mesa</small><strong>{formatDuration(totalElapsedSeconds)}</strong></div>
+        <div className={`compliance ${complianceTone}`}>
+          <small>Cumplimiento</small>
+          <strong>{compliance === null ? "Pendiente del 1.er palé" : `${Math.round(compliance)} %`}</strong>
+        </div>
+      </div>
+      <div className="time-panel-rows">
+        <div><small>Productivo</small><strong>{formatDuration(productiveSeconds)}</strong></div>
+        <div><small>Parado</small><strong>{formatDuration(stoppedSeconds)}</strong></div>
+        <div><small>Ruta NAV</small><strong>{formatMinutes(order.runTimeMinutes)}</strong></div>
+        <div><small>Comparación</small><strong>{formatRouteComparison(productiveSeconds, order.runTimeMinutes)}</strong></div>
+        <div><small>Ritmo teórico actual</small><strong>{table ? `${formatCapacity(table.currentTheoreticalCapacityPerHour)} u/h` : "—"}</strong></div>
+        <div className="average-row">
+          <div>
+            <small>Promedio operarios</small>
+            <em>{Math.round(resourceSeconds / 60)} min-hombre ÷ {Math.round(totalElapsedSeconds / 60)} min de mesa</em>
+          </div>
+          <strong>{averageOperators === null ? "—" : formatAverage(averageOperators)}</strong>
+        </div>
+      </div>
     </section>
   );
+}
+
+function getComplianceTone(
+  compliance: number | null,
+  order: ProductionOrder | null,
+  table: ProductionTableState | null,
+): ComplianceTone {
+  if (compliance === null) return "gray";
+  if (table && table.activeResources === 0 && order?.state !== "PENDIENTE_CIERRE") return "red";
+  if (compliance >= 95) return "green";
+  if (compliance >= 80) return "amber";
+  return "red";
+}
+
+function formatAverage(value: number): string {
+  return new Intl.NumberFormat("es-ES", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 type ScanStageProps = {

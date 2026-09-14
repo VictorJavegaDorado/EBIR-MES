@@ -24,6 +24,8 @@ export type ProductionTableState = {
   unitsPerPallet: number;
   operators: ProductionTableOperator[];
   latestPalletRecovery?: PalletRecoveryState | null;
+  theoreticalUnitsToDate: number;
+  resourceSeconds: number;
 };
 
 export type ActiveProductionTable = {

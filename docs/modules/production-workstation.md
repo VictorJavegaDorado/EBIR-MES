@@ -334,3 +334,31 @@ impresion ni Worker como consecuencia de este diseño.
 6. integrar palets y autorizacion de ultimo palet;
 7. completar recuperacion de contexto tras recargar el navegador;
 8. probar concurrencia y todos los cambios de capacidad.
+
+## Composicion fija del puesto y productividad en la mesa
+
+La fase `Produccion y pales` se presenta como un panel fijo para 1920×1080 sin
+scroll: cabecera de orden y rejilla 3×2 de operarios (maximo seis) a la
+izquierda; tiempos y `NAV e impresion` a la derecha. El lector RFID es la
+siguiente tarjeta libre de la rejilla y no se muestra con la mesa completa.
+
+`GET /api/production-workstations/state` y `.../active` incorporan dos campos
+de solo lectura calculados sobre `prod.tramos_capacidad` de la sesion, sin
+modificar `prod.obtener_estado_mesa`:
+
+- `theoreticalUnitsToDate`: suma de `capacidad_teorica_hora × duracion` de cada
+  tramo, el mismo calculo que usa el panel de fabricacion;
+- `resourceSeconds`: suma de `recursos_activos × duracion` de cada tramo
+  (segundos-recurso productivos).
+
+Con ellos la mesa muestra:
+
+- cumplimiento = `cantidad buena ÷ unidades teoricas acumuladas × 100`, que
+  equivale a `PRODUCTIVIDAD_REAL ÷ PRODUCTIVIDAD_TEORICA` ponderado por la
+  capacidad real de cada tramo;
+- semaforo: gris sin unidades buenas, verde ≥ 95 %, ambar 80–95 %, rojo < 80 %
+  o mesa sin operarios productivos mientras la orden no este
+  `PENDIENTE_CIERRE`;
+- promedio de operarios = `segundos-recurso ÷ segundos desde la apertura de la
+  mesa`. La formula de turno (÷ 465 min) queda para el cierre de turno; en vivo
+  se usa el tiempo de mesa transcurrido, que converge al mismo valor.

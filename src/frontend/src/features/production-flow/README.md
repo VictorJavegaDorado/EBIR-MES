@@ -39,6 +39,27 @@ inmediatamente y no se incorporan al estado de la pantalla.
 
 Las tarjetas de operario presentan `Cerrar palé` como acción principal. `PARO`
 abre un selector de motivos y `PARO`, `Reincorporar` y `Salir de la mesa`
-solicitan la tarjeta RFID del propio operario. Las posiciones `Motivo 3` a
-`Motivo 10` permanecen visibles pero deshabilitadas hasta disponer del catálogo
-real; el contrato actual solo registra `WC` y `PAUSA_CALOR`.
+solicitan la tarjeta RFID del propio operario. El selector muestra solo `WC` y
+`PAUSA_CALOR` y una nota con el número de motivos pendientes de definir; el
+contrato actual solo registra esos dos.
+
+## Composición fija de Trabajo
+
+La fase 3 se compone como un panel fijo para la pantalla de 32″ a 1920×1080,
+sin scroll: a partir de 1500 px de ancho se divide en dos columnas. La
+izquierda contiene la cabecera de orden y una rejilla 3×2 de operarios (máximo
+seis). El lector RFID ocupa el primer hueco libre de esa rejilla y desaparece
+cuando la mesa está completa. La derecha contiene el panel de tiempos y el
+bloque `NAV e impresión` con altura reservada. El título de página queda solo
+para lectores de pantalla y las acciones `Nueva orden` y `Cambiar de línea`
+pasan a la tira de fases. Los avisos se superponen como toast para no robar
+altura. Por debajo de 1500 px se conserva la disposición apilada.
+
+El panel de tiempos muestra un semáforo y el porcentaje de cumplimiento:
+`unidades buenas ÷ unidades teóricas acumuladas`, donde las unidades teóricas
+proceden de los tramos de capacidad del servidor (`theoreticalUnitsToDate`) y
+avanzan localmente con la capacidad actual. Gris hasta el primer palé; verde
+≥ 95 %, ámbar 80–95 %, rojo < 80 % o mesa sin operarios productivos. La fila
+`Promedio operarios` divide los segundos-recurso acumulados
+(`resourceSeconds`) entre los segundos transcurridos desde que se abrió la
+mesa.

@@ -47,6 +47,8 @@ const tableState = {
     productiveSeconds: 65,
     status: "PRODUCIENDO",
   }],
+  theoreticalUnitsToDate: 0,
+  resourceSeconds: 65,
 };
 
 afterEach(() => {
@@ -443,6 +445,36 @@ describe("ProductionFlowPage", () => {
       expect(within(employeeCard as HTMLElement).getAllByText("00:01:06").length)
         .toBeGreaterThan(0);
     });
+  });
+
+  it("shows the productivity traffic light, compliance and average operators", async () => {
+    const serverTime = new Date();
+    const producingOrder = { ...order, goodQuantity: 5 };
+    const measuredTable = {
+      ...tableState,
+      startedAtUtc: new Date(serverTime.getTime() - 130_000).toISOString(),
+      serverTimeUtc: serverTime.toISOString(),
+      theoreticalUnitsToDate: 5.5,
+      resourceSeconds: 65,
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(JSON.stringify(line), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([producingOrder]), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify(measuredTable), { status: 200 }));
+
+    render(<ProductionFlowPage />);
+    await userEvent.type(screen.getByPlaceholderText("LINEA-TEST-01"), "LINEA-TEST-01{enter}");
+    await screen.findByRole("heading", { name: "Escanea la orden" });
+    await userEvent.type(screen.getByPlaceholderText("Escanea la orden"), "FL20-02277{enter}");
+
+    const times = await screen.findByRole("region", { name: /tiempos de producción/i });
+    expect(within(times).getByRole("img", { name: /semáforo de productividad: ámbar/i }))
+      .toBeInTheDocument();
+    expect(within(times).getByText("91 %")).toBeInTheDocument();
+    expect(within(times).getByText("Promedio operarios").parentElement?.nextElementSibling?.textContent)
+      .toBe("0,50");
+    expect(screen.getByRole("heading", { name: "Gestiona la producción" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/lector RFID/i).closest(".employee-list")).not.toBeNull();
   });
 
   it("starts a new order without asking for the line again", async () => {
