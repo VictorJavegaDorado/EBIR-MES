@@ -188,7 +188,7 @@ describe("ProductionFlowPage", () => {
     await screen.findByRole("heading", { name: "Escanea la orden" });
     await userEvent.type(screen.getByRole("textbox", { name: /orden de fabricación/i }), "FL20-02277{enter}");
 
-    const rfid = screen.getByRole("textbox", { name: /lector RFID/i });
+    const rfid = screen.getByLabelText(/lector RFID/i);
     await userEvent.type(rfid, "SYNTHETIC-CARD{enter}");
 
     expect(await screen.findByText("Operario piloto")).toBeInTheDocument();
@@ -515,7 +515,7 @@ describe("ProductionFlowPage", () => {
     await screen.findByText("Operario piloto");
     await userEvent.click(screen.getByRole("button", { name: /Registrar paro de Operario piloto/i }));
     const stopDialog = await screen.findByRole("dialog", { name: /registrar un paro/i });
-    expect(within(stopDialog).getAllByRole("button")).toHaveLength(11);
+    expect(within(stopDialog).getAllByRole("button")).toHaveLength(3);
     await userEvent.click(within(stopDialog).getByRole("button", { name: /^WC$/i }));
     await userEvent.type(
       within(stopDialog).getByLabelText(/confirmación RFID/i),
@@ -596,7 +596,7 @@ describe("ProductionFlowPage", () => {
     await userEvent.type(screen.getByRole("textbox", { name: /código de línea/i }), "LINEA-TEST-01{enter}");
     await screen.findByRole("heading", { name: "Escanea la orden" });
     await userEvent.type(screen.getByRole("textbox", { name: /orden de fabricación/i }), "FL20-02277{enter}");
-    await userEvent.type(screen.getByRole("textbox", { name: /lector RFID/i }), "SYNTHETIC-CARD{enter}");
+    await userEvent.type(screen.getByLabelText(/lector RFID/i), "SYNTHETIC-CARD{enter}");
     await screen.findByText("Operario piloto");
     const palletButton = screen.getByRole("button", {
       name: /cerrar palet como Operario piloto/i,

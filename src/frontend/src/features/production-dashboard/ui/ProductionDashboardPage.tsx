@@ -50,6 +50,14 @@ function integrationLabel(state: string | null, kind: "nav" | "label") {
   return displayState(state);
 }
 
+function lineActionMessage(line: ProductionDashboardLine): { tone: "ok" | "attn"; text: string } | null {
+  if (!line.order || !line.table) return null;
+  if (line.navIssues > 0) return { tone: "attn", text: "Revisar: conciliación NAV pendiente." };
+  if (line.printIssues > 0) return { tone: "attn", text: "Revisar: incidencia de impresión pendiente." };
+  if (isProducing(line)) return { tone: "ok", text: "Sin acción · dentro de ritmo." };
+  return { tone: "ok", text: "Sin acción." };
+}
+
 function performanceTone(performance: number | null) {
   if (performance === null) return "neutral";
   if (performance >= 95) return "good";
@@ -189,6 +197,7 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
     ? Math.max(0, order.targetQuantity - order.goodQuantity) / table.currentTheoreticalCapacityPerHour * 3600 : null;
   const navPending = line.pendingNavOutputs > 0;
   const printPending = line.pendingPrintJobs > 0;
+  const actionMessage = lineActionMessage(line);
 
   return (
     <article className={`dashboard-line-card ${statusTone(line)}`}>
@@ -198,7 +207,10 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
           <h2>{line.lineCode}</h2>
           <p>{line.lineName}</p>
         </div>
-        <strong className="dashboard-state"><i aria-hidden="true" />{displayState(table?.state ?? line.operationalState)}</strong>
+        <strong className="dashboard-state">
+          <StateIcon tone={statusTone(line)} />
+          <i aria-hidden="true" />{displayState(table?.state ?? line.operationalState)}
+        </strong>
       </header>
 
       {!order || !table ? (
@@ -294,10 +306,36 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
             </div>
             <div><span>Estado orden</span><strong>{displayState(order.state)}</strong></div>
           </div>
+
+          {actionMessage && (
+            <div className={`dashboard-action ${actionMessage.tone}`}>
+              <StateIcon tone={actionMessage.tone === "attn" ? "danger" : "running"} />
+              {actionMessage.text}
+            </div>
+          )}
         </>
       )}
 
       {line.blockReason && <p className="dashboard-block-reason">{line.blockReason}</p>}
     </article>
   );
+}
+
+function StateIcon({ tone }: { tone: "danger" | "running" | "waiting" | "idle" }) {
+  const common = {
+    className: "state-icon",
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke: "currentColor",
+    strokeWidth: 2.4,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+    focusable: false,
+  };
+
+  if (tone === "running") return <svg {...common}><path d="M5 12.5l4.5 4.5L19 7" /></svg>;
+  if (tone === "danger") return <svg {...common}><path d="M12 8v5M12 16.5h.01" /><circle cx="12" cy="12" r="9" /></svg>;
+  if (tone === "waiting") return <svg {...common}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>;
+  return <svg {...common}><circle cx="12" cy="12" r="8" strokeDasharray="3 3" /></svg>;
 }

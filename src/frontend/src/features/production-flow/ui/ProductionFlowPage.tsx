@@ -752,6 +752,7 @@ export function ProductionFlowPage() {
                   <span aria-hidden="true">RF</span>
                   <input
                     id="rfid-credential"
+                    type="password"
                     autoComplete="off"
                     autoFocus
                     value={rfidCredential}
@@ -1089,6 +1090,7 @@ function ProductionOrderHero({
 
       <div className="production-next-action" role="status" aria-live="polite">
         <span className="production-pulse" aria-hidden="true" />
+        <ToneIcon tone={tone} />
         <div><small>Estado y siguiente acción</small><strong>{instruction}</strong></div>
         {order.state === "PENDIENTE_CIERRE" && (
           <button type="button" onClick={onComplete} disabled={busy}>
@@ -1292,6 +1294,26 @@ function PalletIcon() {
       <path d="M4 5h16v4H4zM5 11h4v5H5zm5 0h4v5h-4zm5 0h4v5h-4zM3 18h18v2H3z" />
     </svg>
   );
+}
+
+function ToneIcon({ tone }: { tone: "green" | "amber" | "blue" | "red" | "gray" }) {
+  const commonProps = {
+    className: "tone-icon",
+    viewBox: "0 0 24 24",
+    fill: "none" as const,
+    stroke: "currentColor",
+    strokeWidth: 2.4,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+    focusable: false,
+  };
+
+  if (tone === "green") return <svg {...commonProps}><path d="M5 12.5l4.5 4.5L19 7" /></svg>;
+  if (tone === "amber") return <svg {...commonProps}><path d="M9 6v12M15 6v12" /></svg>;
+  if (tone === "blue") return <svg {...commonProps}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></svg>;
+  if (tone === "red") return <svg {...commonProps}><path d="M12 8v5M12 16.5h.01" /><circle cx="12" cy="12" r="9" /></svg>;
+  return <svg {...commonProps}><circle cx="12" cy="12" r="8" strokeDasharray="3 3" /></svg>;
 }
 
 function createCorrelationId(): string {
