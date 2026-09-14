@@ -5,7 +5,8 @@ namespace Ebir.Mes.Application.ProductionDashboard;
 
 public sealed record ProductionDashboardSnapshotRecord(
     DateTime ServerTimeUtc,
-    IReadOnlyList<ProductionDashboardLineRecord> Lines);
+    IReadOnlyList<ProductionDashboardLineRecord> Lines,
+    ProductionDashboardSupervisorRecord? Supervisor = null);
 
 public sealed record ProductionDashboardLineRecord(
     long LineId,
@@ -25,4 +26,17 @@ public sealed record ProductionDashboardLineRecord(
     int NavIssues,
     int PendingPrintJobs,
     int PrintIssues,
-    decimal TheoreticalUnitsToDate);
+    decimal TheoreticalUnitsToDate,
+    long ResourceSeconds = 0,
+    string? SupervisorNavEmployeeCode = null,
+    string? SupervisorName = null);
+
+public sealed record ProductionDashboardSupervisorRecord(
+    string NavEmployeeCode,
+    string FullName,
+    IReadOnlyList<ProductionDashboardSupervisorLineRecord> Lines);
+
+public sealed record ProductionDashboardSupervisorLineRecord(
+    long LineId,
+    string LineCode,
+    string LineName);

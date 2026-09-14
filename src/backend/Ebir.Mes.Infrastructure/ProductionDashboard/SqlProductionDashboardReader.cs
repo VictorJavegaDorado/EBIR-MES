@@ -9,7 +9,31 @@ namespace Ebir.Mes.Infrastructure.ProductionDashboard;
 public sealed class SqlProductionDashboardReader(string? connectionString)
     : IProductionDashboardReader
 {
-    private const string LinesQuery = """
+    private const string AssignmentTableQuery = """
+        SELECT CASE WHEN OBJECT_ID(N'cfg.lineas_jefes', N'U') IS NULL THEN 0 ELSE 1 END;
+        """;
+
+    private const string SupervisorApply = """
+        OUTER APPLY
+        (
+            SELECT TOP (1) e.codigo_nav, e.nombre_completo
+            FROM cfg.lineas_jefes lj
+            JOIN seg.empleados e ON e.empleado_id=lj.empleado_id
+            WHERE lj.linea_id=l.linea_id AND lj.asignado_hasta_utc IS NULL
+              AND e.activo_mes=1 AND e.anonimizado_utc IS NULL
+            ORDER BY lj.asignado_desde_utc DESC, lj.linea_jefe_id DESC
+        ) jefe
+        """;
+
+    private const string SupervisorApplyWithoutTable = """
+        OUTER APPLY
+        (
+            SELECT CAST(NULL AS nvarchar(30)) AS codigo_nav,
+                   CAST(NULL AS nvarchar(200)) AS nombre_completo
+        ) jefe
+        """;
+
+    private const string LinesQueryTemplate = """
         DECLARE @ahora_utc datetime2(3)=SYSUTCDATETIME();
 
         SELECT
@@ -30,7 +54,9 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
             COALESCE(metricas.nav_incidencias,0) AS nav_incidencias,
             COALESCE(metricas.impresiones_pendientes,0) AS impresiones_pendientes,
             COALESCE(metricas.impresiones_incidencia,0) AS impresiones_incidencia,
-            COALESCE(metricas.unidades_teoricas_acumuladas,0) AS unidades_teoricas_acumuladas
+            COALESCE(metricas.unidades_teoricas_acumuladas,0) AS unidades_teoricas_acumuladas,
+            COALESCE(metricas.segundos_recurso,0) AS segundos_recurso,
+            jefe.codigo_nav AS jefe_codigo, jefe.nombre_completo AS jefe_nombre
         FROM cfg.lineas l
         INNER JOIN cfg.centros_trabajo c
             ON c.centro_trabajo_id=l.centro_trabajo_id
@@ -64,7 +90,12 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
                         MILLISECOND,tc.inicio_utc,COALESCE(tc.fin_utc,@ahora_utc)))
                     / CONVERT(decimal(38,10),3600000))
                  FROM prod.tramos_capacidad tc
-                 WHERE tc.sesion_linea_id=s.sesion_linea_id) AS unidades_teoricas_acumuladas
+                 WHERE tc.sesion_linea_id=s.sesion_linea_id) AS unidades_teoricas_acumuladas,
+                (SELECT SUM(
+                    CONVERT(bigint,tc.recursos_activos)
+                    * DATEDIFF_BIG(SECOND,tc.inicio_utc,COALESCE(tc.fin_utc,@ahora_utc)))
+                 FROM prod.tramos_capacidad tc
+                 WHERE tc.sesion_linea_id=s.sesion_linea_id) AS segundos_recurso
         ) metricas
         OUTER APPLY
         (
@@ -80,24 +111,50 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
             WHERE e.orden_id=o.orden_id AND e.tipo=N'PALET'
             ORDER BY e.etiqueta_id DESC
         ) ultima_etiqueta
+        {SupervisorApply}
         WHERE l.activa=1 AND c.activo=1
+          AND (@jefe IS NULL OR jefe.codigo_nav=@jefe)
         ORDER BY c.codigo,l.codigo,l.linea_id;
         """;
 
+    private const string SupervisorsQuery = """
+        SELECT e.codigo_nav, e.nombre_completo, l.linea_id, l.codigo, l.nombre
+        FROM cfg.lineas_jefes lj
+        JOIN seg.empleados e ON e.empleado_id=lj.empleado_id
+        JOIN cfg.lineas l ON l.linea_id=lj.linea_id
+        JOIN cfg.centros_trabajo c ON c.centro_trabajo_id=l.centro_trabajo_id
+        WHERE lj.asignado_hasta_utc IS NULL
+          AND e.activo_mes=1 AND e.anonimizado_utc IS NULL
+          AND l.activa=1 AND c.activo=1
+          AND EXISTS
+          (
+              SELECT 1
+              FROM seg.empleados_roles er
+              JOIN seg.roles r ON r.rol_id=er.rol_id
+              WHERE er.empleado_id=e.empleado_id
+                AND r.codigo=N'SUPERVISOR' AND r.activo=1
+                AND er.desde_utc<=SYSUTCDATETIME()
+                AND (er.hasta_utc IS NULL OR er.hasta_utc>=SYSUTCDATETIME())
+          )
+        ORDER BY e.nombre_completo, e.empleado_id, c.codigo, l.codigo, l.linea_id;
+        """;
+
     public async Task<ProductionDashboardSnapshotRecord> ReadAsync(
+        string? supervisorNavEmployeeCode,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new ProductionDashboardUnavailableException(
-                "La conexion de EBIR_MES_TEST no esta configurada.");
-        }
+        EnsureConfigured();
 
         try
         {
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken);
-            var lines = await ReadLinesAsync(connection, cancellationToken);
+            var assignmentsAvailable = await AssignmentTableExistsAsync(connection, cancellationToken);
+            var lines = await ReadLinesAsync(
+                connection,
+                assignmentsAvailable,
+                supervisorNavEmployeeCode,
+                cancellationToken);
 
             foreach (var line in lines.Where(line => line.SessionId.HasValue))
             {
@@ -113,9 +170,24 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
                 }
             }
 
+            var supervisor = supervisorNavEmployeeCode is null
+                ? null
+                : lines
+                    .Where(line => line.SupervisorNavEmployeeCode == supervisorNavEmployeeCode)
+                    .Select(line => new ProductionDashboardSupervisorRecord(
+                        line.SupervisorNavEmployeeCode!,
+                        line.SupervisorName ?? line.SupervisorNavEmployeeCode!,
+                        lines
+                            .Where(other => other.SupervisorNavEmployeeCode == supervisorNavEmployeeCode)
+                            .Select(other => new ProductionDashboardSupervisorLineRecord(
+                                other.LineId, other.LineCode, other.LineName))
+                            .ToArray()))
+                    .FirstOrDefault();
+
             return new ProductionDashboardSnapshotRecord(
                 DateTime.UtcNow,
-                lines.Select(line => line.ToRecord()).ToArray());
+                lines.Select(line => line.ToRecord()).ToArray(),
+                supervisor);
         }
         catch (OperationCanceledException)
         {
@@ -139,15 +211,113 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
         }
     }
 
-    private static async Task<List<DashboardLineBuilder>> ReadLinesAsync(
+    public async Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ReadSupervisorsAsync(
+        CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync(cancellationToken);
+            if (!await AssignmentTableExistsAsync(connection, cancellationToken))
+            {
+                return Array.Empty<ProductionDashboardSupervisorRecord>();
+            }
+
+            await using var command = new SqlCommand(SupervisorsQuery, connection)
+            {
+                CommandType = CommandType.Text,
+                CommandTimeout = 10
+            };
+            await using var reader = await command.ExecuteReaderAsync(
+                CommandBehavior.SingleResult,
+                cancellationToken);
+
+            var supervisors = new List<ProductionDashboardSupervisorRecord>();
+            var lines = new List<ProductionDashboardSupervisorLineRecord>();
+            string? currentCode = null;
+            string? currentName = null;
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var code = reader.GetString(0);
+                if (currentCode is not null && code != currentCode)
+                {
+                    supervisors.Add(new ProductionDashboardSupervisorRecord(
+                        currentCode, currentName!, lines.ToArray()));
+                    lines.Clear();
+                }
+
+                currentCode = code;
+                currentName = reader.GetString(1);
+                lines.Add(new ProductionDashboardSupervisorLineRecord(
+                    reader.GetInt64(2), reader.GetString(3), reader.GetString(4)));
+            }
+
+            if (currentCode is not null)
+            {
+                supervisors.Add(new ProductionDashboardSupervisorRecord(
+                    currentCode, currentName!, lines.ToArray()));
+            }
+
+            return supervisors;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SqlException exception)
+        {
+            throw new ProductionDashboardUnavailableException(
+                "No se han podido leer los jefes de linea.", exception);
+        }
+        catch (Exception exception)
+            when (exception is ArgumentException or InvalidOperationException)
+        {
+            throw new ProductionDashboardUnavailableException(
+                "La conexion de EBIR_MES_TEST no tiene una configuracion valida.",
+                exception);
+        }
+    }
+
+    private void EnsureConfigured()
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ProductionDashboardUnavailableException(
+                "La conexion de EBIR_MES_TEST no esta configurada.");
+        }
+    }
+
+    private static async Task<bool> AssignmentTableExistsAsync(
         SqlConnection connection,
         CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand(LinesQuery, connection)
+        await using var command = new SqlCommand(AssignmentTableQuery, connection)
+        {
+            CommandType = CommandType.Text,
+            CommandTimeout = 5
+        };
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        return result is int value && value == 1;
+    }
+
+    private static async Task<List<DashboardLineBuilder>> ReadLinesAsync(
+        SqlConnection connection,
+        bool assignmentsAvailable,
+        string? supervisorNavEmployeeCode,
+        CancellationToken cancellationToken)
+    {
+        var query = LinesQueryTemplate.Replace(
+            "{SupervisorApply}",
+            assignmentsAvailable ? SupervisorApply : SupervisorApplyWithoutTable);
+        await using var command = new SqlCommand(query, connection)
         {
             CommandType = CommandType.Text,
             CommandTimeout = 10
         };
+        command.Parameters.Add("@jefe", SqlDbType.NVarChar, 30).Value =
+            (object?)supervisorNavEmployeeCode ?? DBNull.Value;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SingleResult,
             cancellationToken);
@@ -181,7 +351,10 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
                 reader.IsDBNull(22) ? null : reader.GetString(22),
                 reader.IsDBNull(23) ? null : reader.GetString(23),
                 reader.GetInt32(24), reader.GetInt32(25),
-                reader.GetInt32(26), reader.GetInt32(27), reader.GetDecimal(28)));
+                reader.GetInt32(26), reader.GetInt32(27), reader.GetDecimal(28),
+                reader.GetInt64(29),
+                reader.IsDBNull(30) ? null : reader.GetString(30),
+                reader.IsDBNull(31) ? null : reader.GetString(31)));
         }
         return lines;
     }
@@ -251,7 +424,10 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
         int NavIssues,
         int PendingPrintJobs,
         int PrintIssues,
-        decimal TheoreticalUnitsToDate)
+        decimal TheoreticalUnitsToDate,
+        long ResourceSeconds,
+        string? SupervisorNavEmployeeCode,
+        string? SupervisorName)
     {
         public ProductionTableStateRecord? Table { get; set; }
 
@@ -259,6 +435,7 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
             LineId, LineCode, LineName, WorkCenterCode, WorkCenterName,
             OperationalState, BlockReason, UpdatedAtUtc, Order, Table,
             ClosedPallets, LatestNavState, LatestLabelState, PendingNavOutputs,
-            NavIssues, PendingPrintJobs, PrintIssues, TheoreticalUnitsToDate);
+            NavIssues, PendingPrintJobs, PrintIssues, TheoreticalUnitsToDate,
+            ResourceSeconds, SupervisorNavEmployeeCode, SupervisorName);
     }
 }

@@ -1,17 +1,38 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   getProductionDashboard,
+  getProductionDashboardSupervisors,
   type ProductionDashboardLine,
   type ProductionDashboardSnapshot,
+  type ProductionDashboardSupervisor,
 } from "../api/productionDashboard";
 
 const refreshMilliseconds = 5_000;
+const supervisorParameter = "jefe";
+const cardLimit = 6;
+const visiblePeople = 6;
 const numberFormatter = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+const averageFormatter = new Intl.NumberFormat("es-ES", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 const timeFormatter = new Intl.DateTimeFormat("es-ES", {
   hour: "2-digit",
   minute: "2-digit",
   second: "2-digit",
 });
+const clockFormatter = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit" });
+
+type Tone = "running" | "waiting" | "danger" | "idle";
+type ComplianceTone = "gray" | "green" | "amber" | "red";
+type ActionTone = "ok" | "wait" | "attn";
+
+const complianceToneLabels: Record<ComplianceTone, string> = {
+  gray: "sin datos",
+  green: "verde",
+  amber: "ámbar",
+  red: "rojo",
+};
 
 function formatDuration(totalSeconds: number) {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -32,7 +53,7 @@ function needsAttention(line: ProductionDashboardLine) {
   return line.operationalState === "BLOQUEADA" || line.navIssues > 0 || line.printIssues > 0;
 }
 
-function statusTone(line: ProductionDashboardLine) {
+function statusTone(line: ProductionDashboardLine): Tone {
   if (needsAttention(line)) return "danger";
   if (isProducing(line)) return "running";
   if (line.order) return "waiting";
@@ -50,40 +71,117 @@ function integrationLabel(state: string | null, kind: "nav" | "label") {
   return displayState(state);
 }
 
-function lineActionMessage(line: ProductionDashboardLine): { tone: "ok" | "attn"; text: string } | null {
-  if (!line.order || !line.table) return null;
-  if (line.navIssues > 0) return { tone: "attn", text: "Revisar: conciliación NAV pendiente." };
-  if (line.printIssues > 0) return { tone: "attn", text: "Revisar: incidencia de impresión pendiente." };
-  if (isProducing(line)) return { tone: "ok", text: "Sin acción · dentro de ritmo." };
-  return { tone: "ok", text: "Sin acción." };
-}
-
-function performanceTone(performance: number | null) {
-  if (performance === null) return "neutral";
-  if (performance >= 95) return "good";
-  if (performance >= 80) return "watch";
-  return "low";
-}
-
-function signedUnits(value: number) {
-  const rounded = Math.round(value * 10) / 10;
-  return `${rounded >= 0 ? "+" : ""}${numberFormatter.format(rounded)} uds`;
-}
-
 function initials(fullName: string) {
   return fullName.split(/\s+/).filter(Boolean).slice(0, 2)
     .map(part => part[0]).join("").toLocaleUpperCase("es-ES");
 }
 
-function seatStyle(index: number, total: number): CSSProperties {
-  const angle = -Math.PI / 2 + (index * Math.PI * 2) / Math.max(total, 1);
+function readSupervisorFromUrl(): string | null {
+  const value = new URLSearchParams(window.location.search).get(supervisorParameter)?.trim();
+  return value ? value : null;
+}
+
+function writeSupervisorToUrl(code: string | null) {
+  const url = new URL(window.location.href);
+  if (code) url.searchParams.set(supervisorParameter, code);
+  else url.searchParams.delete(supervisorParameter);
+  window.history.replaceState(null, "", url);
+}
+
+type LineMetrics = {
+  progress: number;
+  projectedTotal: number;
+  openedSeconds: number;
+  compliance: number | null;
+  complianceTone: ComplianceTone;
+  averageOperators: number | null;
+  remainingSeconds: number | null;
+  palletLabel: string;
+};
+
+function lineMetrics(
+  line: ProductionDashboardLine,
+  elapsedSeconds: number,
+  snapshotTimeUtc: string,
+): LineMetrics {
+  const order = line.order;
+  const table = line.table;
+  const producing = isProducing(line);
+  const progress = order && order.targetQuantity > 0
+    ? Math.min(100, Math.max(0, (order.goodQuantity / order.targetQuantity) * 100))
+    : 0;
+  const projectedTotal = (table?.productiveSeconds ?? 0) + (producing ? elapsedSeconds : 0);
+  const openedSeconds = table?.startedAtUtc
+    ? Math.max(0, (new Date(snapshotTimeUtc).getTime() - new Date(table.startedAtUtc).getTime()) / 1000 + elapsedSeconds)
+    : 0;
+  const theoreticalUnits = line.theoreticalUnitsToDate
+    + (producing ? (table?.currentTheoreticalCapacityPerHour ?? 0) * elapsedSeconds / 3600 : 0);
+  const compliance = order && order.goodQuantity > 0 && theoreticalUnits > 0
+    ? order.goodQuantity / theoreticalUnits * 100
+    : null;
+  const resourceSeconds = line.resourceSeconds
+    + (producing ? (table?.activeResources ?? 0) * elapsedSeconds : 0);
+  const averageOperators = openedSeconds > 0 ? resourceSeconds / openedSeconds : null;
+  const remainingSeconds = order && table && table.currentTheoreticalCapacityPerHour > 0
+    ? Math.max(0, order.targetQuantity - order.goodQuantity) / table.currentTheoreticalCapacityPerHour * 3600
+    : null;
+  const totalPallets = order && table?.unitsPerPallet
+    ? Math.max(1, Math.ceil(order.targetQuantity / table.unitsPerPallet))
+    : null;
+  const remainingUnits = order ? Math.max(0, order.targetQuantity - order.goodQuantity) : 0;
+  const palletLabel = totalPallets
+    ? remainingUnits > 0
+      ? `${Math.min(line.closedPallets + 1, totalPallets)} de ${totalPallets}`
+      : "todos cerrados"
+    : "—";
+
+  let complianceTone: ComplianceTone = "gray";
+  if (compliance !== null) {
+    if (needsAttention(line)) complianceTone = "red";
+    else if (table && table.activeResources === 0 && order?.state !== "PENDIENTE_CIERRE") complianceTone = "red";
+    else if (compliance >= 95) complianceTone = "green";
+    else if (compliance >= 80) complianceTone = "amber";
+    else complianceTone = "red";
+  }
+
   return {
-    "--seat-x": `${50 + Math.cos(angle) * 43}%`,
-    "--seat-y": `${50 + Math.sin(angle) * 39}%`,
-  } as CSSProperties;
+    progress,
+    projectedTotal,
+    openedSeconds,
+    compliance,
+    complianceTone,
+    averageOperators,
+    remainingSeconds,
+    palletLabel,
+  };
+}
+
+function lineAction(
+  line: ProductionDashboardLine,
+  metrics: LineMetrics,
+): { tone: ActionTone; text: string } | null {
+  if (!line.order || !line.table) return null;
+  if (line.navIssues > 0) return { tone: "attn", text: "Revisar: conciliación NAV pendiente." };
+  if (line.printIssues > 0) return { tone: "attn", text: "Revisar: incidencia de impresión pendiente." };
+  if (line.operationalState === "BLOQUEADA") return { tone: "attn", text: "Línea bloqueada · revisar antes de continuar." };
+  if (line.order.state === "PENDIENTE_CIERRE") return { tone: "wait", text: "Finalizar la orden en la mesa." };
+  if (isProducing(line)) {
+    return metrics.complianceTone === "red"
+      ? { tone: "wait", text: "Ritmo por debajo del 80 % del teórico." }
+      : { tone: "ok", text: "Sin acción · dentro de ritmo." };
+  }
+  if (line.table.activeResources === 0) {
+    const since = line.table.startedAtUtc
+      ? ` desde las ${clockFormatter.format(new Date(line.table.startedAtUtc))}`
+      : "";
+    return { tone: "wait", text: `Esperando operarios${since}.` };
+  }
+  return { tone: "ok", text: "Sin acción." };
 }
 
 export function ProductionDashboardPage() {
+  const [supervisor, setSupervisor] = useState<string | null>(readSupervisorFromUrl);
+  const [supervisors, setSupervisors] = useState<ProductionDashboardSupervisor[]>([]);
   const [snapshot, setSnapshot] = useState<ProductionDashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [receivedAt, setReceivedAt] = useState(0);
@@ -91,13 +189,24 @@ export function ProductionDashboardPage() {
   const request = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
+    getProductionDashboardSupervisors(controller.signal)
+      .then(setSupervisors)
+      .catch(() => {
+        // The selector keeps only "Toda la planta" until the list is available.
+      });
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     let mounted = true;
+    setSnapshot(null);
     async function refresh() {
       request.current?.abort();
       const controller = new AbortController();
       request.current = controller;
       try {
-        const next = await getProductionDashboard(controller.signal);
+        const next = await getProductionDashboard(supervisor, controller.signal);
         if (!mounted) return;
         setSnapshot(next);
         setReceivedAt(performance.now());
@@ -116,35 +225,67 @@ export function ProductionDashboardPage() {
       window.clearInterval(refreshTimer);
       window.clearInterval(clockTimer);
     };
-  }, []);
+  }, [supervisor]);
 
+  function selectSupervisor(code: string | null) {
+    setSupervisor(code);
+    writeSupervisorToUrl(code);
+  }
+
+  const lines = snapshot?.lines ?? [];
   const elapsedSeconds = receivedAt === 0 ? 0 : Math.max(0, (performance.now() - receivedAt) / 1000);
-  const summary = useMemo(() => {
-    const lines = snapshot?.lines ?? [];
-    return {
-      total: lines.length,
-      running: lines.filter(isProducing).length,
-      waiting: lines.filter(line => line.order && !isProducing(line) && !needsAttention(line)).length,
-      attention: lines.filter(needsAttention).length,
-    };
-  }, [snapshot, tick]);
+  const summary = useMemo(() => ({
+    total: lines.length,
+    running: lines.filter(isProducing).length,
+    waiting: lines.filter(line => line.order && !isProducing(line) && !needsAttention(line)).length,
+    attention: lines.filter(needsAttention).length,
+  }), [lines, tick]);
+  const supervisorRecord = snapshot?.supervisor
+    ?? supervisors.find(item => item.navEmployeeCode === supervisor)
+    ?? null;
+  const plantView = supervisor === null && lines.length > cardLimit;
+  const compact = !plantView && lines.length > cardLimit;
+  const columns = plantView ? 5 : lines.length <= 4 ? 2 : lines.length <= cardLimit ? 3 : 4;
 
   return (
-    <section className="production-dashboard">
-      <header className="dashboard-heading">
-        <div>
-          <p className="eyebrow">Control de fabricación</p>
-          <h1>Planta en tiempo real</h1>
-          <p>Mesas, personas y rendimiento frente a la ruta NAV.</p>
+    <section
+      className={`production-dashboard${plantView ? " plant" : ""}${compact ? " compact" : ""}`}
+      style={{ "--dashboard-columns": columns } as CSSProperties}
+    >
+      <h1 className="sr-only">Planta en tiempo real</h1>
+
+      <header className="dashboard-summary" aria-label="Resumen de líneas">
+        <div className="dashboard-scope">
+          <div>
+            <small>{supervisor ? "Jefe de línea" : "Vista"}</small>
+            <strong>{supervisor ? supervisorRecord?.fullName ?? supervisor : "Toda la planta"}</strong>
+          </div>
+          <label className="sr-only" htmlFor="dashboard-supervisor">Jefe de línea</label>
+          <select
+            id="dashboard-supervisor"
+            value={supervisor ?? ""}
+            onChange={event => selectSupervisor(event.target.value || null)}
+          >
+            <option value="">Toda la planta</option>
+            {supervisors.map(item => (
+              <option key={item.navEmployeeCode} value={item.navEmployeeCode}>
+                {item.fullName} · {item.lines.length} {item.lines.length === 1 ? "línea" : "líneas"}
+              </option>
+            ))}
+            {supervisor && !supervisors.some(item => item.navEmployeeCode === supervisor) && (
+              <option value={supervisor}>{supervisorRecord?.fullName ?? supervisor}</option>
+            )}
+          </select>
         </div>
-        <div className="dashboard-heading-actions">
-          <a href="/">Ir al terminal</a>
-          <div className={`dashboard-live ${error ? "stale" : ""}`}>
-            <span />
-            <div>
-              <strong>{error ? "Sin conexión" : "En directo"}</strong>
-              <small>{snapshot ? `Actualizado ${timeFormatter.format(new Date(snapshot.serverTimeUtc))}` : "Conectando..."}</small>
-            </div>
+        <article><span>{supervisor ? "Mis líneas" : "Líneas"}</span><strong>{summary.total}</strong></article>
+        <article className="running"><span>Produciendo</span><strong>{summary.running}</strong></article>
+        <article className="waiting"><span>En espera</span><strong>{summary.waiting}</strong></article>
+        <article className="danger"><span>Atención</span><strong>{summary.attention}</strong></article>
+        <div className={`dashboard-live ${error ? "stale" : ""}`}>
+          <span />
+          <div>
+            <strong>{error ? "Sin conexión" : "En directo"}</strong>
+            <small>{snapshot ? `Actualizado ${timeFormatter.format(new Date(snapshot.serverTimeUtc))}` : "Conectando..."}</small>
           </div>
         </div>
       </header>
@@ -155,52 +296,37 @@ export function ProductionDashboardPage() {
         </div>
       )}
 
-      <div className="dashboard-summary" aria-label="Resumen de líneas">
-        <article><span>Total</span><strong>{summary.total}</strong><small>líneas activas</small></article>
-        <article className="running"><span>Produciendo</span><strong>{summary.running}</strong><small>con capacidad activa</small></article>
-        <article className="waiting"><span>En espera</span><strong>{summary.waiting}</strong><small>con orden cargada</small></article>
-        <article className="danger"><span>Atención</span><strong>{summary.attention}</strong><small>bloqueos o incidencias</small></article>
-      </div>
-
       {!snapshot && !error && <div className="dashboard-loading">Cargando líneas de fabricación...</div>}
+      {snapshot && supervisor && lines.length === 0 && (
+        <div className="dashboard-loading">Este jefe de línea no tiene líneas asignadas.</div>
+      )}
+
       <div className="dashboard-lines">
-        {snapshot?.lines.map(line => (
-          <LineCard key={line.lineId} line={line} elapsedSeconds={elapsedSeconds} snapshotTimeUtc={snapshot.serverTimeUtc} />
-        ))}
+        {lines.map(line => plantView
+          ? <LineTile key={line.lineId} line={line} elapsedSeconds={elapsedSeconds} snapshotTimeUtc={snapshot!.serverTimeUtc} />
+          : <LineCard key={line.lineId} line={line} elapsedSeconds={elapsedSeconds} snapshotTimeUtc={snapshot!.serverTimeUtc} />)}
       </div>
     </section>
   );
 }
 
-function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
+type LineProps = {
   line: ProductionDashboardLine;
   elapsedSeconds: number;
   snapshotTimeUtc: string;
-}) {
+};
+
+function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: LineProps) {
   const order = line.order;
   const table = line.table;
-  const progress = order && order.targetQuantity > 0
-    ? Math.min(100, Math.max(0, (order.goodQuantity / order.targetQuantity) * 100))
-    : 0;
-  const projectedTotal = (table?.productiveSeconds ?? 0) + (isProducing(line) ? elapsedSeconds : 0);
-  const openedSeconds = table?.startedAtUtc
-    ? Math.max(0, (new Date(snapshotTimeUtc).getTime() - new Date(table.startedAtUtc).getTime()) / 1000 + elapsedSeconds)
-    : 0;
-  const theoreticalUnits = line.theoreticalUnitsToDate +
-    (isProducing(line) ? (table?.currentTheoreticalCapacityPerHour ?? 0) * elapsedSeconds / 3600 : 0);
-  const performance = order && theoreticalUnits > 0 ? order.goodQuantity / theoreticalUnits * 100 : null;
-  const performanceDisplay = performance === null ? "—" : `${Math.round(performance)}%`;
-  const performanceArc = Math.min(100, Math.max(0, performance ?? 0));
-  const theoreticalTotalSeconds = order && table && table.currentTheoreticalCapacityPerHour > 0
-    ? order.targetQuantity / table.currentTheoreticalCapacityPerHour * 3600 : null;
-  const estimatedRemainingSeconds = order && table && table.currentTheoreticalCapacityPerHour > 0
-    ? Math.max(0, order.targetQuantity - order.goodQuantity) / table.currentTheoreticalCapacityPerHour * 3600 : null;
+  const tone = statusTone(line);
+  const metrics = lineMetrics(line, elapsedSeconds, snapshotTimeUtc);
+  const action = lineAction(line, metrics);
   const navPending = line.pendingNavOutputs > 0;
   const printPending = line.pendingPrintJobs > 0;
-  const actionMessage = lineActionMessage(line);
 
   return (
-    <article className={`dashboard-line-card ${statusTone(line)}`}>
+    <article className={`dashboard-line-card ${tone}`}>
       <header>
         <div>
           <span>{line.workCenterCode}</span>
@@ -208,7 +334,7 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
           <p>{line.lineName}</p>
         </div>
         <strong className="dashboard-state">
-          <StateIcon tone={statusTone(line)} />
+          <StateIcon tone={tone} />
           <i aria-hidden="true" />{displayState(table?.state ?? line.operationalState)}
         </strong>
       </header>
@@ -225,76 +351,65 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
             <div>
               <span>Orden activa</span>
               <strong>{order.orderNumber}</strong>
-              <small>{order.productNumber} · {order.lotNumber || "Sin lote"}</small>
+              <small>{order.productNumber} · {order.lotNumber || "Sin lote"} · {order.productDescription}</small>
             </div>
-            <p>{order.productDescription}</p>
+            <div className="dashboard-units">
+              <strong>{numberFormatter.format(order.goodQuantity)}</strong>
+              <span>de {numberFormatter.format(order.targetQuantity)} uds</span>
+              <b>{metrics.progress.toFixed(0)}%</b>
+            </div>
+          </div>
+          <div className="dashboard-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(metrics.progress)}>
+            <span style={{ width: `${metrics.progress}%` }} />
           </div>
 
-          <div className="factory-table-scene" aria-label={`Mesa ${line.lineCode}`}>
+          <div className="dashboard-mesa" aria-label={`Mesa ${line.lineCode}`}>
             <div className="factory-table">
               <span className="factory-table-label">TIEMPO GLOBAL DE MESA</span>
-              <time>{formatDuration(projectedTotal)}</time>
-              <small>Abierta hace {formatDuration(openedSeconds)}</small>
-              <div className="factory-table-output">
-                <strong>{numberFormatter.format(order.goodQuantity)}</strong>
-                <span>de {numberFormatter.format(order.targetQuantity)} uds</span>
-              </div>
-              <div className="dashboard-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress)}>
-                <span style={{ width: `${progress}%` }} />
-              </div>
-              <b>{progress.toFixed(0)}% completado</b>
+              <time>{formatDuration(metrics.projectedTotal)}</time>
+              <small>Palé {metrics.palletLabel} · {table.palletFormatCode} {table.unitsPerPallet}</small>
             </div>
-
-            {table.operators.length === 0 ? (
-              <div className="factory-no-operators">Sin operarios</div>
-            ) : table.operators.slice(0, 10).map((operator, index) => {
-              const seconds = operator.productiveSeconds +
-                (operator.status === "PRODUCIENDO" && isProducing(line) ? elapsedSeconds : 0);
-              return (
-                <div
-                  className={`factory-person ${operator.status === "PRODUCIENDO" ? "producing" : "paused"}`}
-                  style={seatStyle(index, Math.min(table.operators.length, 10))}
-                  key={operator.employeeId}
-                  title={`${operator.fullName}: ${displayState(operator.status)}`}
-                >
-                  <div className="factory-avatar"><span aria-hidden="true">{initials(operator.fullName)}</span><i aria-hidden="true" /></div>
-                  <strong>{operator.fullName}</strong>
-                  <time>{formatDuration(seconds)}</time>
-                  <small>{operator.status === "PRODUCIENDO" ? "Produciendo" : "En pausa"}</small>
-                </div>
-              );
-            })}
-            {table.operators.length > 10 && <div className="factory-overflow">+{table.operators.length - 10}</div>}
-          </div>
-
-          <div className="dashboard-performance">
-            <div
-              className={`performance-ring ${performanceTone(performance)}`}
-              style={{ "--performance": `${performanceArc * 3.6}deg` } as CSSProperties}
-              aria-label={`Productividad frente a ruta ${performanceDisplay}`}
-            >
-              <span><strong>{performanceDisplay}</strong><small>vs. ruta</small></span>
+            <div className="factory-people">
+              {table.operators.length === 0 ? (
+                <div className="factory-no-operators">Sin operarios</div>
+              ) : table.operators.slice(0, visiblePeople).map(operator => {
+                const seconds = operator.productiveSeconds
+                  + (operator.status === "PRODUCIENDO" && isProducing(line) ? elapsedSeconds : 0);
+                return (
+                  <div
+                    className={`factory-person ${operator.status === "PRODUCIENDO" ? "producing" : "paused"}`}
+                    key={operator.employeeId}
+                    title={`${operator.fullName}: ${displayState(operator.status)}`}
+                  >
+                    <div className="factory-avatar"><span aria-hidden="true">{initials(operator.fullName)}</span><i aria-hidden="true" /></div>
+                    <strong>{operator.fullName}</strong>
+                    <time>{formatDuration(seconds)}</time>
+                  </div>
+                );
+              })}
+              {table.operators.length > visiblePeople && (
+                <div className="factory-overflow">+{table.operators.length - visiblePeople}</div>
+              )}
             </div>
-            <div className="performance-copy">
-              <span>Productividad frente al tiempo teórico NAV</span>
-              <strong>{performance === null ? "Pendiente de datos" : `${performanceDisplay} de rendimiento`}</strong>
-              <small>
-                {numberFormatter.format(order.goodQuantity)} uds reales frente a {numberFormatter.format(theoreticalUnits)} uds teóricas
-                {performance !== null && ` · ${signedUnits(order.goodQuantity - theoreticalUnits)}`}
-              </small>
-            </div>
-            <dl>
-              <div><dt>Ritmo teórico actual</dt><dd>{numberFormatter.format(table.currentTheoreticalCapacityPerHour)} uds/h</dd></div>
-              <div><dt>Tiempo teórico orden</dt><dd>{theoreticalTotalSeconds === null ? "—" : formatDuration(theoreticalTotalSeconds)}</dd></div>
-              <div><dt>Estimación restante</dt><dd>{estimatedRemainingSeconds === null ? "—" : formatDuration(estimatedRemainingSeconds)}</dd></div>
-            </dl>
           </div>
 
           <dl className="dashboard-kpis">
-            <div><dt>Personas activas</dt><dd>{table.activeResources}</dd></div>
-            <div><dt>Palés cerrados</dt><dd>{line.closedPallets}</dd></div>
-            <div><dt>Palé actual</dt><dd>{order.reservedQuantity} uds</dd></div>
-            <div><dt>Formato</dt><dd>{table.palletFormatCode} · {table.unitsPerPallet}</dd></div>
+            <div className="dashboard-kpi-light">
+              <span
+                className={`traffic-light ${metrics.complianceTone}`}
+                role="img"
+                aria-label={`Semáforo de productividad: ${complianceToneLabels[metrics.complianceTone]}`}
+              >
+                <i /><i /><i />
+              </span>
+            </div>
+            <div className={`compliance ${metrics.complianceTone}`}>
+              <dt>Cumplimiento</dt>
+              <dd>{metrics.compliance === null ? "Pendiente del 1.er palé" : `${Math.round(metrics.compliance)} %`}</dd>
+            </div>
+            <div><dt>Ritmo actual</dt><dd>{numberFormatter.format(table.currentTheoreticalCapacityPerHour)} u/h</dd></div>
+            <div><dt>Promedio operarios</dt><dd>{metrics.averageOperators === null ? "—" : averageFormatter.format(metrics.averageOperators)}</dd></div>
+            <div><dt>Restante estimado</dt><dd>{metrics.remainingSeconds === null ? "—" : formatDuration(metrics.remainingSeconds)}</dd></div>
           </dl>
 
           <div className="dashboard-integrations">
@@ -304,13 +419,12 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
             <div className={line.printIssues ? "danger" : printPending ? "pending" : "ok"}>
               <span>Etiqueta</span><strong>{integrationLabel(line.latestLabelState, "label")}</strong>
             </div>
-            <div><span>Estado orden</span><strong>{displayState(order.state)}</strong></div>
           </div>
 
-          {actionMessage && (
-            <div className={`dashboard-action ${actionMessage.tone}`}>
-              <StateIcon tone={actionMessage.tone === "attn" ? "danger" : "running"} />
-              {actionMessage.text}
+          {action && (
+            <div className={`dashboard-action ${action.tone}`}>
+              <StateIcon tone={action.tone === "attn" ? "danger" : action.tone === "wait" ? "waiting" : "running"} />
+              {action.text}
             </div>
           )}
         </>
@@ -321,7 +435,44 @@ function LineCard({ line, elapsedSeconds, snapshotTimeUtc }: {
   );
 }
 
-function StateIcon({ tone }: { tone: "danger" | "running" | "waiting" | "idle" }) {
+function LineTile({ line, elapsedSeconds, snapshotTimeUtc }: LineProps) {
+  const tone = statusTone(line);
+  const metrics = lineMetrics(line, elapsedSeconds, snapshotTimeUtc);
+  const action = lineAction(line, metrics);
+  const owner = line.supervisorName?.split(/\s+/)[0] ?? null;
+  const people = line.table?.operators.length ?? 0;
+
+  return (
+    <article className={`dashboard-tile ${tone}`}>
+      {owner && <span className="dashboard-tile-owner" title={line.supervisorName ?? undefined}>{owner}</span>}
+      <header>
+        <h2>{line.lineCode}</h2>
+        <span className="dashboard-tile-state"><StateIcon tone={tone} />{displayState(line.table?.state ?? line.operationalState)}</span>
+      </header>
+      {line.order && line.table ? (
+        <>
+          <div className="dashboard-tile-order">
+            <strong>{line.order.orderNumber}</strong>
+            <span>{metrics.progress.toFixed(0)}%</span>
+          </div>
+          <div className="dashboard-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(metrics.progress)}>
+            <span style={{ width: `${metrics.progress}%` }} />
+          </div>
+          <div className="dashboard-tile-foot">
+            <span>{isProducing(line) ? `Palé ${metrics.palletLabel} · ${people} pers.` : action?.text ?? ""}</span>
+            <b className={metrics.complianceTone}>
+              {metrics.compliance === null ? "Pendiente" : `${Math.round(metrics.compliance)} %`}
+            </b>
+          </div>
+        </>
+      ) : (
+        <div className="dashboard-tile-empty"><strong>Línea disponible</strong><span>Sin orden activa</span></div>
+      )}
+    </article>
+  );
+}
+
+function StateIcon({ tone }: { tone: Tone }) {
   const common = {
     className: "state-icon",
     viewBox: "0 0 24 24",

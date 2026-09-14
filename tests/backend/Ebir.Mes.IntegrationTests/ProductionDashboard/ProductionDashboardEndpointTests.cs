@@ -28,7 +28,7 @@ public sealed class ProductionDashboardEndpointTests
         [
             new(1, "LINEA-01", "Linea uno", "CT-01", "Fabricacion",
                 "PRODUCIENDO", null, now, order, table, 3,
-                "CONFIRMADA", "IMPRESA", 0, 0, 0, 0, 55m),
+                "CONFIRMADA", "IMPRESA", 0, 0, 0, 0, 55m, 3600, "412", "Ana Perez"),
             new(2, "LINEA-02", "Linea dos", "CT-01", "Fabricacion",
                 "LIBRE", null, now, null, null, 0,
                 null, null, 0, 0, 0, 0, 0m)
@@ -50,7 +50,76 @@ public sealed class ProductionDashboardEndpointTests
         Assert.Single(lines[0].GetProperty("table")
             .GetProperty("operators").EnumerateArray());
         Assert.Equal(55m, lines[0].GetProperty("theoreticalUnitsToDate").GetDecimal());
+        Assert.Equal(3600, lines[0].GetProperty("resourceSeconds").GetInt64());
+        Assert.Equal("412", lines[0].GetProperty("supervisorNavEmployeeCode").GetString());
         Assert.Equal(JsonValueKind.Null, lines[1].GetProperty("order").ValueKind);
+        Assert.Equal(JsonValueKind.Null, lines[1].GetProperty("supervisorNavEmployeeCode").ValueKind);
+    }
+
+    [Fact]
+    public async Task Dashboard_FiltersBySupervisorAndReturnsTheSupervisor()
+    {
+        var now = new DateTime(2026, 9, 14, 10, 0, 0, DateTimeKind.Utc);
+        var supervisor = new ProductionDashboardSupervisorRecord(
+            "412", "Ana Perez", [new(1, "LINEA-01", "Linea uno")]);
+        var snapshot = new ProductionDashboardSnapshotRecord(now,
+        [
+            new(1, "LINEA-01", "Linea uno", "CT-01", "Fabricacion",
+                "LIBRE", null, now, null, null, 0,
+                null, null, 0, 0, 0, 0, 0m, 0, "412", "Ana Perez")
+        ], supervisor);
+        var reader = new StubReader(snapshot);
+        using var factory = CreateFactory(reader);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/production-dashboard?supervisor=412");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("412", reader.LastSupervisorCode);
+        Assert.Equal("Ana Perez", body.RootElement.GetProperty("supervisor")
+            .GetProperty("fullName").GetString());
+        Assert.Single(body.RootElement.GetProperty("lines").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Dashboard_RejectsAnOversizedSupervisorCode()
+    {
+        using var factory = CreateFactory(new StubReader(
+            new ProductionDashboardSnapshotRecord(DateTime.UtcNow, [])));
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/production-dashboard?supervisor=" + new string('9', 31));
+        var text = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("PRODUCTION_DASHBOARD_SUPERVISOR_INVALID", text);
+    }
+
+    [Fact]
+    public async Task Supervisors_ReturnsAssignedLinesPerSupervisor()
+    {
+        var reader = new StubReader(
+            new ProductionDashboardSnapshotRecord(DateTime.UtcNow, []),
+            [
+                new("412", "Ana Perez",
+                    [new(1, "LINEA-01", "Linea uno"), new(2, "LINEA-02", "Linea dos")]),
+                new("577", "Luis Gil", [new(3, "LINEA-03", "Linea tres")])
+            ]);
+        using var factory = CreateFactory(reader);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/production-dashboard/supervisors");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var supervisors = body.RootElement.EnumerateArray().ToArray();
+        Assert.Equal(2, supervisors.Length);
+        Assert.Equal("412", supervisors[0].GetProperty("navEmployeeCode").GetString());
+        Assert.Equal(2, supervisors[0].GetProperty("lines").GetArrayLength());
+        Assert.Equal("LINEA-03", supervisors[1].GetProperty("lines")[0]
+            .GetProperty("lineCode").GetString());
     }
 
     [Fact]
@@ -75,16 +144,34 @@ public sealed class ProductionDashboardEndpointTests
                 services.AddSingleton(reader);
             }));
 
-    private sealed class StubReader(ProductionDashboardSnapshotRecord snapshot)
+    private sealed class StubReader(
+        ProductionDashboardSnapshotRecord snapshot,
+        IReadOnlyList<ProductionDashboardSupervisorRecord>? supervisors = null)
         : IProductionDashboardReader
     {
+        public string? LastSupervisorCode { get; private set; }
+
         public Task<ProductionDashboardSnapshotRecord> ReadAsync(
-            CancellationToken cancellationToken) => Task.FromResult(snapshot);
+            string? supervisorNavEmployeeCode,
+            CancellationToken cancellationToken)
+        {
+            LastSupervisorCode = supervisorNavEmployeeCode;
+            return Task.FromResult(snapshot);
+        }
+
+        public Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ReadSupervisorsAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(supervisors ?? Array.Empty<ProductionDashboardSupervisorRecord>());
     }
 
     private sealed class UnavailableReader : IProductionDashboardReader
     {
         public Task<ProductionDashboardSnapshotRecord> ReadAsync(
+            string? supervisorNavEmployeeCode,
+            CancellationToken cancellationToken) =>
+            throw new ProductionDashboardUnavailableException("synthetic database detail");
+
+        public Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ReadSupervisorsAsync(
             CancellationToken cancellationToken) =>
             throw new ProductionDashboardUnavailableException("synthetic database detail");
     }

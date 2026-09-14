@@ -25,6 +25,12 @@ operacion 69 despues de observar en NAV EbirTest su unica salida 26873 como
 la orden `FL26-00015` quedo disponible para continuar. Antes de la instalacion
 se creo y verifico un backup `COPY_ONLY`.
 
+El paquete `049A_asignacion_jefes_linea.sql` esta preparado y no instalado.
+Crea `cfg.lineas_jefes` (jefe de linea vigente por linea) para la vista por
+jefe del panel de fabricacion; no inserta datos ni cambia procedimientos. Su
+alcance se describe en `049_README.md` y su prueba con rollback en
+`tests/database/line_supervisor_assignment`.
+
 ## Orden
 
 1. `001_esquemas_configuracion.sql` — aplicado.
