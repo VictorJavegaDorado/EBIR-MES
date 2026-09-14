@@ -665,6 +665,12 @@ h1 {
   background: #bfc9c2;
 }
 
+@media (max-height: 1000px) {
+  .app-shell:has(.production-flow.working) .app-footer {
+    display: none;
+  }
+}
+
 .footer-status {
   margin-left: auto;
   display: flex;
