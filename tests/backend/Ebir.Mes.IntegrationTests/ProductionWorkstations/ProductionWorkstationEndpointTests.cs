@@ -44,7 +44,9 @@ public sealed class ProductionWorkstationEndpointTests
         var state = new ProductionTableStateRecord(
             12, 1, 2, "PRODUCIENDO", now.AddMinutes(-5), now,
             300, 1, 6m, "POK", 20,
-            [new(3, "EMP-3", "Operario piloto", now.AddMinutes(-5), 300, "PRODUCIENDO")]);
+            [new(3, "EMP-3", "Operario piloto", now.AddMinutes(-5), 300, "PRODUCIENDO")],
+            TheoreticalUnitsToDate: 0.5m,
+            ResourceSeconds: 300);
         using var factory = CreateFactory(
             new StubStarter(new(12, 31, null, false)),
             new StubStateReader(state));
@@ -58,6 +60,8 @@ public sealed class ProductionWorkstationEndpointTests
         Assert.Equal("PRODUCIENDO", body.RootElement.GetProperty("state").GetString());
         Assert.Equal(300, body.RootElement.GetProperty("productiveSeconds").GetInt64());
         Assert.Single(body.RootElement.GetProperty("operators").EnumerateArray());
+        Assert.Equal(0.5m, body.RootElement.GetProperty("theoreticalUnitsToDate").GetDecimal());
+        Assert.Equal(300, body.RootElement.GetProperty("resourceSeconds").GetInt64());
     }
 
     [Fact]

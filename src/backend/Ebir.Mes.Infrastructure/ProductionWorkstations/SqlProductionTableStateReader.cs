@@ -126,6 +126,23 @@ public sealed class SqlProductionTableStateReader(string? connectionString)
         }
     }
 
+    private const string CapacityMetricsQuery = """
+        DECLARE @ahora_utc datetime2(3) = SYSUTCDATETIME();
+
+        SELECT
+            COALESCE(SUM(
+                CONVERT(decimal(38,10), tc.capacidad_teorica_hora)
+                * CONVERT(decimal(38,10), DATEDIFF_BIG(
+                    MILLISECOND, tc.inicio_utc, COALESCE(tc.fin_utc, @ahora_utc)))
+                / CONVERT(decimal(38,10), 3600000)), 0) AS unidades_teoricas_acumuladas,
+            COALESCE(SUM(
+                CONVERT(bigint, tc.recursos_activos)
+                * DATEDIFF_BIG(SECOND, tc.inicio_utc, COALESCE(tc.fin_utc, @ahora_utc))), 0)
+                AS segundos_recurso
+        FROM prod.tramos_capacidad tc
+        WHERE tc.sesion_linea_id = @sesion_linea_id;
+        """;
+
     private static async Task<ProductionTableStateRecord?> ReadStateAsync(
         SqlConnection connection,
         long orderId,
@@ -140,55 +157,96 @@ public sealed class SqlProductionTableStateReader(string? connectionString)
         command.Parameters.Add("@orden_id", SqlDbType.BigInt).Value = orderId;
         command.Parameters.Add("@linea_id", SqlDbType.BigInt).Value = lineId;
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        if (!await reader.ReadAsync(cancellationToken))
-        {
-            return null;
-        }
-
-        var state = new
-        {
-            SessionId = reader.GetInt64(0),
-            OrderId = reader.GetInt64(1),
-            LineId = reader.GetInt64(2),
-            State = reader.GetString(3),
-            StartedAtUtc = reader.IsDBNull(4) ? (DateTime?)null : AsUtc(reader.GetDateTime(4)),
-            ServerTimeUtc = AsUtc(reader.GetDateTime(5)),
-            ProductiveSeconds = reader.GetInt64(6),
-            ActiveResources = reader.GetInt32(7),
-            Capacity = reader.GetDecimal(8),
-            FormatCode = reader.GetString(9),
-            UnitsPerPallet = reader.GetInt32(10)
-        };
-
+        long sessionId;
+        long stateOrderId;
+        long stateLineId;
+        string state;
+        DateTime? startedAtUtc;
+        DateTime serverTimeUtc;
+        long productiveSeconds;
+        int activeResources;
+        decimal capacity;
+        string formatCode;
+        int unitsPerPallet;
         var operators = new List<ProductionTableOperatorRecord>();
-        if (await reader.NextResultAsync(cancellationToken))
+
+        await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
-            while (await reader.ReadAsync(cancellationToken))
+            if (!await reader.ReadAsync(cancellationToken))
             {
-                operators.Add(new ProductionTableOperatorRecord(
-                    reader.GetInt64(0),
-                    reader.GetString(1),
-                    reader.GetString(2),
-                    AsUtc(reader.GetDateTime(3)),
-                    reader.GetInt64(4),
-                    reader.GetString(5)));
+                return null;
+            }
+
+            sessionId = reader.GetInt64(0);
+            stateOrderId = reader.GetInt64(1);
+            stateLineId = reader.GetInt64(2);
+            state = reader.GetString(3);
+            startedAtUtc = reader.IsDBNull(4) ? (DateTime?)null : AsUtc(reader.GetDateTime(4));
+            serverTimeUtc = AsUtc(reader.GetDateTime(5));
+            productiveSeconds = reader.GetInt64(6);
+            activeResources = reader.GetInt32(7);
+            capacity = reader.GetDecimal(8);
+            formatCode = reader.GetString(9);
+            unitsPerPallet = reader.GetInt32(10);
+
+            if (await reader.NextResultAsync(cancellationToken))
+            {
+                while (await reader.ReadAsync(cancellationToken))
+                {
+                    operators.Add(new ProductionTableOperatorRecord(
+                        reader.GetInt64(0),
+                        reader.GetString(1),
+                        reader.GetString(2),
+                        AsUtc(reader.GetDateTime(3)),
+                        reader.GetInt64(4),
+                        reader.GetString(5)));
+                }
             }
         }
 
+        var (theoreticalUnitsToDate, resourceSeconds) = await ReadCapacityMetricsAsync(
+            connection,
+            sessionId,
+            cancellationToken);
+
         return new ProductionTableStateRecord(
-            state.SessionId,
-            state.OrderId,
-            state.LineId,
-            state.State,
-            state.StartedAtUtc,
-            state.ServerTimeUtc,
-            state.ProductiveSeconds,
-            state.ActiveResources,
-            state.Capacity,
-            state.FormatCode,
-            state.UnitsPerPallet,
-            operators);
+            sessionId,
+            stateOrderId,
+            stateLineId,
+            state,
+            startedAtUtc,
+            serverTimeUtc,
+            productiveSeconds,
+            activeResources,
+            capacity,
+            formatCode,
+            unitsPerPallet,
+            operators,
+            TheoreticalUnitsToDate: theoreticalUnitsToDate,
+            ResourceSeconds: resourceSeconds);
+    }
+
+    private static async Task<(decimal TheoreticalUnits, long ResourceSeconds)> ReadCapacityMetricsAsync(
+        SqlConnection connection,
+        long sessionId,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(CapacityMetricsQuery, connection)
+        {
+            CommandType = CommandType.Text,
+            CommandTimeout = 10
+        };
+        command.Parameters.Add("@sesion_linea_id", SqlDbType.BigInt).Value = sessionId;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow,
+            cancellationToken);
+        if (!await reader.ReadAsync(cancellationToken))
+        {
+            return (0m, 0);
+        }
+
+        return (reader.GetDecimal(0), reader.GetInt64(1));
     }
 
     private static ProductionOrderSelectionRecord ReadOrder(SqlDataReader reader) =>

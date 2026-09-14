@@ -15,4 +15,6 @@ public sealed record ProductionTableStateRecord(
     string PalletFormatCode,
     int UnitsPerPallet,
     IReadOnlyList<ProductionTableOperatorRecord> Operators,
-    PalletRecoveryStateRecord? LatestPalletRecovery = null);
+    PalletRecoveryStateRecord? LatestPalletRecovery = null,
+    decimal TheoreticalUnitsToDate = 0m,
+    long ResourceSeconds = 0);
