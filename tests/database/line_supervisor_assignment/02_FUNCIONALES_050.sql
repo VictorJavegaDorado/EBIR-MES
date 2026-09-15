@@ -1,7 +1,13 @@
-/* Prueba transaccional 050. No ejecutar sin autorizacion. */
+/* Prueba funcional 050. No ejecutar sin autorizacion. */
 SET NOCOUNT ON;
 /* XACT_ABORT OFF: las violaciones esperadas (57001/57003/57004) se capturan
-   sin condenar la transaccion exterior, que siempre termina en ROLLBACK. */
+   con TRY/CATCH propios. cfg.asignar_mesas_propias abre y cierra su propia
+   transaccion (mismo patron reforzado del paquete 010): si se invocara desde
+   dentro de una transaccion exterior abierta, su ROLLBACK revertiria tambien
+   esa transaccion exterior al completo (comportamiento documentado en
+   010_REFUERZO_TRANSACCIONES_README.md). Por eso los fixtures se confirman
+   (COMMIT, no quedan pendientes) antes de invocar el contrato, y la limpieza
+   final es explicita en vez de un ROLLBACK envolvente. */
 SET XACT_ABORT OFF;
 
 IF DB_NAME() <> N'EBIR_MES_TEST'
@@ -12,43 +18,48 @@ IF EXISTS (SELECT 1 FROM cfg.lineas WHERE codigo LIKE N'ZZ50-%')
  OR EXISTS (SELECT 1 FROM seg.empleados WHERE codigo_nav LIKE N'ZZ50-%')
     THROW 58921, 'Existen fixtures ZZ50 pendientes de revision.', 1;
 
+DECLARE
+    @centro_id bigint =
+        (SELECT TOP (1) centro_trabajo_id FROM cfg.centros_trabajo ORDER BY centro_trabajo_id),
+    @rol_supervisor_id smallint =
+        (SELECT rol_id FROM seg.roles WHERE codigo = N'SUPERVISOR' AND activo = 1),
+    @rol_operario_id smallint =
+        (SELECT rol_id FROM seg.roles WHERE codigo = N'OPERARIO' AND activo = 1);
+IF @centro_id IS NULL OR @rol_supervisor_id IS NULL
+    THROW 58922, 'Faltan catalogos base para la prueba.', 1;
+
+DECLARE
+    @linea1_id bigint, @linea2_id bigint, @linea3_id bigint, @linea_inactiva_id bigint,
+    @jefe_a_id bigint, @jefe_b_id bigint, @operario_id bigint;
+
+/* --- Fixtures: se confirman, ver nota XACT_ABORT arriba. --- */
 BEGIN TRY
     BEGIN TRANSACTION;
 
-    DECLARE
-        @centro_id bigint =
-            (SELECT TOP (1) centro_trabajo_id FROM cfg.centros_trabajo ORDER BY centro_trabajo_id),
-        @rol_supervisor_id smallint =
-            (SELECT rol_id FROM seg.roles WHERE codigo = N'SUPERVISOR' AND activo = 1),
-        @rol_operario_id smallint =
-            (SELECT rol_id FROM seg.roles WHERE codigo = N'OPERARIO' AND activo = 1);
-    IF @centro_id IS NULL OR @rol_supervisor_id IS NULL
-        THROW 58922, 'Faltan catalogos base para la prueba.', 1;
-
     INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
     VALUES (@centro_id, N'ZZ50-L1', N'ZZTEST 050 linea 1', N'Sintetica', 1);
-    DECLARE @linea1_id bigint = SCOPE_IDENTITY();
+    SET @linea1_id = SCOPE_IDENTITY();
     INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
     VALUES (@centro_id, N'ZZ50-L2', N'ZZTEST 050 linea 2', N'Sintetica', 1);
-    DECLARE @linea2_id bigint = SCOPE_IDENTITY();
+    SET @linea2_id = SCOPE_IDENTITY();
     INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
     VALUES (@centro_id, N'ZZ50-L3', N'ZZTEST 050 linea 3', N'Sintetica', 1);
-    DECLARE @linea3_id bigint = SCOPE_IDENTITY();
+    SET @linea3_id = SCOPE_IDENTITY();
     INSERT cfg.lineas
         (centro_trabajo_id, codigo, nombre, descripcion, activa, desactivado_utc)
     VALUES
         (@centro_id, N'ZZ50-L4', N'ZZTEST 050 linea 4', N'Sintetica', 0, SYSUTCDATETIME());
-    DECLARE @linea_inactiva_id bigint = SCOPE_IDENTITY();
+    SET @linea_inactiva_id = SCOPE_IDENTITY();
 
     INSERT seg.empleados (codigo_nav, nombre_completo, activo_nav, activo_mes, sincronizado_nav_utc)
     VALUES (N'ZZ50-JEFE-A', N'ZZTEST 050 Jefa A', 1, 1, SYSUTCDATETIME());
-    DECLARE @jefe_a_id bigint = SCOPE_IDENTITY();
+    SET @jefe_a_id = SCOPE_IDENTITY();
     INSERT seg.empleados (codigo_nav, nombre_completo, activo_nav, activo_mes, sincronizado_nav_utc)
     VALUES (N'ZZ50-JEFE-B', N'ZZTEST 050 Jefe B', 1, 1, SYSUTCDATETIME());
-    DECLARE @jefe_b_id bigint = SCOPE_IDENTITY();
+    SET @jefe_b_id = SCOPE_IDENTITY();
     INSERT seg.empleados (codigo_nav, nombre_completo, activo_nav, activo_mes, sincronizado_nav_utc)
     VALUES (N'ZZ50-OPERARIO', N'ZZTEST 050 Operario', 1, 1, SYSUTCDATETIME());
-    DECLARE @operario_id bigint = SCOPE_IDENTITY();
+    SET @operario_id = SCOPE_IDENTITY();
 
     INSERT seg.empleados_roles (empleado_id, rol_id, desde_utc, asignado_por_cuenta, motivo)
     VALUES (@jefe_a_id, @rol_supervisor_id, SYSUTCDATETIME(), N'ZZTEST_050', N'Fixture sintetico'),
@@ -57,6 +68,17 @@ BEGIN TRY
         INSERT seg.empleados_roles (empleado_id, rol_id, desde_utc, asignado_por_cuenta, motivo)
         VALUES (@operario_id, @rol_operario_id, SYSUTCDATETIME(), N'ZZTEST_050', N'Fixture sintetico');
 
+    COMMIT TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
+
+/* --- Escenarios: cada EXEC es una unidad transaccional autonoma del
+   contrato bajo prueba; aqui no se abre ninguna transaccion propia. --- */
+DECLARE @falla_numero int = NULL, @falla_mensaje nvarchar(4000) = NULL;
+BEGIN TRY
     /* 1. La jefa A toma dos lineas libres. */
     EXEC cfg.asignar_mesas_propias
         @empleado_id = @jefe_a_id,
@@ -120,11 +142,31 @@ BEGIN TRY
     END CATCH;
     IF @rechazo_inactiva <> 57003
         THROW 58938, 'La linea inactiva no fue rechazada con 57003.', 1;
-
-    PRINT 'Prueba 050 correcta: seleccion propia, bloqueo de linea ajena, liberacion con historial y validaciones verificadas.';
-    ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH
-    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
-    THROW;
+    SET @falla_numero = ERROR_NUMBER();
+    SET @falla_mensaje = ERROR_MESSAGE();
 END CATCH;
+
+/* --- Limpieza explicita: se ejecuta tanto si la prueba fue correcta como
+   si fallo, para no depender de un ROLLBACK envolvente. --- */
+DELETE lj
+FROM cfg.lineas_jefes lj
+JOIN cfg.lineas l ON l.linea_id = lj.linea_id
+WHERE l.codigo LIKE N'ZZ50-%';
+
+DELETE FROM seg.empleados_roles
+WHERE empleado_id IN (SELECT empleado_id FROM seg.empleados WHERE codigo_nav LIKE N'ZZ50-%');
+
+DELETE FROM seg.empleados WHERE codigo_nav LIKE N'ZZ50-%';
+DELETE FROM cfg.lineas WHERE codigo LIKE N'ZZ50-%';
+
+IF @falla_numero IS NOT NULL
+BEGIN
+    DECLARE @relanzar_mensaje nvarchar(2048) = CONCAT(
+        N'Prueba 050 fallida (limpieza ya completada). Error original ',
+        @falla_numero, N': ', @falla_mensaje);
+    THROW 58940, @relanzar_mensaje, 1;
+END
+
+PRINT N'Prueba 050 correcta: seleccion propia, bloqueo de linea ajena, liberacion con historial y validaciones verificadas. Fixtures ZZ50 eliminados.';
