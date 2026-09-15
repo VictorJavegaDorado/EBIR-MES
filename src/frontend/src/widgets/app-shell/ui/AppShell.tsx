@@ -25,7 +25,7 @@ export function AppShell({ children, variant = "production" }: AppShellProps) {
   }, []);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" data-variant={variant}>
       <header className="topbar">
         <a className="brand" href="/" aria-label="EBIR MES, inicio">
           <span className="brand-mark" aria-hidden="true">E</span>

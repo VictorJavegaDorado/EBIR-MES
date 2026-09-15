@@ -127,6 +127,10 @@ builder.Services.AddScoped<IProductionOrderCompleter>(_ =>
 builder.Services.AddScoped<IProductionDashboardReader>(_ =>
     new SqlProductionDashboardReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<ILineSupervisorAssignmentWriter>(_ =>
+    new SqlLineSupervisorAssignmentWriter(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<SetSupervisorLineAssignments>();
 builder.Services.AddScoped<ILineSessionOpener>(_ =>
     new SqlLineSessionOpener(
         builder.Configuration.GetConnectionString("MesDatabase")));

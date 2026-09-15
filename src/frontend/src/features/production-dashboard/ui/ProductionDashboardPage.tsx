@@ -6,9 +6,13 @@ import {
   type ProductionDashboardSnapshot,
   type ProductionDashboardSupervisor,
 } from "../api/productionDashboard";
+import type { AuthorizedSupervisor } from "../../supervisor-access/api/authorizeSupervisorByRfid";
+import { SupervisorIdentificationScreen } from "./SupervisorIdentificationScreen";
+import { LineAssignmentPicker } from "./LineAssignmentPicker";
 
 const refreshMilliseconds = 5_000;
 const supervisorParameter = "jefe";
+const identityStorageKey = "mes.dashboard.supervisor";
 const cardLimit = 6;
 const visiblePeople = 6;
 const numberFormatter = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
@@ -86,6 +90,33 @@ function writeSupervisorToUrl(code: string | null) {
   if (code) url.searchParams.set(supervisorParameter, code);
   else url.searchParams.delete(supervisorParameter);
   window.history.replaceState(null, "", url);
+}
+
+function readStoredIdentity(): AuthorizedSupervisor | null {
+  try {
+    const raw = window.sessionStorage.getItem(identityStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AuthorizedSupervisor>;
+    if (
+      typeof parsed.employeeId === "number"
+      && typeof parsed.navEmployeeCode === "string"
+      && typeof parsed.fullName === "string"
+    ) {
+      return { employeeId: parsed.employeeId, navEmployeeCode: parsed.navEmployeeCode, fullName: parsed.fullName };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredIdentity(identity: AuthorizedSupervisor | null) {
+  try {
+    if (identity) window.sessionStorage.setItem(identityStorageKey, JSON.stringify(identity));
+    else window.sessionStorage.removeItem(identityStorageKey);
+  } catch {
+    // A private window or blocked site data just skips persistence.
+  }
 }
 
 type LineMetrics = {
@@ -179,14 +210,56 @@ function lineAction(
   return { tone: "ok", text: "Sin acción." };
 }
 
+type Stage = "viewing" | "identify" | "pick";
+
 export function ProductionDashboardPage() {
-  const [supervisor, setSupervisor] = useState<string | null>(readSupervisorFromUrl);
+  const [identity, setIdentity] = useState<AuthorizedSupervisor | null>(readStoredIdentity);
+  const [pendingIdentity, setPendingIdentity] = useState<AuthorizedSupervisor | null>(null);
+  const [stage, setStage] = useState<Stage>("viewing");
+  const [supervisor, setSupervisor] = useState<string | null>(
+    () => readStoredIdentity()?.navEmployeeCode ?? readSupervisorFromUrl(),
+  );
   const [supervisors, setSupervisors] = useState<ProductionDashboardSupervisor[]>([]);
   const [snapshot, setSnapshot] = useState<ProductionDashboardSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [receivedAt, setReceivedAt] = useState(0);
   const [tick, setTick] = useState(0);
   const request = useRef<AbortController | null>(null);
+
+  function handleIdentified(newIdentity: AuthorizedSupervisor) {
+    setPendingIdentity(newIdentity);
+    setStage("pick");
+  }
+
+  function handlePickerCancel() {
+    setPendingIdentity(null);
+    setStage("viewing");
+  }
+
+  function handlePickerSaved() {
+    if (pendingIdentity) {
+      setIdentity(pendingIdentity);
+      writeStoredIdentity(pendingIdentity);
+      setSupervisor(pendingIdentity.navEmployeeCode);
+      writeSupervisorToUrl(pendingIdentity.navEmployeeCode);
+    }
+    setPendingIdentity(null);
+    setStage("viewing");
+  }
+
+  function beginChangeSelection() {
+    if (!identity) return;
+    setPendingIdentity(identity);
+    setStage("pick");
+  }
+
+  function exitIdentity() {
+    setIdentity(null);
+    writeStoredIdentity(null);
+    setSupervisor(null);
+    writeSupervisorToUrl(null);
+    setStage("viewing");
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -246,6 +319,27 @@ export function ProductionDashboardPage() {
   const plantView = supervisor === null && lines.length > cardLimit;
   const compact = !plantView && lines.length > cardLimit;
   const columns = plantView ? 5 : lines.length <= 4 ? 2 : lines.length <= cardLimit ? 3 : 4;
+  const identified = identity !== null && supervisor === identity.navEmployeeCode;
+  const scopeName = identified ? identity!.fullName : supervisorRecord?.fullName ?? supervisor;
+
+  if (stage === "identify") {
+    return (
+      <SupervisorIdentificationScreen
+        onIdentified={handleIdentified}
+        onSkip={() => setStage("viewing")}
+      />
+    );
+  }
+
+  if (stage === "pick" && pendingIdentity) {
+    return (
+      <LineAssignmentPicker
+        supervisor={pendingIdentity}
+        onSaved={handlePickerSaved}
+        onCancel={handlePickerCancel}
+      />
+    );
+  }
 
   return (
     <section
@@ -258,24 +352,40 @@ export function ProductionDashboardPage() {
         <div className="dashboard-scope">
           <div>
             <small>{supervisor ? "Jefe de línea" : "Vista"}</small>
-            <strong>{supervisor ? supervisorRecord?.fullName ?? supervisor : "Toda la planta"}</strong>
+            <strong>{supervisor ? scopeName : "Toda la planta"}</strong>
           </div>
-          <label className="sr-only" htmlFor="dashboard-supervisor">Jefe de línea</label>
-          <select
-            id="dashboard-supervisor"
-            value={supervisor ?? ""}
-            onChange={event => selectSupervisor(event.target.value || null)}
-          >
-            <option value="">Toda la planta</option>
-            {supervisors.map(item => (
-              <option key={item.navEmployeeCode} value={item.navEmployeeCode}>
-                {item.fullName} · {item.lines.length} {item.lines.length === 1 ? "línea" : "líneas"}
-              </option>
-            ))}
-            {supervisor && !supervisors.some(item => item.navEmployeeCode === supervisor) && (
-              <option value={supervisor}>{supervisorRecord?.fullName ?? supervisor}</option>
-            )}
-          </select>
+          {identified ? (
+            <div className="dashboard-scope-identity-actions">
+              <button type="button" className="dashboard-scope-link" onClick={beginChangeSelection}>
+                Cambiar selección
+              </button>
+              <button type="button" className="dashboard-scope-link" onClick={exitIdentity}>
+                Salir
+              </button>
+            </div>
+          ) : (
+            <>
+              <label className="sr-only" htmlFor="dashboard-supervisor">Jefe de línea</label>
+              <select
+                id="dashboard-supervisor"
+                value={supervisor ?? ""}
+                onChange={event => selectSupervisor(event.target.value || null)}
+              >
+                <option value="">Toda la planta</option>
+                {supervisors.map(item => (
+                  <option key={item.navEmployeeCode} value={item.navEmployeeCode}>
+                    {item.fullName} · {item.lines.length} {item.lines.length === 1 ? "línea" : "líneas"}
+                  </option>
+                ))}
+                {supervisor && !supervisors.some(item => item.navEmployeeCode === supervisor) && (
+                  <option value={supervisor}>{supervisorRecord?.fullName ?? supervisor}</option>
+                )}
+              </select>
+              <button type="button" className="dashboard-scope-link" onClick={() => setStage("identify")}>
+                Soy jefe de línea
+              </button>
+            </>
+          )}
         </div>
         <article><span>{supervisor ? "Mis líneas" : "Líneas"}</span><strong>{summary.total}</strong></article>
         <article className="running"><span>Produciendo</span><strong>{summary.running}</strong></article>

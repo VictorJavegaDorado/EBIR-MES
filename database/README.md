@@ -25,6 +25,14 @@ operacion 69 despues de observar en NAV EbirTest su unica salida 26873 como
 la orden `FL26-00015` quedo disponible para continuar. Antes de la instalacion
 se creo y verifico un backup `COPY_ONLY`.
 
+El paquete `050A_asignacion_mesas_propia.sql` esta preparado y no instalado.
+Crea `cfg.asignar_mesas_propias`, el contrato que usa el panel de fabricacion
+para que un jefe de linea seleccione sus propias mesas desde la pantalla del
+panel (identificado por RFID) en vez de recibir un reparto fijo por SQL. Una
+linea con jefe vigente distinto queda bloqueada en vez de reasignarse. Su
+alcance se describe en `050_README.md` y su prueba con rollback en
+`tests/database/line_supervisor_assignment/02_FUNCIONALES_050.sql`.
+
 El paquete `049A_asignacion_jefes_linea.sql` fue instalado y validado el
 15/09/2026 en `EBIR_MES_TEST`. Crea `cfg.lineas_jefes` (jefe de linea vigente
 por linea) para la vista por jefe del panel de fabricacion; no inserta datos

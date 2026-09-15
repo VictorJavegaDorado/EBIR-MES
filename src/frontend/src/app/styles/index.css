@@ -671,7 +671,7 @@ h1 {
   }
 }
 
-.app-shell:has(.production-dashboard) .app-footer {
+.app-shell[data-variant="dashboard"] .app-footer {
   display: none;
 }
 

@@ -8,4 +8,7 @@ public interface IProductionDashboardReader
 
     Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ReadSupervisorsAsync(
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<LineAssignmentOptionRecord>> ReadLineAssignmentOptionsAsync(
+        CancellationToken cancellationToken);
 }
