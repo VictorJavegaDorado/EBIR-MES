@@ -1,6 +1,6 @@
 # Paquete 050 - Seleccion propia de mesas por el jefe de linea
 
-Estado: preparado, no instalado.
+Estado: instalado y validado el 15/09/2026 en `EBIR_MES_TEST`.
 
 `050A_asignacion_mesas_propia.sql` crea `cfg.asignar_mesas_propias`, el
 contrato transaccional que usa el panel de fabricacion para que un jefe de
@@ -27,7 +27,23 @@ Garantias:
   linea libre a dos jefes distintos;
 - `mes_runtime` solo tiene `EXECUTE` sobre el contrato.
 
-Antes de instalar se requiere revision estatica, ensayo con rollback
-(`tests/database/line_supervisor_assignment/02_FUNCIONALES_050.sql`, que
-exige el paquete 049A ya instalado), copia `COPY_ONLY` verificada y
-autorizacion expresa.
+Se instalo en `EBIR_MES_TEST` el 15/09/2026 tras un backup `COPY_ONLY` con
+checksum verificado
+(`D:\BBDD\EBIR_MES_TEST_pre050_20260915_130248.bak`;
+`RESTORE VERIFYONLY WITH CHECKSUM` correcto). El contrato quedo creado
+(`cfg.asignar_mesas_propias`, `OBJECT_ID = 436196604`).
+
+El primer ensayo
+(`tests/database/line_supervisor_assignment/02_FUNCIONALES_050.sql`) revelo
+que el contrato, al abrir y cerrar su propia transaccion (mismo refuerzo del
+paquete 010), no puede invocarse dentro de una transaccion exterior abierta:
+su `ROLLBACK` ante el rechazo esperado 57004 revertia tambien los fixtures de
+la prueba. Se corrigio el ensayo (no el contrato) para confirmar los fixtures
+antes de invocar el procedimiento y limpiarlos de forma explicita al final,
+tanto si la prueba pasa como si falla. El ensayo repetido termino con
+`Prueba 050 correcta: seleccion propia, bloqueo de linea ajena, liberacion
+con historial y validaciones verificadas. Fixtures ZZ50 eliminados.` Los
+fixtures `ZZ50-*` quedaron en 0/0/0 y `DBCC CHECKDB` termino sin errores.
+
+La tabla `cfg.lineas_jefes` sigue vacia: el reparto real se construye cuando
+cada jefe se identifica y selecciona sus mesas desde el propio panel.

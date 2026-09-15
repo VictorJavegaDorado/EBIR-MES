@@ -25,13 +25,21 @@ operacion 69 despues de observar en NAV EbirTest su unica salida 26873 como
 la orden `FL26-00015` quedo disponible para continuar. Antes de la instalacion
 se creo y verifico un backup `COPY_ONLY`.
 
-El paquete `050A_asignacion_mesas_propia.sql` esta preparado y no instalado.
-Crea `cfg.asignar_mesas_propias`, el contrato que usa el panel de fabricacion
-para que un jefe de linea seleccione sus propias mesas desde la pantalla del
-panel (identificado por RFID) en vez de recibir un reparto fijo por SQL. Una
-linea con jefe vigente distinto queda bloqueada en vez de reasignarse. Su
-alcance se describe en `050_README.md` y su prueba con rollback en
-`tests/database/line_supervisor_assignment/02_FUNCIONALES_050.sql`.
+El paquete `050A_asignacion_mesas_propia.sql` fue instalado y validado el
+15/09/2026 en `EBIR_MES_TEST`. Crea `cfg.asignar_mesas_propias`
+(`OBJECT_ID = 436196604`), el contrato que usa el panel de fabricacion para
+que un jefe de linea seleccione sus propias mesas desde la pantalla del panel
+(identificado por RFID) en vez de recibir un reparto fijo por SQL. Una linea
+con jefe vigente distinto queda bloqueada en vez de reasignarse. Antes de
+instalarlo se creo y verifico un backup `COPY_ONLY` con checksum
+(`D:\BBDD\EBIR_MES_TEST_pre050_20260915_130248.bak`). El ensayo detecto que
+el contrato, al abrir y cerrar su propia transaccion (mismo refuerzo del
+paquete 010), no admite invocarse dentro de una transaccion exterior abierta;
+se corrigio el ensayo (no el contrato) para confirmar los fixtures antes de
+invocar el procedimiento y limpiarlos de forma explicita al final. El ensayo
+repetido termino correctamente, los fixtures `ZZ50-*` quedaron en 0/0/0 y
+`DBCC CHECKDB` termino sin errores. Su alcance se describe en
+`050_README.md`. La tabla `cfg.lineas_jefes` sigue vacia.
 
 El paquete `049A_asignacion_jefes_linea.sql` fue instalado y validado el
 15/09/2026 en `EBIR_MES_TEST`. Crea `cfg.lineas_jefes` (jefe de linea vigente
