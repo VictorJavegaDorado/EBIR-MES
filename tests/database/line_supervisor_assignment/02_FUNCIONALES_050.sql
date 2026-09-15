@@ -34,8 +34,10 @@ BEGIN TRY
     INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
     VALUES (@centro_id, N'ZZ50-L3', N'ZZTEST 050 linea 3', N'Sintetica', 1);
     DECLARE @linea3_id bigint = SCOPE_IDENTITY();
-    INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
-    VALUES (@centro_id, N'ZZ50-L4', N'ZZTEST 050 linea 4', N'Sintetica', 0);
+    INSERT cfg.lineas
+        (centro_trabajo_id, codigo, nombre, descripcion, activa, desactivado_utc)
+    VALUES
+        (@centro_id, N'ZZ50-L4', N'ZZTEST 050 linea 4', N'Sintetica', 0, SYSUTCDATETIME());
     DECLARE @linea_inactiva_id bigint = SCOPE_IDENTITY();
 
     INSERT seg.empleados (codigo_nav, nombre_completo, activo_nav, activo_mes, sincronizado_nav_utc)
