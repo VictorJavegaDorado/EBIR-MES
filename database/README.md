@@ -25,11 +25,17 @@ operacion 69 despues de observar en NAV EbirTest su unica salida 26873 como
 la orden `FL26-00015` quedo disponible para continuar. Antes de la instalacion
 se creo y verifico un backup `COPY_ONLY`.
 
-El paquete `049A_asignacion_jefes_linea.sql` esta preparado y no instalado.
-Crea `cfg.lineas_jefes` (jefe de linea vigente por linea) para la vista por
-jefe del panel de fabricacion; no inserta datos ni cambia procedimientos. Su
-alcance se describe en `049_README.md` y su prueba con rollback en
-`tests/database/line_supervisor_assignment`.
+El paquete `049A_asignacion_jefes_linea.sql` fue instalado y validado el
+15/09/2026 en `EBIR_MES_TEST`. Crea `cfg.lineas_jefes` (jefe de linea vigente
+por linea) para la vista por jefe del panel de fabricacion; no inserta datos
+ni cambia procedimientos. Antes de instalarlo se creo y verifico un backup
+`COPY_ONLY` con checksum
+(`D:\BBDD\EBIR_MES_TEST_pre049_20260915_081049.bak`). El ensayo con rollback
+en `tests/database/line_supervisor_assignment` corrigio un fallo de
+aislamiento en el fixture de la comprobacion de autor (commit `5da7e6c`) y
+termino satisfactoriamente; `DBCC CHECKDB` termino sin errores. Su alcance se
+describe en `049_README.md`. La tabla queda vacia: el reparto real jefe-linea
+se entrega en un paquete de datos posterior.
 
 ## Orden
 
