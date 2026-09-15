@@ -29,6 +29,9 @@ BEGIN TRY
     INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
     VALUES (@centro_id, N'ZZ49-L2', N'ZZTEST 049 linea 2', N'Sintetica', 1);
     DECLARE @linea2_id bigint = SCOPE_IDENTITY();
+    INSERT cfg.lineas (centro_trabajo_id, codigo, nombre, descripcion, activa)
+    VALUES (@centro_id, N'ZZ49-L3', N'ZZTEST 049 linea 3', N'Sintetica', 1);
+    DECLARE @linea3_id bigint = SCOPE_IDENTITY();
 
     INSERT seg.empleados (codigo_nav, nombre_completo, activo_nav, activo_mes, sincronizado_nav_utc)
     VALUES (N'ZZ49-JEFE-A', N'ZZTEST 049 Jefa A', 1, 1, SYSUTCDATETIME());
@@ -90,7 +93,7 @@ BEGIN TRY
     DECLARE @rechazo_autor int = 0;
     BEGIN TRY
         INSERT cfg.lineas_jefes (linea_id, empleado_id)
-        VALUES (@linea2_id, @jefe_b_id);
+        VALUES (@linea3_id, @jefe_b_id);
     END TRY
     BEGIN CATCH
         SET @rechazo_autor = ERROR_NUMBER();
