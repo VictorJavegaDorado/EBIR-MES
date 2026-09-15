@@ -110,6 +110,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.history.replaceState(null, "", "/dashboard");
+  window.sessionStorage.clear();
 });
 
 describe("ProductionDashboardPage", () => {
@@ -184,5 +185,62 @@ describe("ProductionDashboardPage", () => {
     expect(document.querySelectorAll(".dashboard-tile")).toHaveLength(8);
     expect(document.querySelectorAll(".dashboard-line-card")).toHaveLength(0);
     expect(screen.getAllByText("Ana").length).toBe(4);
+  });
+
+  it("offers to identify as a supervisor without disturbing the plant view", async () => {
+    mockApi(snapshot);
+
+    render(<ProductionDashboardPage />);
+
+    expect(await screen.findByRole("heading", { name: "LINEA-01" })).toBeInTheDocument();
+    expect(screen.getByText("Vista").nextElementSibling?.textContent).toBe("Toda la planta");
+    expect(screen.getByRole("button", { name: "Soy jefe de línea" })).toBeInTheDocument();
+  });
+
+  it("identifies by RFID, picks lines and shows the jefe's own filtered panel", async () => {
+    const lineOptions = [
+      { lineId: 1, lineCode: "LINEA-01", lineName: "Linea uno", workCenterCode: "CT-01", workCenterName: "Fabricacion", supervisorNavEmployeeCode: null, supervisorName: null },
+      { lineId: 2, lineCode: "LINEA-02", lineName: "Linea libre", workCenterCode: "CT-01", workCenterName: "Fabricacion", supervisorNavEmployeeCode: "577", supervisorName: "Luis Gil Font" },
+    ];
+    const filtered = { ...snapshot, lines: [snapshot.lines[0]], supervisor: supervisors[0] };
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url === "/api/supervisor-access/rfid" && method === "POST") {
+        return Promise.resolve(new Response(
+          JSON.stringify({ employeeId: 412, navEmployeeCode: "412", fullName: "Ana Pérez Soler" }),
+          { status: 200 },
+        ));
+      }
+      if (url.includes("/api/production-dashboard/line-assignments") && method === "POST") {
+        return Promise.resolve(new Response(JSON.stringify(lineOptions), { status: 200 }));
+      }
+      if (url.includes("/api/production-dashboard/line-assignments")) {
+        return Promise.resolve(new Response(JSON.stringify(lineOptions), { status: 200 }));
+      }
+      if (url.includes("/api/production-dashboard/supervisors")) {
+        return Promise.resolve(new Response(JSON.stringify(supervisors), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify(filtered), { status: 200 }));
+    });
+
+    render(<ProductionDashboardPage />);
+    await screen.findByRole("heading", { name: "LINEA-01" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Soy jefe de línea" }));
+    await userEvent.type(screen.getByLabelText("Tarjeta RFID"), "rfid-ana");
+    await userEvent.click(screen.getByRole("button", { name: "Identificarme" }));
+
+    expect(await screen.findByText("LINEA-01")).toBeInTheDocument();
+    expect(screen.getByText("bloqueada · Luis Gil Font")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("checkbox", { name: /LINEA-01/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Guardar y ver mi panel" }));
+
+    expect(await screen.findByRole("heading", { name: "LINEA-01" })).toBeInTheDocument();
+    expect(fetchMock.mock.calls.some(([input]) =>
+      String(input) === "/api/production-dashboard?supervisor=412")).toBe(true);
+    expect(screen.getByRole("button", { name: "Cambiar selección" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salir" })).toBeInTheDocument();
+    expect(window.location.search).toBe("?jefe=412");
   });
 });

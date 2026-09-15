@@ -19,4 +19,7 @@ public sealed class GetProductionDashboard(IProductionDashboardReader reader)
 
     public Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ListSupervisorsAsync(
         CancellationToken cancellationToken) => reader.ReadSupervisorsAsync(cancellationToken);
+
+    public Task<IReadOnlyList<LineAssignmentOptionRecord>> ListLineAssignmentOptionsAsync(
+        CancellationToken cancellationToken) => reader.ReadLineAssignmentOptionsAsync(cancellationToken);
 }

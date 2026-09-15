@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using Ebir.Mes.Application.ProductionDashboard;
 using Ebir.Mes.Application.ProductionOrders;
@@ -136,17 +137,122 @@ public sealed class ProductionDashboardEndpointTests
         Assert.DoesNotContain("synthetic database detail", text);
     }
 
-    private static WebApplicationFactory<Program> CreateFactory(IProductionDashboardReader reader) =>
+    [Fact]
+    public async Task LineAssignments_ReturnsAllLinesWithTheirCurrentSupervisor()
+    {
+        var reader = new StubReader(
+            new ProductionDashboardSnapshotRecord(DateTime.UtcNow, []),
+            lineOptions:
+            [
+                new(1, "LINEA-01", "Linea uno", "CT-01", "Fabricacion", "412", "Ana Perez"),
+                new(2, "LINEA-02", "Linea dos", "CT-01", "Fabricacion", null, null)
+            ]);
+        using var factory = CreateFactory(reader);
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync("/api/production-dashboard/line-assignments");
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var lines = body.RootElement.EnumerateArray().ToArray();
+        Assert.Equal(2, lines.Length);
+        Assert.Equal("412", lines[0].GetProperty("supervisorNavEmployeeCode").GetString());
+        Assert.Equal(JsonValueKind.Null, lines[1].GetProperty("supervisorNavEmployeeCode").ValueKind);
+    }
+
+    [Fact]
+    public async Task SetLineAssignments_SavesAndReturnsTheRefreshedList()
+    {
+        var reader = new StubReader(
+            new ProductionDashboardSnapshotRecord(DateTime.UtcNow, []),
+            lineOptions: [new(1, "LINEA-01", "Linea uno", "CT-01", "Fabricacion", "412", "Ana Perez")]);
+        var writer = new StubWriter();
+        using var factory = CreateFactory(reader, writer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/production-dashboard/line-assignments",
+            new { employeeId = 55, lineIds = new long[] { 1, 2 } });
+        using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(55, writer.LastEmployeeId);
+        Assert.Equal([1, 2], writer.LastLineIds);
+        Assert.Single(body.RootElement.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task SetLineAssignments_RejectsALockedLineWithConflict()
+    {
+        var writer = new StubWriter(
+            new LineSupervisorAssignmentRejectedException(
+                "LINE_ASSIGNMENT_LOCKED", "synthetic conflict"));
+        using var factory = CreateFactory(
+            new StubReader(new ProductionDashboardSnapshotRecord(DateTime.UtcNow, [])), writer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/production-dashboard/line-assignments",
+            new { employeeId = 55, lineIds = new long[] { 1 } });
+        var text = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Contains("LINE_ASSIGNMENT_LOCKED", text);
+    }
+
+    [Fact]
+    public async Task SetLineAssignments_RejectsAnEmployeeWithoutSupervisorRole()
+    {
+        var writer = new StubWriter(
+            new LineSupervisorAssignmentRejectedException(
+                "EMPLOYEE_NOT_ACTIVE_SUPERVISOR", "synthetic role"));
+        using var factory = CreateFactory(
+            new StubReader(new ProductionDashboardSnapshotRecord(DateTime.UtcNow, [])), writer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/production-dashboard/line-assignments",
+            new { employeeId = 55, lineIds = new long[] { 1 } });
+        var text = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Contains("EMPLOYEE_NOT_ACTIVE_SUPERVISOR", text);
+    }
+
+    [Fact]
+    public async Task SetLineAssignments_RejectsAnInvalidEmployeeId()
+    {
+        var writer = new StubWriter();
+        using var factory = CreateFactory(
+            new StubReader(new ProductionDashboardSnapshotRecord(DateTime.UtcNow, [])), writer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/api/production-dashboard/line-assignments",
+            new { employeeId = 0, lineIds = Array.Empty<long>() });
+        var text = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("LINE_ASSIGNMENT_REQUEST_INVALID", text);
+        Assert.False(writer.Called);
+    }
+
+    private static WebApplicationFactory<Program> CreateFactory(
+        IProductionDashboardReader reader,
+        ILineSupervisorAssignmentWriter? writer = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IProductionDashboardReader>();
                 services.AddSingleton(reader);
+                services.RemoveAll<ILineSupervisorAssignmentWriter>();
+                services.AddSingleton(writer ?? new StubWriter());
             }));
 
     private sealed class StubReader(
         ProductionDashboardSnapshotRecord snapshot,
-        IReadOnlyList<ProductionDashboardSupervisorRecord>? supervisors = null)
+        IReadOnlyList<ProductionDashboardSupervisorRecord>? supervisors = null,
+        IReadOnlyList<LineAssignmentOptionRecord>? lineOptions = null)
         : IProductionDashboardReader
     {
         public string? LastSupervisorCode { get; private set; }
@@ -162,6 +268,10 @@ public sealed class ProductionDashboardEndpointTests
         public Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ReadSupervisorsAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult(supervisors ?? Array.Empty<ProductionDashboardSupervisorRecord>());
+
+        public Task<IReadOnlyList<LineAssignmentOptionRecord>> ReadLineAssignmentOptionsAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult(lineOptions ?? Array.Empty<LineAssignmentOptionRecord>());
     }
 
     private sealed class UnavailableReader : IProductionDashboardReader
@@ -174,5 +284,28 @@ public sealed class ProductionDashboardEndpointTests
         public Task<IReadOnlyList<ProductionDashboardSupervisorRecord>> ReadSupervisorsAsync(
             CancellationToken cancellationToken) =>
             throw new ProductionDashboardUnavailableException("synthetic database detail");
+
+        public Task<IReadOnlyList<LineAssignmentOptionRecord>> ReadLineAssignmentOptionsAsync(
+            CancellationToken cancellationToken) =>
+            throw new ProductionDashboardUnavailableException("synthetic database detail");
+    }
+
+    private sealed class StubWriter(Exception? failure = null) : ILineSupervisorAssignmentWriter
+    {
+        public bool Called { get; private set; }
+        public long LastEmployeeId { get; private set; }
+        public IReadOnlyCollection<long> LastLineIds { get; private set; } = Array.Empty<long>();
+
+        public Task SetAsync(
+            long supervisorEmployeeId,
+            IReadOnlyCollection<long> lineIds,
+            CancellationToken cancellationToken)
+        {
+            Called = true;
+            LastEmployeeId = supervisorEmployeeId;
+            LastLineIds = lineIds;
+            if (failure is not null) throw failure;
+            return Task.CompletedTask;
+        }
     }
 }

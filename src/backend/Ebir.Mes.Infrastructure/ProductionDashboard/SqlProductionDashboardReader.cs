@@ -117,6 +117,24 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
         ORDER BY c.codigo,l.codigo,l.linea_id;
         """;
 
+    private const string LineAssignmentsQuery = """
+        SELECT l.linea_id, l.codigo, l.nombre, c.codigo, c.nombre,
+               jefe.codigo_nav, jefe.nombre_completo
+        FROM cfg.lineas l
+        INNER JOIN cfg.centros_trabajo c ON c.centro_trabajo_id=l.centro_trabajo_id
+        OUTER APPLY
+        (
+            SELECT TOP (1) e.codigo_nav, e.nombre_completo
+            FROM cfg.lineas_jefes lj
+            JOIN seg.empleados e ON e.empleado_id=lj.empleado_id
+            WHERE lj.linea_id=l.linea_id AND lj.asignado_hasta_utc IS NULL
+              AND e.activo_mes=1 AND e.anonimizado_utc IS NULL
+            ORDER BY lj.asignado_desde_utc DESC, lj.linea_jefe_id DESC
+        ) jefe
+        WHERE l.activa=1 AND c.activo=1
+        ORDER BY c.codigo,l.codigo,l.linea_id;
+        """;
+
     private const string SupervisorsQuery = """
         SELECT e.codigo_nav, e.nombre_completo, l.linea_id, l.codigo, l.nombre
         FROM cfg.lineas_jefes lj
@@ -270,6 +288,58 @@ public sealed class SqlProductionDashboardReader(string? connectionString)
         {
             throw new ProductionDashboardUnavailableException(
                 "No se han podido leer los jefes de linea.", exception);
+        }
+        catch (Exception exception)
+            when (exception is ArgumentException or InvalidOperationException)
+        {
+            throw new ProductionDashboardUnavailableException(
+                "La conexion de EBIR_MES_TEST no tiene una configuracion valida.",
+                exception);
+        }
+    }
+
+    public async Task<IReadOnlyList<LineAssignmentOptionRecord>> ReadLineAssignmentOptionsAsync(
+        CancellationToken cancellationToken)
+    {
+        EnsureConfigured();
+
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync(cancellationToken);
+            if (!await AssignmentTableExistsAsync(connection, cancellationToken))
+            {
+                return Array.Empty<LineAssignmentOptionRecord>();
+            }
+
+            await using var command = new SqlCommand(LineAssignmentsQuery, connection)
+            {
+                CommandType = CommandType.Text,
+                CommandTimeout = 10
+            };
+            await using var reader = await command.ExecuteReaderAsync(
+                CommandBehavior.SingleResult,
+                cancellationToken);
+
+            var options = new List<LineAssignmentOptionRecord>();
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                options.Add(new LineAssignmentOptionRecord(
+                    reader.GetInt64(0), reader.GetString(1), reader.GetString(2),
+                    reader.GetString(3), reader.GetString(4),
+                    reader.IsDBNull(5) ? null : reader.GetString(5),
+                    reader.IsDBNull(6) ? null : reader.GetString(6)));
+            }
+            return options;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (SqlException exception)
+        {
+            throw new ProductionDashboardUnavailableException(
+                "No se han podido leer las lineas disponibles.", exception);
         }
         catch (Exception exception)
             when (exception is ArgumentException or InvalidOperationException)
