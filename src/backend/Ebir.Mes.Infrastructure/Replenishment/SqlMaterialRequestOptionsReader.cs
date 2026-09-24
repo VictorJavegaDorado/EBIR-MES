@@ -18,7 +18,7 @@ public sealed class SqlMaterialRequestOptionsReader(string? connectionString)
           ON r.sesion_linea_id = s.sesion_linea_id
          AND r.componente_orden_id = c.componente_orden_id
         WHERE s.sesion_linea_id = @sesion_linea_id
-          AND s.fin_utc IS NULL
+          AND s.finalizada_utc IS NULL
         GROUP BY c.componente_orden_id, o.numero_orden, c.codigo_componente,
                  c.descripcion, c.unidad_medida, c.cantidad_teorica
         ORDER BY c.codigo_componente;
