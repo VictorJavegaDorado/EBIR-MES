@@ -86,7 +86,7 @@ public sealed class NavisionSoapMaterialRequester(HttpClient httpClient, Navisio
             XNamespace codeunit = CodeunitNamespace;
             if (document.Descendants(soap + "Fault").Any())
                 throw new MaterialRequestUnavailableException("NAV ha rechazado la solicitud de material.");
-            var succeeded = document.Descendants(codeunit + Operation + "_Result").SingleOrDefault()?.Value;
+            var succeeded = document.Descendants(codeunit + "return_value").SingleOrDefault()?.Value;
             var id = document.Descendants(codeunit + "solicitudId").SingleOrDefault()?.Value;
             if (!bool.TryParse(succeeded, out var ok) || !ok || !int.TryParse(id, out var requestId)
                 || requestId <= 0)

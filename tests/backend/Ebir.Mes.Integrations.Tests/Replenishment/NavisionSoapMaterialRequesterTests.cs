@@ -42,8 +42,10 @@ public sealed class NavisionSoapMaterialRequesterTests
             const string response = """
                 <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
                   <s:Body>
-                    <SolicitarMaterialMES_Result xmlns="urn:microsoft-dynamics-schemas/codeunit/WS_CPP_ControlPlanta">true</SolicitarMaterialMES_Result>
-                    <solicitudId xmlns="urn:microsoft-dynamics-schemas/codeunit/WS_CPP_ControlPlanta">26932</solicitudId>
+                    <SolicitarMaterialMES_Result xmlns="urn:microsoft-dynamics-schemas/codeunit/WS_CPP_ControlPlanta">
+                      <return_value>true</return_value>
+                      <solicitudId>26932</solicitudId>
+                    </SolicitarMaterialMES_Result>
                   </s:Body>
                 </s:Envelope>
                 """;
