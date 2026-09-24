@@ -35,6 +35,13 @@ La relacion de componentes conserva los numeros de linea de NAV. La pagina de
 lineas publicada no expone su numero de linea, por lo que durante el piloto se
 exige exactamente una linea por orden.
 
+Las lineas de componente marcadas en NAV como `Peticion DataCPP` son
+reposiciones adicionales, no componentes originales de la orden. La pagina
+`WS_CPP_Componentes` publica esa marca como `Peticion_DataCPP`; MES valida la
+respuesta completa para detectar una pagina truncada y excluye despues esas
+lineas del snapshot productivo. De este modo una reposicion creada por DataCPP
+no duplica el componente ni impide volver a sincronizar la orden.
+
 El contrato del formato POK, sus validaciones y su uso por la mesa de
 produccion estan documentados en `production-workstation.md`. La lectura usa
 los campos `Item_No`, `Code` y `Qty_per_Unit_of_Measure`. El lector y el modelo

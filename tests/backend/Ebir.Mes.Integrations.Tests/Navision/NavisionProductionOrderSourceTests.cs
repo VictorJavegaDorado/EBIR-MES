@@ -500,6 +500,7 @@ public sealed class NavisionProductionOrderSourceTests
         Assert.Equal("MP-01", component.BinCode);
         Assert.Equal(70m, component.QuantityPicked);
         Assert.True(component.SubstitutionAvailable);
+        Assert.True(component.IsDataCppRequest);
         Assert.Contains("<Criteria>Released</Criteria>", requestBody);
         Assert.Contains("<Criteria>OF26-00042</Criteria>", requestBody);
     }
@@ -861,6 +862,7 @@ public sealed class NavisionProductionOrderSourceTests
                   <Bin_Code>MP-01</Bin_Code>
                   <Qty_Picked>70</Qty_Picked>
                   <Substitution_Available>true</Substitution_Available>
+                  <Peticion_DataCPP>true</Peticion_DataCPP>
                   <Status>Released</Status>
                   <Prod_Order_No>OF26-00042</Prod_Order_No>
                   <Prod_Order_Line_No>10000</Prod_Order_Line_No>

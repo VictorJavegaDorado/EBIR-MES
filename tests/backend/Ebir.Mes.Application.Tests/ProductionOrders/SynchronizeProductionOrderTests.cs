@@ -119,6 +119,27 @@ public sealed class SynchronizeProductionOrderTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_excludes_datacpp_request_components_from_snapshot()
+    {
+        var source = ValidSource();
+        source.Components =
+        [
+            Component(10000),
+            Component(20000) with { IsDataCppRequest = true }
+        ];
+        var store = new StubStore(new(
+            1,
+            ProductionOrderSynchronizationOutcome.Created));
+
+        await new SynchronizeProductionOrder(source, store).ExecuteAsync(
+            Command(), CancellationToken.None);
+
+        var component = Assert.Single(store.Snapshot!.Components);
+        Assert.Equal(10000, component.LineNumber);
+        Assert.False(component.IsDataCppRequest);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_rejects_a_detail_page_at_the_safety_limit()
     {
         var source = ValidSource();

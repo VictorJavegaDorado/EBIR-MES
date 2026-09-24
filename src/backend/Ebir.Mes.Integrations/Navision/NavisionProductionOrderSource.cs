@@ -277,7 +277,8 @@ public sealed class NavisionProductionOrderSource(
             Value(record, page + "Location_Code"),
             Value(record, page + "Bin_Code"),
             ParseDecimal(Value(record, page + "Qty_Picked")),
-            ParseBool(Value(record, page + "Substitution_Available")));
+            ParseBool(Value(record, page + "Substitution_Available")),
+            ParseBool(Value(record, page + "Peticion_DataCPP")));
     }
 
     private static string NormalizeOrderNumber(string orderNumber)

@@ -112,6 +112,7 @@ public sealed class SynchronizeProductionOrder(
                 .ThenBy(step => step.OperationNumber, StringComparer.Ordinal)
                 .ToArray(),
             components
+                .Where(component => !component.IsDataCppRequest)
                 .OrderBy(component => component.ProductionOrderLineNumber)
                 .ThenBy(component => component.LineNumber)
                 .ToArray(),

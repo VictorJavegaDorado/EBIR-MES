@@ -19,4 +19,5 @@ public sealed record ProductionOrderComponentRecord(
     string LocationCode,
     string BinCode,
     decimal QuantityPicked,
-    bool SubstitutionAvailable);
+    bool SubstitutionAvailable,
+    bool IsDataCppRequest = false);
