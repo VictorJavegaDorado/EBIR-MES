@@ -6,6 +6,7 @@ import {
 import type { IdentifiedLine } from "../../line-identification/model/lineIdentification";
 import { PalletClosePage } from "../../pallet-close/ui/PalletClosePage";
 import { PalletRecoveryActions } from "../../pallet-recovery/ui/PalletRecoveryActions";
+import { MaterialRequestDialog } from "../../replenishment-request/ui/MaterialRequestDialog";
 import {
   getProductionOrders,
   ProductionOrderSelectionApiError,
@@ -71,6 +72,9 @@ export function ProductionFlowPage() {
   } | null>(null);
   const operatorTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [palletOperator, setPalletOperator] = useState<
+    ProductionTableState["operators"][number] | null
+  >(null);
+  const [materialOperator, setMaterialOperator] = useState<
     ProductionTableState["operators"][number] | null
   >(null);
   const palletModalRef = useRef<HTMLElement | null>(null);
@@ -882,6 +886,19 @@ export function ProductionFlowPage() {
                               </button>
                             </>
                           )}
+                          <button
+                            type="button"
+                            className="employee-material-action"
+                            disabled={!table || operatorAction !== null}
+                            aria-label={`Solicitar material como ${employee.fullName}`}
+                            onClick={() => {
+                              setError(null);
+                              setNotice("");
+                              setMaterialOperator(employee);
+                            }}
+                          >
+                            Solicitar material
+                          </button>
                         </div>
                       </div>
                     );
@@ -1042,6 +1059,18 @@ export function ProductionFlowPage() {
                     />
                   </section>
                 </div>
+              )}
+
+              {materialOperator && table && (
+                <MaterialRequestDialog
+                  sessionId={table.lineSessionId}
+                  employee={materialOperator}
+                  onCancel={() => setMaterialOperator(null)}
+                  onCreated={(navRequestId, componentCode, quantity) => {
+                    setMaterialOperator(null);
+                    setNotice(`Solicitud ${navRequestId} enviada: ${quantity} ud. de ${componentCode}. Pendiente de crear picking.`);
+                  }}
+                />
               )}
             </section>
           )}

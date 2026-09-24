@@ -51,6 +51,22 @@ vinculado —si existe— y la correlación. Los rechazos `55200–55217` se tra
 a códigos funcionales seguros; las solicitudes inválidas devuelven `400`, los
 conflictos `409` y los fallos no clasificados se ocultan tras `503`.
 
+## Solicitud de falta desde la mesa de producción
+
+La mesa muestra `Solicitar material` para cada operario activo. El diálogo
+consulta los componentes de la orden, avisa de solicitudes locales abiertas y
+admite una cantidad entera positiva. En esta primera entrega el motivo NAV es
+exclusivamente `FALTA`.
+
+`POST /api/line-sessions/{sessionId}/material-requests` crea primero la
+solicitud local auditada y llama después a `SolicitarMaterialMES` de
+`WS_CPP_ControlPlanta`. La misma correlación se conserva ante reintentos. NAV
+la guarda en Table 50013, devuelve su `Id` y reutiliza la fila si recibe de
+nuevo los mismos parámetros. DataCPP e `IncrementarCantidad` no se modifican;
+el picking continúa siendo procesado por el circuito 60101.
+El envío permanece cerrado salvo que `Navision:MaterialRequestEnabled` esté
+activado explícitamente en el entorno.
+
 ## Transición de solicitud de reaprovisionamiento
 
 `POST /api/replenishment-requests/{requestId}/transitions` recibe `newState`,

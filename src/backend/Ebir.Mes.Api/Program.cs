@@ -53,6 +53,7 @@ builder.Services.AddScoped<RegisterScrap>();
 builder.Services.AddScoped<ReviewScrap>();
 builder.Services.AddScoped<CreateReplenishmentRequest>();
 builder.Services.AddScoped<TransitionReplenishmentRequest>();
+builder.Services.AddScoped<RequestProductionMaterial>();
 builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<GetLatestPalletRecovery>();
@@ -92,6 +93,15 @@ builder.Services.AddScoped<IProductionOrderSource>(services =>
     var configuration = ProductionOrderSynchronizationConfiguration.Read(
         services.GetRequiredService<IConfiguration>());
     return new NavisionProductionOrderSource(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient(
+            ProductionOrderSynchronizationConfiguration.HttpClientName),
+        configuration.CreateNavisionOptions());
+});
+builder.Services.AddScoped<INavisionMaterialRequester>(services =>
+{
+    var configuration = ProductionOrderSynchronizationConfiguration.Read(
+        services.GetRequiredService<IConfiguration>());
+    return new NavisionSoapMaterialRequester(
         services.GetRequiredService<IHttpClientFactory>().CreateClient(
             ProductionOrderSynchronizationConfiguration.HttpClientName),
         configuration.CreateNavisionOptions());
@@ -173,6 +183,9 @@ builder.Services.AddScoped<IReplenishmentRequestCreator>(_ =>
 builder.Services.AddScoped<IReplenishmentRequestTransitioner>(_ =>
     new SqlReplenishmentRequestTransitioner(
         builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IMaterialRequestOptionsReader>(_ =>
+    new SqlMaterialRequestOptionsReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IPalletCloser>(_ =>
     new SqlPalletCloser(
         builder.Configuration.GetConnectionString("MesDatabase")));
@@ -220,6 +233,7 @@ app.MapRegisterScrapEndpoints();
 app.MapReviewScrapEndpoints();
 app.MapCreateReplenishmentRequestEndpoints();
 app.MapTransitionReplenishmentRequestEndpoints();
+app.MapProductionMaterialRequestEndpoints();
 app.MapClosePalletEndpoints();
 app.MapPalletCloseOptionsEndpoints();
 app.MapPalletRecoveryEndpoints();

@@ -43,6 +43,10 @@ solicitan la tarjeta RFID del propio operario. El selector muestra solo `WC` y
 `PAUSA_CALOR` y una nota con el número de motivos pendientes de definir; el
 contrato actual solo registra esos dos.
 
+Cada tarjeta activa ofrece además `Solicitar material`. La acción conserva el
+operario solicitante, permite elegir un componente de la orden y una cantidad,
+y envía una falta idempotente a NAV mostrando el identificador 50013 devuelto.
+
 ## Composición fija de Trabajo
 
 La fase 3 se compone como un panel fijo para la pantalla de 32″ a 1920×1080,

@@ -97,6 +97,7 @@
 .employee-actions button.employee-exit-action { color: #8f1d1d; border-color: #e7b5b5; }
 .employee-actions button.employee-pallet-action { grid-column: 1 / -1; order: -1; min-height: 66px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; color: white; background: var(--forest-deep); border-color: var(--forest-deep); font-size: 17px; }
 .employee-actions button.employee-pallet-action:hover { background: var(--forest); }
+.employee-actions button.employee-material-action { color: #174f78; background: #eef8ff; border-color: #9bc8e6; }
 .pallet-action-icon { width: 22px; height: 22px; flex: 0 0 auto; fill: var(--lime); }
 .employee-actions button:disabled { opacity: 0.5; cursor: wait; }
 .employee-chip.paused .employee-actions { grid-template-columns: 1fr; }
@@ -239,6 +240,30 @@
 .pallet-modal-close { width: 46px; height: 46px; display: grid; place-items: center; flex: 0 0 auto; color: var(--forest-deep); background: white; border: 1px solid var(--global-palette7); border-radius: 50%; cursor: pointer; font-size: 25px; line-height: 1; }
 .pallet-modal-close:hover { background: var(--global-palette7); }
 .pallet-modal :focus-visible { outline: 3px solid var(--lime); outline-offset: 2px; }
+
+.material-modal-backdrop { position: fixed; inset: 0; z-index: 1150; display: grid; place-items: center; padding: 24px; background: rgba(26,32,44,.68); backdrop-filter: blur(3px); }
+.material-modal { width: min(820px, 100%); max-height: calc(100vh - 48px); overflow: auto; background: var(--paper); border-radius: 14px; box-shadow: 0 28px 80px rgba(26,32,44,.35); }
+.material-modal > header { display: flex; justify-content: space-between; gap: 20px; padding: 22px 24px 18px; background: white; border-bottom: 1px solid var(--border); }
+.material-modal > header h3 { margin: 2px 0 4px; color: var(--forest-deep); font-size: 31px; }
+.material-modal > header p:last-child { margin: 0; color: var(--muted); }
+.material-modal > header button { width: 48px; height: 48px; border: 1px solid var(--global-palette7); border-radius: 50%; background: white; font-size: 27px; cursor: pointer; }
+.material-modal form { padding: 22px 24px 24px; }
+.material-options { max-height: 390px; overflow: auto; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.material-options label { min-height: 82px; display: flex; align-items: center; gap: 12px; padding: 12px; background: white; border: 2px solid var(--global-palette7); border-radius: 9px; cursor: pointer; }
+.material-options label.selected { border-color: var(--forest); background: #f2faed; }
+.material-options input { width: 22px; height: 22px; }
+.material-options strong,.material-options small,.material-options em { display: block; }
+.material-options strong { color: var(--forest-deep); font-size: 17px; }
+.material-options small { margin-top: 2px; color: var(--muted); }
+.material-options em { margin-top: 4px; color: #9a6500; font-size: 11px; font-style: normal; font-weight: 800; }
+.material-quantity { margin-top: 18px; display: grid; grid-template-columns: 1fr 180px; align-items: center; gap: 15px; color: var(--forest-deep); font-weight: 850; }
+.material-quantity input { min-height: 58px; padding: 0 14px; border: 2px solid var(--forest); border-radius: 8px; font-size: 24px; font-weight: 800; }
+.material-error { margin-top: 14px; padding: 12px; color: #7a1e1e; background: #fff0f0; border-radius: 7px; }
+.material-error strong,.material-error code { display: block; }
+.material-actions { margin-top: 20px; display: grid; grid-template-columns: .4fr 1fr; gap: 10px; }
+.material-actions button { min-height: 60px; border: 1px solid var(--global-palette7); border-radius: 8px; background: white; font-weight: 850; cursor: pointer; }
+.material-actions button[type="submit"] { color: white; background: var(--forest-deep); border-color: var(--forest-deep); }
+.material-actions button:disabled { opacity: .5; cursor: wait; }
 
 .pallet-modal .pallet-close-page { width: 100%; padding: 0; }
 .pallet-modal .pallet-close-layout { grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 14px; padding: 18px; }
@@ -454,6 +479,7 @@
   .employee-avatar { width: 70px; height: 70px; }
   .employee-actions { grid-template-columns: 1fr; }
   .employee-actions button.employee-pallet-action { grid-column: auto; }
+  .material-options { grid-template-columns: 1fr; }
   .operator-rfid-control { grid-template-columns: auto minmax(0, 1fr); }
   .operator-rfid-control button { grid-column: 1 / -1; }
 }
