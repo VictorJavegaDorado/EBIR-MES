@@ -54,6 +54,7 @@ builder.Services.AddScoped<ReviewScrap>();
 builder.Services.AddScoped<CreateReplenishmentRequest>();
 builder.Services.AddScoped<TransitionReplenishmentRequest>();
 builder.Services.AddScoped<RequestProductionMaterial>();
+builder.Services.AddScoped<GetProductionMaterialRequestStatuses>();
 builder.Services.AddScoped<ClosePallet>();
 builder.Services.AddScoped<GetPalletCloseOptions>();
 builder.Services.AddScoped<GetLatestPalletRecovery>();
@@ -102,6 +103,18 @@ builder.Services.AddScoped<INavisionMaterialRequester>(services =>
     var configuration = ProductionOrderSynchronizationConfiguration.Read(
         services.GetRequiredService<IConfiguration>());
     return new NavisionSoapMaterialRequester(
+        services.GetRequiredService<IHttpClientFactory>().CreateClient(
+            ProductionOrderSynchronizationConfiguration.HttpClientName),
+        configuration.CreateNavisionOptions());
+});
+builder.Services.AddScoped<INavisionMaterialRequestStatusReader>(services =>
+{
+    var applicationConfiguration = services.GetRequiredService<IConfiguration>();
+    if (!applicationConfiguration.GetValue<bool>("Navision:MaterialRequestEnabled"))
+        return new DisabledNavisionMaterialRequestStatusReader();
+    var configuration = ProductionOrderSynchronizationConfiguration.Read(
+        applicationConfiguration);
+    return new NavisionSoapMaterialRequestStatusReader(
         services.GetRequiredService<IHttpClientFactory>().CreateClient(
             ProductionOrderSynchronizationConfiguration.HttpClientName),
         configuration.CreateNavisionOptions());
@@ -185,6 +198,9 @@ builder.Services.AddScoped<IReplenishmentRequestTransitioner>(_ =>
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IMaterialRequestOptionsReader>(_ =>
     new SqlMaterialRequestOptionsReader(
+        builder.Configuration.GetConnectionString("MesDatabase")));
+builder.Services.AddScoped<IMaterialRequestTrackingReader>(_ =>
+    new SqlMaterialRequestTrackingReader(
         builder.Configuration.GetConnectionString("MesDatabase")));
 builder.Services.AddScoped<IPalletCloser>(_ =>
     new SqlPalletCloser(

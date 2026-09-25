@@ -264,6 +264,28 @@
 .material-actions button { min-height: 60px; border: 1px solid var(--global-palette7); border-radius: 8px; background: white; font-weight: 850; cursor: pointer; }
 .material-actions button[type="submit"] { color: white; background: var(--forest-deep); border-color: var(--forest-deep); }
 .material-actions button:disabled { opacity: .5; cursor: wait; }
+.material-status-panel { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--global-palette7); border-radius: 10px; background: white; box-shadow: 0 8px 24px rgba(26,32,44,.08); }
+.material-status-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.material-status-panel > header span,.material-status-panel > header strong { display: block; }
+.material-status-panel > header span { color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; }
+.material-status-panel > header strong { color: var(--forest-deep); font-size: 18px; }
+.material-status-panel > header small { color: #8a5a00; }
+.material-status-list { display: grid; gap: 8px; }
+.material-status { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 64px; padding: 10px 12px; border: 2px solid; border-radius: 9px; }
+.material-status div strong,.material-status div small { display: block; }
+.material-status div small { margin-top: 2px; color: var(--muted); }
+.material-status b { padding: 7px 10px; border-radius: 999px; font-size: 13px; white-space: nowrap; }
+.material-status-light { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 4px rgba(0,0,0,.06); }
+.material-status.pending { border-color: #e7bd35; background: #fffbea; }
+.material-status.pending .material-status-light,.material-status.pending b { color: #6b5000; background: #f4c842; }
+.material-status.preparing { border-color: #e28a2b; background: #fff4e8; }
+.material-status.preparing .material-status-light,.material-status.preparing b { color: #713700; background: #ef922f; }
+.material-status.sent { border-color: #5ca86a; background: #effaf1; }
+.material-status.sent .material-status-light,.material-status.sent b { color: #174d24; background: #72c481; }
+.material-status.error { border-color: #c94f4f; background: #fff0f0; }
+.material-status.error .material-status-light,.material-status.error b { color: #6f1717; background: #e36b6b; }
+.material-status.pending .material-status-light,.material-status.preparing .material-status-light { animation: material-status-pulse 1.25s ease-in-out infinite; }
+@keyframes material-status-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .38; transform: scale(.78); } }
 
 .pallet-modal .pallet-close-page { width: 100%; padding: 0; }
 .pallet-modal .pallet-close-layout { grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 14px; padding: 18px; }

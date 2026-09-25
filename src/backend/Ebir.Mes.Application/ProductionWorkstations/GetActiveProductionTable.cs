@@ -1,10 +1,12 @@
 using Ebir.Mes.Application.PalletRecovery;
+using Ebir.Mes.Application.Replenishment;
 
 namespace Ebir.Mes.Application.ProductionWorkstations;
 
 public sealed class GetActiveProductionTable(
     IProductionTableStateReader reader,
-    IPalletRecoveryStateReader? recoveryReader = null)
+    IPalletRecoveryStateReader? recoveryReader = null,
+    GetProductionMaterialRequestStatuses? materialStatuses = null)
 {
     public async Task<ActiveProductionTableRecord?> ExecuteAsync(
         long lineId,
@@ -16,19 +18,28 @@ public sealed class GetActiveProductionTable(
         }
 
         var active = await reader.ReadActiveByLineAsync(lineId, cancellationToken);
-        if (active is null || recoveryReader is null) return active;
-        try
+        if (active is null) return null;
+        var table = active.Table;
+        if (recoveryReader is not null)
         {
-            var recovery = await recoveryReader.ReadLatestAsync(
-                active.Table.LineSessionId, cancellationToken);
-            return active with
+            try
             {
-                Table = active.Table with { LatestPalletRecovery = recovery }
-            };
+                var recovery = await recoveryReader.ReadLatestAsync(
+                    table.LineSessionId, cancellationToken);
+                table = table with { LatestPalletRecovery = recovery };
+            }
+            catch (PalletRecoveryUnavailableException) { }
         }
-        catch (PalletRecoveryUnavailableException)
+        if (materialStatuses is not null)
         {
-            return active;
+            try
+            {
+                var requests = await materialStatuses.ExecuteAsync(
+                    table.LineSessionId, cancellationToken);
+                table = table with { MaterialRequests = requests };
+            }
+            catch (MaterialRequestUnavailableException) { }
         }
+        return active with { Table = table };
     }
 }

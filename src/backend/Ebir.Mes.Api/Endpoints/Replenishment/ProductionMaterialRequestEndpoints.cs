@@ -12,6 +12,9 @@ public static class ProductionMaterialRequestEndpoints
         endpoints.MapPost("/api/line-sessions/{sessionId:long}/material-requests",
             RequestAsync).Produces<MaterialRequestResponse>(201)
             .ProducesProblem(400).ProducesProblem(409).ProducesProblem(503);
+        endpoints.MapGet("/api/line-sessions/{sessionId:long}/material-request-statuses",
+            GetStatusesAsync).Produces<IReadOnlyList<ProductionMaterialRequestStatus>>()
+            .ProducesProblem(503);
         return endpoints;
     }
 
@@ -46,6 +49,22 @@ public static class ProductionMaterialRequestEndpoints
                     title: "Solicitud de material rechazada", detail: result.ErrorMessage,
                     extensions: new Dictionary<string, object?> { ["code"] = result.ErrorCode });
         }
+        catch (MaterialRequestUnavailableException) { return Unavailable(); }
+    }
+
+    private static async Task<IResult> GetStatusesAsync(
+        long sessionId,
+        GetProductionMaterialRequestStatuses useCase,
+        IConfiguration configuration,
+        CancellationToken cancellationToken)
+    {
+        if (!configuration.GetValue<bool>("Navision:MaterialRequestEnabled"))
+            return Results.Problem(statusCode: 503,
+                title: "Seguimiento de material no disponible",
+                detail: "El seguimiento de solicitudes NAV está desactivado.",
+                extensions: new Dictionary<string, object?>
+                { ["code"] = "MATERIAL_REQUEST_DISABLED" });
+        try { return Results.Ok(await useCase.ExecuteAsync(sessionId, cancellationToken)); }
         catch (MaterialRequestUnavailableException) { return Unavailable(); }
     }
 

@@ -7,6 +7,21 @@ export type MaterialRequestOption = {
   openRequestCount: number;
 };
 
+export type MaterialRequestStatus = {
+  id: number;
+  navRequestId: number;
+  correlationId: string;
+  componentCode: string;
+  description: string;
+  quantity: number;
+  requestedAtUtc: string;
+  state: "PENDING" | "PREPARING" | "SENT" | "ERROR";
+  navState: string;
+  pickingNumber: string | null;
+  registeredAt: string | null;
+  error: string | null;
+};
+
 type ApiProblem = { code?: string; detail?: string };
 
 export class MaterialRequestApiError extends Error {

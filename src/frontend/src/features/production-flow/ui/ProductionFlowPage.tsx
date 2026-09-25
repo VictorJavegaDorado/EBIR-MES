@@ -7,6 +7,7 @@ import type { IdentifiedLine } from "../../line-identification/model/lineIdentif
 import { PalletClosePage } from "../../pallet-close/ui/PalletClosePage";
 import { PalletRecoveryActions } from "../../pallet-recovery/ui/PalletRecoveryActions";
 import { MaterialRequestDialog } from "../../replenishment-request/ui/MaterialRequestDialog";
+import { MaterialRequestStatusPanel } from "../../replenishment-request/ui/MaterialRequestStatusPanel";
 import {
   getProductionOrders,
   ProductionOrderSelectionApiError,
@@ -717,6 +718,8 @@ export function ProductionFlowPage() {
         </div>
       )}
 
+      {table && <MaterialRequestStatusPanel requests={table.materialRequests ?? []} />}
+
       {working ? (
         <div className="flow-topline">
           {progress}
@@ -1069,6 +1072,7 @@ export function ProductionFlowPage() {
                   onCreated={(navRequestId, componentCode, quantity) => {
                     setMaterialOperator(null);
                     setNotice(`Solicitud ${navRequestId} enviada: ${quantity} ud. de ${componentCode}. Pendiente de crear picking.`);
+                    setRefreshSequence((current) => current + 1);
                   }}
                 />
               )}

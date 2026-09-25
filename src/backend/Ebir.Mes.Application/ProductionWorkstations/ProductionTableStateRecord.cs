@@ -1,4 +1,5 @@
 using Ebir.Mes.Application.PalletRecovery;
+using Ebir.Mes.Application.Replenishment;
 
 namespace Ebir.Mes.Application.ProductionWorkstations;
 
@@ -17,4 +18,5 @@ public sealed record ProductionTableStateRecord(
     IReadOnlyList<ProductionTableOperatorRecord> Operators,
     PalletRecoveryStateRecord? LatestPalletRecovery = null,
     decimal TheoreticalUnitsToDate = 0m,
-    long ResourceSeconds = 0);
+    long ResourceSeconds = 0,
+    IReadOnlyList<ProductionMaterialRequestStatus>? MaterialRequests = null);

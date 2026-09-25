@@ -1,5 +1,6 @@
 import type { ProductionOrder } from "../../production-order-selection/model/productionOrder";
 import type { PalletRecoveryState } from "../../pallet-recovery/api/palletRecovery";
+import type { MaterialRequestStatus } from "../../replenishment-request/api/materialRequest";
 
 export type ProductionTableOperator = {
   employeeId: number;
@@ -26,6 +27,7 @@ export type ProductionTableState = {
   latestPalletRecovery?: PalletRecoveryState | null;
   theoreticalUnitsToDate: number;
   resourceSeconds: number;
+  materialRequests?: MaterialRequestStatus[] | null;
 };
 
 export type ActiveProductionTable = {

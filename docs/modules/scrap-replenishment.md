@@ -67,6 +67,15 @@ el picking continúa siendo procesado por el circuito 60101.
 El envío permanece cerrado salvo que `Navision:MaterialRequestEnabled` esté
 activado explícitamente en el entorno.
 
+La actualización normal de la mesa recupera cada diez segundos las solicitudes
+de su sesión. El contexto se lee de `EBIR_MES_TEST` y el estado real se consulta
+en NAV por la correlación idempotente mediante `ConsultarSolicitudMaterialMES`.
+La interfaz muestra `PENDING` en amarillo intermitente, `PREPARING` en naranja
+intermitente, `SENT` en verde y `ERROR` en rojo. Los estados proceden de Table
+50013: `Pendiente Crear`; `Sin Registrar`/`Parcialment Registrado`;
+`Registrado`/`Enviado`; y `Error`/`Sin Stock`/`Anulado`, respectivamente.
+El número de picking y su error se presentan cuando NAV los informa.
+
 ## Transición de solicitud de reaprovisionamiento
 
 `POST /api/replenishment-requests/{requestId}/transitions` recibe `newState`,
