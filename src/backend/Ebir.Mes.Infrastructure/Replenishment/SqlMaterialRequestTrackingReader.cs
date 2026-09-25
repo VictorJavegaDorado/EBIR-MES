@@ -7,25 +7,6 @@ namespace Ebir.Mes.Infrastructure.Replenishment;
 public sealed class SqlMaterialRequestTrackingReader(string? connectionString)
     : IMaterialRequestTrackingReader
 {
-    private const string Query = """
-        SELECT TOP (10)
-               r.solicitud_id,
-               a.correlacion_id,
-               c.codigo_componente,
-               c.descripcion,
-               r.cantidad_solicitada,
-               r.solicitada_utc
-        FROM [log].solicitudes_reaprovisionamiento r
-        INNER JOIN nav.componentes_orden c
-          ON c.componente_orden_id = r.componente_orden_id
-        INNER JOIN aud.eventos a
-          ON a.entidad = N'log.solicitudes_reaprovisionamiento'
-         AND a.entidad_id = r.solicitud_id
-         AND a.tipo_evento = N'REAPROVISIONAMIENTO_SOLICITADO'
-        WHERE r.sesion_linea_id = @sesion_linea_id
-        ORDER BY r.solicitada_utc DESC, r.solicitud_id DESC;
-        """;
-
     public async Task<IReadOnlyList<MaterialRequestTrackingRecord>> ReadAsync(
         long lineSessionId,
         CancellationToken cancellationToken)
@@ -37,8 +18,9 @@ public sealed class SqlMaterialRequestTrackingReader(string? connectionString)
         {
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken);
-            await using var command = new SqlCommand(Query, connection)
-            { CommandType = CommandType.Text, CommandTimeout = 5 };
+            await using var command = new SqlCommand(
+                "[log].listar_seguimiento_solicitudes_material_mes", connection)
+            { CommandType = CommandType.StoredProcedure, CommandTimeout = 5 };
             command.Parameters.Add("@sesion_linea_id", SqlDbType.BigInt).Value = lineSessionId;
             var result = new List<MaterialRequestTrackingRecord>();
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
